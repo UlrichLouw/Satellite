@@ -14,7 +14,6 @@ from tensorflow.keras import layers
 from sklearn.metrics import confusion_matrix
 import collections
 from tensorflow.keras.models import model_from_json
-from Statistical_fault import Binary_stat_fault
 from Fault_utils import Dataset_order
 import os
 

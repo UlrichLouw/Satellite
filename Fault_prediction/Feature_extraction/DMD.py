@@ -2,19 +2,12 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from pydmd import DMD
+from Simulation.Parameters import SET_PARAMS
+from Fault_prediction.Fault_utils import Dataset_order
 
 # Firstly the data must be extracted from the csv file. 
 # Afterwards the DMD operations must be executed.
 
-def f1(x,t): 
-    return 1./np.cosh(x+3)*np.exp(2.3j*t)
-
-def f2(x,t):
-    return 2./np.cosh(x)*np.tanh(x)*np.exp(2.8j*t)
-
-x = np.linspace(-5, 5, 128)
-
-Data = pd.read_csv("Data files/None.csv")
 t = range(len(Data.index))
 
 xgrid, tgrid = np.meshgrid(x, t)
@@ -36,7 +29,6 @@ for n, title, d in zip(range(131,134), titles, data):
 plt.colorbar()
 plt.show()
 
-
 """
 The dmd object contains the principal information about the decomposition:
 
@@ -49,7 +41,6 @@ Moreover, some helpful methods for the graphical representation are provided.
 
 Thanks to the eigenvalues, we can check if the modes are stable or not: if an eigenvalue is on the unit circle, the corresponding mode will be stable; while if an eigenvalue is inside or outside the unit circle, the mode will converge or diverge, respectively. From the following plot, we can note that the two modes are stable.
 """
-
 dmd = DMD(svd_rank=2)
 dmd.fit(X.T)
 

@@ -19,17 +19,24 @@ def Binary_split(classified_data):
 
 def Dataset_order(index, binary_set, buffer, categorical_num, use_previously_saved_models = False, columns_compare = None, columns_compare_to = None):
     #X_buffer_replaced = []
-    if SET_PARAMS.load_as == ".xlsx":
-        excel_file = SET_PARAMS.filename + ".xlsx"
-        xls = pd.ExcelFile(excel_file)
-        Data = pd.read_excel(xls, str(index))
-    elif SET_PARAMS.load_as == ".csv":
-        csv_file = SET_PARAMS.filename + str(index) + ".csv"
-        Data = pd.read_csv(csv_file)
+    if isinstance(index, int):
+        if SET_PARAMS.load_as == ".xlsx":
+            excel_file = SET_PARAMS.filename + ".xlsx"
+            xls = pd.ExcelFile(excel_file)
+            Data = pd.read_excel(xls, str(index))
+        elif SET_PARAMS.load_as == ".csv":
+            csv_file = SET_PARAMS.filename + str(index) + ".csv"
+            Data = pd.read_csv(csv_file)
+        else:
+            pickle_file = SET_PARAMS.filename + str(index) + ".pkl"
+            Data = pd.read_pickle(pickle_file)
     else:
-        pickle_file = SET_PARAMS.filename + str(index) + ".pkl"
-        Data = pd.read_pickle(pickle_file)
-    
+        if SET_PARAMS.load_as == ".csv":
+            csv_file = SET_PARAMS.path + index + ".csv"
+            Data = pd.read_csv(csv_file)
+        else:
+            pickle_file = SET_PARAMS.path + index+ ".pkl"
+            Data = pd.read_pickle(pickle_file)
     Data = Data.loc[:, ~Data.columns.str.contains("^Unnamed")]
 
 
