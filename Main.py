@@ -71,6 +71,8 @@ def loop(index, D, Data, orbit_descriptions):
     orbit_descriptions[index] = D.fault
 
     if SET_PARAMS.save_as == ".csv":
+        path_to_folder = Path("Data files/")
+        path_to_folder.mkdir(exist_ok=True)
         save_as_csv(Data, filename = SET_PARAMS.Fault_names_values[index], index = index)
     else:
         save_as_pickle(Data, index)
@@ -83,10 +85,10 @@ if __name__ == "__main__":
     # IF THE SAVE AS IS EQUAL TO XLSX, THE THREADING CANNOT #
     #           BE USED TO SAVE CSV FILES                   #     
     #########################################################
-    SET_PARAMS.Display = True
+    SET_PARAMS.Display = False
     SET_PARAMS.save_as = ".csv"
     SET_PARAMS.Kalman_filter_use = "EKF"
-    SET_PARAMS.Number_of_orbits = 0.1
+    SET_PARAMS.Number_of_orbits = 10
     SET_PARAMS.Number_of_multiple_orbits = 1
     SET_PARAMS.skip = 20
     SET_PARAMS.Number_of_satellites = 1

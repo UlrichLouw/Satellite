@@ -3,6 +3,7 @@ import numpy as np
 from sgp4.api import jday
 from struct import *
 from scipy import special
+import pathlib
 
 pi = math.pi
 
@@ -207,7 +208,7 @@ class SET_PARAMS:
     buffer_size = 20
 
     # File names for the storage of the data attained during the simulation
-    path = "Data_files/"
+    path = "/".join(str(pathlib.Path(__file__).parent.resolve()).split("/")[:-1]) + "/Data files/"
     filename = "Faults" + data_mode
 
     #####################
