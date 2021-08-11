@@ -1,17 +1,8 @@
-import matplotlib.pyplot as plt
 import numpy as np
-import pandas as pd
-from pydmd import DMD
 from Simulation.Parameters import SET_PARAMS
 from Fault_prediction.Fault_utils import Dataset_order
-import matplotlib as mpl
-from mpl_toolkits.mplot3d import Axes3D
-from numpy import dot, multiply, diag, power
-from numpy import pi, exp, sin, cos, cosh, tanh, real, imag
-from numpy.linalg import inv, eig, pinv
-from scipy.linalg import svd, svdvals
-from scipy.integrate import odeint, ode, complex_ode
-from warnings import warn
+import sys
+np.set_printoptions(threshold=sys.maxsize)
 
 SET_PARAMS.load_as == ".csv"
 Plot = True
@@ -19,14 +10,39 @@ Plot = True
 # Afterwards the DMD operations must be executed.
 Y, Y_buffer, X, X_buffer, Orbit = Dataset_order("None", binary_set = True, buffer = False, categorical_num = False)
 
+fromTimeStep = 0
+ToTimeStep = 1000
 
-t = len(Y) - 1
+sensor_number = 4
+
+t = len(Y) - ToTimeStep - fromTimeStep
 # Select the data for the sensor of interest
-x1 = X[:-1,:3].T
+x1 = X[fromTimeStep:ToTimeStep-1,3*sensor_number:3*sensor_number + 3].T
 
 # Select the data for the sensors that will be used to predict the next step of sensor x
-x2 = X[1:,:3].T
+x2 = X[fromTimeStep + 1:ToTimeStep,3*sensor_number:3*sensor_number + 3].T
 
+# Select y, which impacts the vector x (Control DMD)
+y1 = np.roll(X, 3*sensor_number)[fromTimeStep:ToTimeStep-1,3:].T
+
+y2 = np.roll(X, 3*sensor_number)[fromTimeStep:ToTimeStep,3:].T
+
+#! Without control matrix B
+#! A = x2 @ np.linalg.pinv(x1)
+#! x2_approximate = A @ x1
+
+G = x2 @ np.linalg.pinv(np.concatenate((x1, y1)))
+
+A = G[:,:3]
+B = G[:,3:]
+
+x2_approximate = A @ x1 + B @ y1
+
+maximum = np.max(np.abs(x2 - x2_approximate))
+
+print(maximum)
+
+"""
 # SVD of input matrix
 U2,Sig2,Vh2 = svd(x1, False)
 
@@ -69,8 +85,5 @@ for i,_t in enumerate(range(t)):
 
 # compute DMD reconstruction
 D2 = dot(Phi, Psi)
-print(x1)
-print(D2.real)
-print(np.allclose(x1, D2.real)) # True
 
-print(np.max(x1 - D2.real))
+"""
