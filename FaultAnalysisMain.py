@@ -27,6 +27,7 @@ y1 = np.roll(X, 3*sensor_number)[fromTimeStep:ToTimeStep-1,3:].T
 
 y2 = np.roll(X, 3*sensor_number)[fromTimeStep:ToTimeStep,3:].T
 
+
 #! Without control matrix B
 #! A = x2 @ np.linalg.pinv(x1)
 #! x2_approximate = A @ x1
