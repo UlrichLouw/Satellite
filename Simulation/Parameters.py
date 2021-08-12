@@ -211,6 +211,10 @@ class SET_PARAMS:
     path = "/".join(str(pathlib.Path(__file__).parent.resolve()).split("/")[:-1]) + "/Data files/"
     filename = "Faults" + data_mode
 
+    # Path to hyperparameters
+    pathHyperParameters = "/".join(str(pathlib.Path(__file__).parent.resolve()).split("/")[:-1]) + "/Hyperparameters/"
+
+
     #####################
     # MODE OF OPERATION #
     #####################
@@ -231,21 +235,22 @@ class SET_PARAMS:
     "Erroneous_sun": 6, 
     "Inverted_polarities_magnetorquers": 7,
     "Interference_magnetic": 8, 
-    "Stop_magnetometers": 9, 
-    "Closed_shutter": 10,
-    "Increasing_angular_RW_momentum": 11, 
-    "Decreasing_angular_RW_momentum": 12, 
-    "Oscillating_angular_RW_momentum": 13,
-    "Bit_flip": 14,
-    "Sign_flip": 15,
-    "Insertion_of_zero_bit": 16,
-    "General_sensor_high_noise": 17,
+    "Stop_magnetometers": 9,
+    "Increasing_angular_RW_momentum": 10, 
+    "Decreasing_angular_RW_momentum": 11, 
+    "Oscillating_angular_RW_momentum": 12,
+    "Bit_flip": 13,
+    "Sign_flip": 14,
+    "Insertion_of_zero_bit": 15,
+    "General_sensor_high_noise": 16,
+    "closed_shutter" : 17
     }
+
     likelyhood_multiplier = 1
     #Fault_simulation_mode = 1 # Continued failure, a mistake that does not go back to normal
     #Fault_simulation_mode = 0 # Failure is based on specified class failure rate. Multiple failures can occure simultaneously
     Fault_simulation_mode = 2 # A single fault occurs per orbit
-    fixed_orbit_failure = 2
+    fixed_orbit_failure = 1.1
 
     
     #####################################################################################

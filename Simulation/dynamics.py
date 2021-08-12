@@ -176,6 +176,7 @@ class Dynamics:
             N_control_wheel = self.Control_fault.Decreasing_angular_RW_momentum(N_control_wheel)
             N_control_wheel = self.Control_fault.Oscillating_angular_RW_momentum(N_control_wheel)
 
+        N_control_wheel = np.clip(N_control_wheel, -SET_PARAMS.N_ws_max, SET_PARAMS.N_ws_max)
         N_aero = 0 # ! self.dist.Aerodynamic(self.A_ORC_to_SBC, self.A_EIC_to_ORC, self.sun_in_view)
 
         ###################################
@@ -223,6 +224,10 @@ class Dynamics:
         self.angular_momentum = rungeKutta_h(x0, self.angular_momentum, x, h, N_control_wheel)
 
         self.angular_momentum = self.Angular_sensor_fault.normal_noise(self.angular_momentum, SET_PARAMS.Angular_sensor_noise)
+
+        self.angular_momentum = np.clip(self.angular_momentum, -SET_PARAMS.h_ws_max, SET_PARAMS.h_ws_max)
+
+        y = np.clip(y, -SET_PARAMS.wheel_angular_d_max, SET_PARAMS.wheel_angular_d_max)
 
         return y
 
@@ -339,7 +344,12 @@ class Dynamics:
 
         # Model star tracker vector as measured
         self.star_tracker_vector_measured = self.Star_tracker_fault.normal_noise(self.A_ORC_to_SBC @ self.star_tracker_vector,SET_PARAMS.star_tracker_noise)
-        self.star_tracker_vector_measured = self.star_tracker_vector_measured/np.linalg.norm(self.star_tracker_vector_measured)
+        star_norm = np.linalg.norm(self.star_tracker_vector_measured)
+        if star_norm != 0:
+            self.star_tracker_vector_measured = self.star_tracker_vector_measured/np.linalg.norm(self.star_tracker_vector_measured)
+        else:
+            self.star_tracker_vector_measured = np.zeros(self.star_tracker_vector_measured.shape)
+        
         self.star_tracker_vector_measured = self.Star_tracker_fault.Closed_shutter(self.star_tracker_vector_measured)
 
         self.sensor_vectors = {
@@ -415,14 +425,14 @@ class Dynamics:
                 if not (v_ORC_k == 0.0).all():
                     # If the measured vektor is equal to 0 then the sensor is not able to view the desired measurement
                     x = self.RKF.Kalman_update(v_measured_k, self.Nm, self.Nw, self.Ngyro, self.t)
-                    self.w_bi_est = x
+                    self.w_bi_est = np.clip(x, -SET_PARAMS.wheel_angular_d_max, SET_PARAMS.wheel_angular_d_max)
                     self.q_est = self.q
         else:
             self.w_bi_est = self.w_bi
             self.q_est = self.q
 
         if np.isnan(self.w_bi).any():
-            print("break")
+            print("Break")
 
         self.t += self.dt
 

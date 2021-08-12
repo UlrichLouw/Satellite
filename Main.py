@@ -42,6 +42,7 @@ def loop(index, D, Data, orbit_descriptions):
 
         if SET_PARAMS.Fault_simulation_mode == 2 and j%(int(SET_PARAMS.Number_of_orbits*SET_PARAMS.Period/(SET_PARAMS.faster_than_control*SET_PARAMS.Ts)/SET_PARAMS.fixed_orbit_failure)) == 0:
             D.initiate_purposed_fault(SET_PARAMS.Fault_names_values[index])
+            print(SET_PARAMS.Fault_names_values[index], " is initiated")
             if SET_PARAMS.Display:
                 pv.fault = D.fault
 
@@ -86,10 +87,11 @@ if __name__ == "__main__":
     #           BE USED TO SAVE CSV FILES                   #     
     #########################################################
     SET_PARAMS.Display = False
+    SET_PARAMS.Visualize = False
     SET_PARAMS.save_as = ".csv"
-    SET_PARAMS.Kalman_filter_use = "EKF"
-    SET_PARAMS.Number_of_orbits = 10
-    SET_PARAMS.Number_of_multiple_orbits = 1
+    SET_PARAMS.Kalman_filter_use = "None"
+    SET_PARAMS.Number_of_orbits = 1
+    SET_PARAMS.Number_of_multiple_orbits = 16
     SET_PARAMS.skip = 20
     SET_PARAMS.Number_of_satellites = 1
     SET_PARAMS.Constellation = False
@@ -166,8 +168,8 @@ if __name__ == "__main__":
 
                 # Detect faults based on data from Dynamics (D):
                 Fault = FD.Per_Timestep(D.Orbit_Data, None)
-                if Fault != "None":
-                    print(Fault)
+                #if Fault != "None":
+                #    print(Fault)
 
                 if SET_PARAMS.Display and j%SET_PARAMS.skip == 0:
                     pv.run(w, q, A, r, sun_in_view)
@@ -211,7 +213,7 @@ if __name__ == "__main__":
             threads.append(t)
             t.start()
             print("Beginning of", i)
-            if i%15 == 0 or i == SET_PARAMS.Number_of_multiple_orbits:
+            if i == SET_PARAMS.Number_of_multiple_orbits:
                 for process in threads:     
                     process.join()
 

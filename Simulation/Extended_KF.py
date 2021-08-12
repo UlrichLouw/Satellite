@@ -380,6 +380,8 @@ def rungeKutta_h(x0, angular, x, h, N_control):
 
         x0 = x0 + h; 
     
+    y = np.clip(y, -SET_PARAMS.h_ws_max, SET_PARAMS.h_ws_max)
+    
     return y
 
 ########################################################################################
@@ -412,6 +414,8 @@ def rungeKutta_w(Inertia, x0, w, x, h, angular_momentum, Nw, Nm, Ngg):
         x0 = x0 + h; 
 
     angular_momentum = rungeKutta_h(x0, angular_momentum, x, h, Nw)
+
+    y = np.clip(y, -SET_PARAMS.wheel_angular_d_max, SET_PARAMS.wheel_angular_d_max)
 
     return y, angular_momentum
 

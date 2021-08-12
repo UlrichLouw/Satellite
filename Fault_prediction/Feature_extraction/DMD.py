@@ -1,105 +1,37 @@
-import matplotlib.pyplot as plt
-import numpy as np
-import pandas as pd
-from pydmd import DMD
-from Simulation.Parameters import SET_PARAMS
 from Fault_prediction.Fault_utils import Dataset_order
+import numpy as np
+from Simulation.Parameters import SET_PARAMS
+from pathlib import Path
 
-# Firstly the data must be extracted from the csv file. 
-# Afterwards the DMD operations must be executed.
+def MatrixAB(path, fromTimeStep = 0, ToTimeStep = 1000):
+    SET_PARAMS.load_as == ".csv"
+    # Firstly the data must be extracted from the csv file. 
+    # Afterwards the DMD operations must be executed.
+    Y, _, X, _, _ = Dataset_order("None", binary_set = True, buffer = False, categorical_num = False)
 
-t = range(len(Data.index))
+    sensor_number = 4
 
-xgrid, tgrid = np.meshgrid(x, t)
+    t = len(Y) - ToTimeStep - fromTimeStep
+    # Select the data for the sensor of interest
+    x1 = X[fromTimeStep:ToTimeStep-1,3*sensor_number:3*sensor_number + 3].T
 
-X1 = f1(xgrid, tgrid)
-X2 = f2(xgrid, tgrid)
-X = X1 + X2
+    # Select the data for the sensors that will be used to predict the next step of sensor x
+    x2 = X[fromTimeStep + 1:ToTimeStep,3*sensor_number:3*sensor_number + 3].T
 
+    # Select y, which impacts the vector x (Control DMD)
+    y1 = np.roll(X, 3*sensor_number)[fromTimeStep:ToTimeStep-1,3:].T
 
+    #! Without control matrix B
+    #! A = x2 @ np.linalg.pinv(x1)
+    #! x2_approximate = A @ x1
 
-titles = ['$f_1(x,t)$', '$f_2(x,t)$', '$f$']
-data = [X1, X2, X]
+    G = x2 @ np.linalg.pinv(np.concatenate((x1, y1)))
 
-fig = plt.figure(figsize=(17,6))
-for n, title, d in zip(range(131,134), titles, data):
-    plt.subplot(n)
-    plt.pcolor(xgrid, tgrid, d.real)
-    plt.title(title)
-plt.colorbar()
-plt.show()
+    A = G[:,:3]
+    B = G[:,3:]
 
-"""
-The dmd object contains the principal information about the decomposition:
+    path_to_folder = Path(path)
+    path_to_folder.mkdir(exist_ok=True)
 
-    the attribute modes is a 2D numpy array where the columns are the low-rank structures individuated;
-    the attribute dynamics is a 2D numpy array where the rows refer to the time evolution of each mode;
-    the attribute eigs refers to the eigenvalues of the low dimensional operator;
-    the attribute reconstructed_data refers to the approximated system evolution.
-
-Moreover, some helpful methods for the graphical representation are provided.
-
-Thanks to the eigenvalues, we can check if the modes are stable or not: if an eigenvalue is on the unit circle, the corresponding mode will be stable; while if an eigenvalue is inside or outside the unit circle, the mode will converge or diverge, respectively. From the following plot, we can note that the two modes are stable.
-"""
-dmd = DMD(svd_rank=2)
-dmd.fit(X.T)
-
-#####################################################
-# FINALLY, WE CAN RECONSTRUCT THE ORIGINAL DATASET  #
-# AS THE PRODUCT OF MODES AND DYNAMICS. WE PLOT     #
-# THE EVOLUTION OF EACH MODE TO EMPHASIZE THEIR     #
-# SIMILARITY WITH THE INPUT FUNCTIONS AND WE PLOT   #
-# THE RECONSTRUCTED DATA.                           #
-#####################################################
-
-for mode in dmd.modes.T:
-    plt.plot(x, mode.real)
-    plt.title('Modes')
-plt.show()
-
-for dynamic in dmd.dynamics:
-    plt.plot(t, dynamic.real)
-    plt.title('Dynamics')
-plt.show()
-
-
-
-###########################################################################################
-# WE CAN ALSO PLOT THE ABSOLUTE ERROR BETWEEN THE APPROXIMATED DATA AND THE ORIGINAL ONE. #
-###########################################################################################
-
-fig = plt.figure(figsize=(17,6))
-
-for n, mode, dynamic in zip(range(131, 133), dmd.modes.T, dmd.dynamics):
-    plt.subplot(n)
-    plt.pcolor(xgrid, tgrid, (mode.reshape(-1, 1).dot(dynamic.reshape(1, -1))).real.T)
-    
-plt.subplot(133)
-plt.pcolor(xgrid, tgrid, dmd.reconstructed_data.T.real)
-plt.colorbar()
-
-plt.show()
-
-
-
-####################################################################
-# THE RECONSTRUCTED SYSTEM LOOKS ALMOST EQUAL TO THE ORIGINAL ONE: #
-# THE DYNAMIC MODE DECOMPOSITION MADE POSSIBLE THE IDENTIFICATION  #
-# OF THE MEANINGFUL STRUCTURES AND THE COMPLETE RECONSTRUCTION OF  #
-#          THE SYSTEM USING ONLY THE COLLECTED SNAPSHOTS.          #
-####################################################################
-
-
-plt.pcolor(xgrid, tgrid, (X-dmd.reconstructed_data.T).real)
-fig = plt.colorbar()
-
-
-
-plt.pcolor(xgrid, tgrid, (X-dmd.reconstructed_data.T).real)
-fig = plt.colorbar()
-
-
-
-plt.pcolor(xgrid, tgrid, (X-dmd.reconstructed_data.T).real)
-fig = plt.colorbar()
-
+    np.save(SET_PARAMS.pathHyperParameters + 'PhysicsEnabledDMDMethod/A_matrixs.npy', A)
+    np.save(SET_PARAMS.pathHyperParameters + 'PhysicsEnabledDMDMethod/B_matrix.npy', B)

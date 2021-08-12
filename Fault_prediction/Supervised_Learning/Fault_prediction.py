@@ -1,21 +1,9 @@
-import sys
-
-sys.path.insert(1, '.../Satellite-simulation')
-#sys.path.insert(1, '../Fault_prediction')
-
-import pandas as pd
-from Simulation.Parameters import SET_PARAMS
 import numpy as np
 import tensorflow as tf
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
-from tensorflow import feature_column
-from tensorflow.keras import layers
 from sklearn.metrics import confusion_matrix
-import collections
 from tensorflow.keras.models import model_from_json
-from Fault_utils import Dataset_order
-import os
 
 print(tf.config.list_physical_devices("GPU"))
 
@@ -151,7 +139,7 @@ def prediction_NN(X, Y, index, direction):
     cm = confusion_matrix(y_test, y_pred.round())
     return cm
 
-def prediction_NN_determine_other_NN(X, Y):
+def prediction_NN_determine_other_NN(X, Y, SET_PARAMS):
     X_train, X_test, y_train, y_test = train_test_split(X, Y, test_size = 0.2)
     X_train = np.asarray(sc.fit_transform(X_train)).astype(np.float32)
     X_test = np.asarray(sc.transform(X_test)).astype(np.float32)
@@ -207,38 +195,5 @@ def prediction_NN_determine_other_NN(X, Y):
 
     return cm
 
-if __name__ == "__main__":
-    confusion_matrices = []
-    All_orbits = []
-    X_buffer = []
-    Y_buffer = []
-    buffer = True
-    binary_set = True
-    use_previously_saved_models = False
-    categorical_num = True
-    
-    for index in range(SET_PARAMS.Number_of_multiple_orbits):
-        Y, Y_buffer, X, X_buffer, Orbit = Dataset_order(index, binary_set, buffer, categorical_num, use_previously_saved_models)
-        All_orbits.append(Orbit)
 
-        if use_previously_saved_models == False:
-            cm = prediction_NN(X, Y, index, None)
-            print(cm, str(index))      
-    
-    if buffer == False:
-        All_orbits = pd.concat(All_orbits)
-        X = All_orbits.iloc[:,1:-1].values
-        Y = All_orbits.iloc[:,-1].values
-    else:
-        X = np.asarray(X_buffer)
-        Y = np.asarray(Y_buffer).reshape(X.shape[0], Y.shape[1])
-
-    if use_previously_saved_models == False:
-        index = "all samples"
-        cm = prediction_NN(X, Y, index, None)
-        print(cm, index)
-
-    else:
-        cm = prediction_NN_determine_other_NN(X, Y)
-        print(cm)
     
