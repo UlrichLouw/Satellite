@@ -207,6 +207,12 @@ class SET_PARAMS:
     buffer_mode = True
     buffer_size = 20
 
+    ###############################
+    # FAULT PREDICTION PARAMETERS #
+    ###############################
+    FeatureExtractionMethods = ["PCA", "DMD"]
+    FaultPredictionMethods = ["PhysicsEnabledDMDDecisionTree", "ANN", "RandomForest"]
+
     # File names for the storage of the data attained during the simulation
     path = "/".join(str(pathlib.Path(__file__).parent.resolve()).split("/")[:-1]) + "/Data files/"
     filename = "Faults" + data_mode

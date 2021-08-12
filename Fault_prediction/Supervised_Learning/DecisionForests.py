@@ -51,3 +51,16 @@ def DecisionTreeAllAnomalies(path, depth):
         fig.savefig(path + '/DecisionTree.png')
 
     pickle.dump(clf, open(path + '/DecisionTreesPhysicsEnabledDMD.sav', 'wb'))
+
+#######################################
+# PREDICT WHETHER THERE IS AN ANOMALY #
+#######################################
+class DecisionTreePredict():
+    def __init__(self, path):
+        self.clf = pickle.load(open(path, 'rb'))
+    
+    def Predict(self, X):
+        y_predict = self.clf.predict(X)
+        if y_predict:
+            print("Fault Detected")
+        return y_predict

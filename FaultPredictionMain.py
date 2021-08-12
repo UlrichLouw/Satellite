@@ -4,6 +4,14 @@ import numpy as np
 from Fault_prediction.Fault_utils import Dataset_order
 from Fault_prediction.Supervised_Learning.Fault_prediction import prediction_NN, prediction_NN_determine_other_NN
 
+class Fault_Detection:
+    def __init__(self):
+        pass
+
+    def Predict(self):
+        pass
+
+
 if __name__ == "__main__":
     confusion_matrices = []
     All_orbits = []
