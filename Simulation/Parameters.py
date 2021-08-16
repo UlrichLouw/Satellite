@@ -210,8 +210,13 @@ class SET_PARAMS:
     ###############################
     # FAULT PREDICTION PARAMETERS #
     ###############################
+    SensorPredicting = False
     FeatureExtractionMethods = ["PCA", "DMD"]
     FaultPredictionMethods = ["PhysicsEnabledDMDDecisionTree", "ANN", "RandomForest"]
+    
+    # DMD fault parameters for moving average
+    MovingAverageSizeOfBuffer = 20
+    sensor_number = "ALL"
 
     # File names for the storage of the data attained during the simulation
     path = "/".join(str(pathlib.Path(__file__).parent.resolve()).split("/")[:-1]) + "/Data files/"
@@ -256,7 +261,7 @@ class SET_PARAMS:
     #Fault_simulation_mode = 1 # Continued failure, a mistake that does not go back to normal
     #Fault_simulation_mode = 0 # Failure is based on specified class failure rate. Multiple failures can occure simultaneously
     Fault_simulation_mode = 2 # A single fault occurs per orbit
-    fixed_orbit_failure = 1.1
+    fixed_orbit_failure = 2
 
     
     #####################################################################################

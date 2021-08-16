@@ -7,6 +7,8 @@ from Simulation.Sensors import Sensors
 import Simulation.Quaternion_functions as Quaternion_functions
 from Simulation.Kalman_filter import RKF
 from Simulation.Extended_KF import EKF
+from Simulation.SensorPredictions import SensorPredictionsDMD
+import collections
 
 Fault_names_to_num = SET_PARAMS.Fault_names
 
@@ -278,7 +280,23 @@ class Dynamics:
             if True_faults:
                 self.fault = True_faults[self.np_random.randint(0,len(True_faults))]
                 print(self.fault)
-                
+
+    def SensorPredicting(self):
+
+        if SET_PARAMS.sensor_number == "ALL":
+            self.Sensors_X = np.concatenate([self.Orbit_Data["Magnetometer"], self.Orbit_Data["Sun"], self.Orbit_Data["Earth"], self.Orbit_Data["Star"],  self.Orbit_Data["Angular momentum of wheels"], self.Orbit_Data["Angular velocity of satellite"]])
+            self.Sensors_Y = None
+        else:
+            self.Sensors_X = self.Orbit_Data["Magnetometer"]
+            self.Sensors_Y = np.concatenate([self.Orbit_Data["Sun"], self.Orbit_Data["Earth"], self.Orbit_Data["Star"],  self.Orbit_Data["Angular momentum of wheels"], self.Orbit_Data["Angular velocity of satellite"]])
+
+        if self.t == SET_PARAMS.time:
+            # Initiating parameters for SensorPredictions
+            self.SensePredDMD = SensorPredictionsDMD(self.Sensors_X)
+            self.MovingAverage = 0
+
+
+        self.MovingAverage = self.SensePredDMD.MovingAverage(self.Sensors_X, self.Sensors_Y)                
 
     def rotation(self):
         ##############################################################
@@ -434,9 +452,9 @@ class Dynamics:
         if np.isnan(self.w_bi).any():
             print("Break")
 
-        self.t += self.dt
-
         self.update()
+
+        self.t += self.dt
 
         return self.w_bi, self.q, self.A_ORC_to_SBC, self.r_EIC, self.sun_in_view
 
@@ -503,6 +521,12 @@ class Single_Satellite(Dynamics):
         self.Orbit_Data["Angular momentum of wheels"] = self.angular_momentum[:,0]
         self.Orbit_Data["Angular velocity of satellite"] = self.w_bi[:,0]
         self.Orbit_Data["Sun in view"] = self.sun_in_view
+
+        # Predict the sensor parameters and add them to the Orbit_Data
+        if SET_PARAMS.SensorPredicting:
+            self.SensorPredicting()
+            self.Orbit_Data["Moving Average"] = self.MovingAverage
+        
         if self.sun_in_view == False and (self.fault == "Catastrophic_sun" or self.fault == "Erroneous"):
             self.Orbit_Data["Current fault"] = "None"
             temp = list(self.zeros)

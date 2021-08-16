@@ -26,7 +26,7 @@ if SET_PARAMS.Display:
 def loop(index, D, Data, orbit_descriptions):
     print(SET_PARAMS.Fault_names_values[index])
 
-    Overall_Data = []
+    Overall_data = []
 
     if SET_PARAMS.Display:
         satellite = view.initializeCube(SET_PARAMS.Dimensions)
@@ -56,19 +56,20 @@ def loop(index, D, Data, orbit_descriptions):
             if not isinstance(data_unfiltered[col], np.ndarray):
                 data[col] = data_unfiltered[col]
 
-        Overall_Data.append(pd.DataFrame.from_dict(data))
+        Overall_data.append(pd.DataFrame.from_dict(data))
+
+    Data = pd.concat(Overall_data)
 
     if SET_PARAMS.Visualize and SET_PARAMS.Display == False:
         path_to_folder = Path("Plots/" + str(D.fault))
         path_to_folder.mkdir(exist_ok=True)
-        #visualize_data(Overall_Data, D.fault)
+        visualize_data(Data, D.fault)
     
     elif SET_PARAMS.Display == True:
         pv.save_plot(D.fault)
 
     print("Number of multiple orbits", index)  
 
-    Data = pd.concat(Overall_Data)
     orbit_descriptions[index] = D.fault
 
     if SET_PARAMS.save_as == ".csv":
@@ -87,16 +88,19 @@ if __name__ == "__main__":
     #           BE USED TO SAVE CSV FILES                   #     
     #########################################################
     SET_PARAMS.Display = False
-    SET_PARAMS.Visualize = False
+    SET_PARAMS.Visualize = True
     SET_PARAMS.save_as = ".csv"
     SET_PARAMS.Kalman_filter_use = "None"
-    SET_PARAMS.Number_of_orbits = 1
-    SET_PARAMS.Number_of_multiple_orbits = 16
+    SET_PARAMS.sensor_number = 1
+    SET_PARAMS.Number_of_orbits = 2
+    SET_PARAMS.fixed_orbit_failure = 2
+    SET_PARAMS.Number_of_multiple_orbits = 17
     SET_PARAMS.skip = 20
     SET_PARAMS.Number_of_satellites = 1
     SET_PARAMS.Constellation = False
     SET_PARAMS.k_nearest_satellites = 5
     SET_PARAMS.FD_strategy = "Distributed"
+    SET_PARAMS.SensorPredicting = True
 
     if SET_PARAMS.Kalman_filter_use == "EKF":
         SET_PARAMS.Kp = SET_PARAMS.Kp * 1e2
@@ -153,6 +157,7 @@ if __name__ == "__main__":
     elif SET_PARAMS.save_as == ".xlsx":
         FD = Fault_detection.Basic_detection()
         Data = []
+        Overall_data = []
         orbit_descriptions = []
         for i in range(SET_PARAMS.Number_of_multiple_orbits):
             D = Single_Satellite(i, s_list, t_list, J_t, fr)
@@ -182,15 +187,28 @@ if __name__ == "__main__":
                     if SET_PARAMS.Display:
                         pv.fault = D.fault
 
+                data_unfiltered = D.Orbit_Data
+
+                # Convert array's to individual values in the dictionary
+                data = {col + "_" + dimensions[i]: data_unfiltered[col][i] for col in data_unfiltered if isinstance(data_unfiltered[col], np.ndarray) for i in range(len(data_unfiltered[col]))}
+
+                # Add all the values to the dictionary that is not numpy arrays
+                for col in data_unfiltered:
+                    if not isinstance(data_unfiltered[col], np.ndarray):
+                        data[col] = data_unfiltered[col]
+
+                Overall_data.append(pd.DataFrame.from_dict(data))
+
+            Data = pd.concat(Overall_data)
+
             if SET_PARAMS.Visualize and SET_PARAMS.Display == False:
                 path_to_folder = Path("Plots/" + str(D.fault))
                 path_to_folder.mkdir(exist_ok=True)
-                visualize_data(D.Orbit_Data, D.fault)
+                visualize_data(Data, D.fault)
             
             elif SET_PARAMS.Display == True:
                 pv.save_plot(D.fault)
 
-            Data.append(D.Orbit_Data)
             orbit_descriptions.append(str(D.fault))
 
         save_as_excel(Data, orbit_descriptions)

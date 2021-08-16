@@ -8,6 +8,7 @@ np.set_printoptions(threshold=sys.maxsize)
 
 if __name__ == '__main__':
     SET_PARAMS.Visualize = True
+    SET_PARAMS.sensor_number = 1
     # Compute the A and B matrix to estimate X
     DMD.MatrixAB(path = SET_PARAMS.pathHyperParameters + 'PhysicsEnabledDMDMethod')
     DecisionForests.DecisionTreeAllAnomalies(path = SET_PARAMS.pathHyperParameters + 'PhysicsEnabledDMDMethod', depth = 10)

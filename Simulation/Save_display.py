@@ -55,10 +55,11 @@ def visualize_data(D, fault):
 
             fig.append_trace(go.Scatter(
                 x=x,
-                y=y[:,0],
+                y=y,
                 name = "x"
             ), row=1, col=1)
 
+            """
             fig.append_trace(go.Scatter(
                 x=x,
                 y=y[:,1],
@@ -70,9 +71,9 @@ def visualize_data(D, fault):
                 y=y[:,2],
                 name = 'z'
             ), row=3, col=1)
-
+            """
             fig.update_yaxes(range=[y_min, y_max], row=1, col=1)
-            fig.update_yaxes(range=[y_min, y_max], row=2, col=1)
-            fig.update_yaxes(range=[y_min, y_max], row=3, col=1)
+            #fig.update_yaxes(range=[y_min, y_max], row=2, col=1)
+            #fig.update_yaxes(range=[y_min, y_max], row=3, col=1)
             fig.update_layout(height=600, width=600, title_text=str(i))
             fig.write_html("Plots/" + str(fault) +"/"+ str(i)+".html")
