@@ -18,8 +18,6 @@ class SensorPredictionsDMD:
         else:
             x_est = self.DMD_Prediction_A @ self.x_est + self.DMD_Prediction_B @ sensors_Y + self.DMD_Prediction_k*(self.x - self.x_est)
 
-        print(x_est - sensors_X)
-
         self.x = sensors_X
         self.Buffer_est.append(self.x_est)
         self.Buffer_act.append(self.x)

@@ -87,7 +87,7 @@ if __name__ == "__main__":
     # IF THE SAVE AS IS EQUAL TO XLSX, THE THREADING CANNOT #
     #           BE USED TO SAVE CSV FILES                   #     
     #########################################################
-    SET_PARAMS.Display = False
+    SET_PARAMS.Display = True
     SET_PARAMS.Visualize = True
     SET_PARAMS.save_as = ".xlsx"
     SET_PARAMS.Kalman_filter_use = "None"

@@ -9,6 +9,8 @@ from Simulation.Kalman_filter import RKF
 from Simulation.Extended_KF import EKF
 from Simulation.SensorPredictions import SensorPredictionsDMD
 import collections
+import math
+pi = math.pi
 
 Fault_names_to_num = SET_PARAMS.Fault_names
 
@@ -83,20 +85,23 @@ class Dynamics:
         #################################################################
 
         if self.sun_in_view:
+            
             angle_difference_fine = Quaternion_functions.rad2deg(np.arccos(np.dot(self.S_b[:,0], SET_PARAMS.Fine_sun_sensor_position)))
             angle_difference_coarse = Quaternion_functions.rad2deg(np.arccos(np.dot(self.S_b[:,0], SET_PARAMS.Coarse_sun_sensor_position)))
 
-            if angle_difference_fine < SET_PARAMS.Fine_sun_sensor_angle:
-                angle_reflection_yz = np.arccos(np.dot(self.S_b[1:,0], SET_PARAMS.Solar_Panel_position_Fine[1:])) # Only account for y and z coordinates
-                angle_reflection_xz = np.arccos(np.dot(np.roll(self.S_b,1)[:2,0], np.roll(SET_PARAMS.Solar_Panel_position_Fine,1)[:2])) # Only account for x and z coordinates
-                
-                Distance_z = np.tan(angle_reflection_xz) * SET_PARAMS.Length_of_Solar_Panels
-                Distance_y = np.tan(angle_reflection_yz) * SET_PARAMS.Width_of_Solar_Panels
+            if angle_difference_fine < SET_PARAMS.Fine_sun_sensor_angle:   
+                # x = SET_PARAMS.SPF_position[0] + self.S_b[0,0]*t
+                # y = SET_PARAMS.SPF_position[1] + self.S_b[1,0]*t
+                # z = SET_PARAMS.SPF_position[2] + self.S_b[2,0]*t
+                # t = SET_PARAMS
 
-                if Distance_z <= SET_PARAMS.Further_distance_between_SolarPanel_and_sun_sensor and Distance_z >= SET_PARAMS.Shortest_distance_between_SolarPanel_and_sun_sensor:
-                    if Distance_y <= SET_PARAMS.Sun_sensor_width/2 and Distance_y >= 0:
-                        print("Reflection")
-                
+
+                for reflection in SET_PARAMS.ReflectedFine:
+                    angleReflection = np.arccos(np.dot(self.S_b[:,0], reflection))
+                    print(angleReflection*180/pi)
+                    if angleReflection < SET_PARAMS.angleOfSun:
+                        print("Reflected")
+
                 self.S_b = self.Sun_sensor_fault.normal_noise(self.S_b, SET_PARAMS.Fine_sun_noise)
 
                 norm_S_b = np.linalg.norm(self.S_b)
@@ -118,15 +123,12 @@ class Dynamics:
                 self.sun_noise = SET_PARAMS.Fine_sun_noise
 
             elif angle_difference_coarse < SET_PARAMS.Coarse_sun_sensor_angle:
-                angle_reflection_yz = np.arccos(np.dot(self.S_b[1:,0], SET_PARAMS.Solar_Panel_position_Coarse[1:])) # Only account for y and z coordinates
-                angle_reflection_xz = np.arccos(np.dot(np.roll(self.S_b,1)[:2,0], np.roll(SET_PARAMS.Solar_Panel_position_Coarse,1)[:2])) # Only account for x and z coordinates
-                
-                Distance_z = np.tan(angle_reflection_xz) * SET_PARAMS.Length_of_Solar_Panels
-                Distance_y = np.tan(angle_reflection_yz) * SET_PARAMS.Width_of_Solar_Panels
-
-                if Distance_z <= SET_PARAMS.Further_distance_between_SolarPanel_and_sun_sensor and Distance_z >= SET_PARAMS.Shortest_distance_between_SolarPanel_and_sun_sensor:
-                    if Distance_y <= SET_PARAMS.Sun_sensor_width/2 and Distance_y >= 0:
-                        print("Reflection")
+                for reflection in SET_PARAMS.ReflectedCoarse:
+                    angleReflection = np.arccos(np.dot(self.S_b[:,0], reflection))
+                    print(angleReflection*180/pi)
+                    if angleReflection < SET_PARAMS.angleOfSun:
+                        print("Reflected")
+    
 
                 self.S_b = self.Sun_sensor_fault.normal_noise(self.S_b, SET_PARAMS.Coarse_sun_noise)
 
