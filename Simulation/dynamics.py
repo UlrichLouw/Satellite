@@ -85,7 +85,18 @@ class Dynamics:
         if self.sun_in_view:
             angle_difference_fine = Quaternion_functions.rad2deg(np.arccos(np.dot(self.S_b[:,0], SET_PARAMS.Fine_sun_sensor_position)))
             angle_difference_coarse = Quaternion_functions.rad2deg(np.arccos(np.dot(self.S_b[:,0], SET_PARAMS.Coarse_sun_sensor_position)))
+
             if angle_difference_fine < SET_PARAMS.Fine_sun_sensor_angle:
+                angle_reflection_yz = np.arccos(np.dot(self.S_b[1:,0], SET_PARAMS.Solar_Panel_position_Fine[1:])) # Only account for y and z coordinates
+                angle_reflection_xz = np.arccos(np.dot(np.roll(self.S_b,1)[:2,0], np.roll(SET_PARAMS.Solar_Panel_position_Fine,1)[:2])) # Only account for x and z coordinates
+                
+                Distance_z = np.tan(angle_reflection_xz) * SET_PARAMS.Length_of_Solar_Panels
+                Distance_y = np.tan(angle_reflection_yz) * SET_PARAMS.Width_of_Solar_Panels
+
+                if Distance_z <= SET_PARAMS.Further_distance_between_SolarPanel_and_sun_sensor and Distance_z >= SET_PARAMS.Shortest_distance_between_SolarPanel_and_sun_sensor:
+                    if Distance_y <= SET_PARAMS.Sun_sensor_width/2 and Distance_y >= 0:
+                        print("Reflection")
+                
                 self.S_b = self.Sun_sensor_fault.normal_noise(self.S_b, SET_PARAMS.Fine_sun_noise)
 
                 norm_S_b = np.linalg.norm(self.S_b)
@@ -107,6 +118,16 @@ class Dynamics:
                 self.sun_noise = SET_PARAMS.Fine_sun_noise
 
             elif angle_difference_coarse < SET_PARAMS.Coarse_sun_sensor_angle:
+                angle_reflection_yz = np.arccos(np.dot(self.S_b[1:,0], SET_PARAMS.Solar_Panel_position_Coarse[1:])) # Only account for y and z coordinates
+                angle_reflection_xz = np.arccos(np.dot(np.roll(self.S_b,1)[:2,0], np.roll(SET_PARAMS.Solar_Panel_position_Coarse,1)[:2])) # Only account for x and z coordinates
+                
+                Distance_z = np.tan(angle_reflection_xz) * SET_PARAMS.Length_of_Solar_Panels
+                Distance_y = np.tan(angle_reflection_yz) * SET_PARAMS.Width_of_Solar_Panels
+
+                if Distance_z <= SET_PARAMS.Further_distance_between_SolarPanel_and_sun_sensor and Distance_z >= SET_PARAMS.Shortest_distance_between_SolarPanel_and_sun_sensor:
+                    if Distance_y <= SET_PARAMS.Sun_sensor_width/2 and Distance_y >= 0:
+                        print("Reflection")
+
                 self.S_b = self.Sun_sensor_fault.normal_noise(self.S_b, SET_PARAMS.Coarse_sun_noise)
 
                 norm_S_b =np.linalg.norm(self.S_b)

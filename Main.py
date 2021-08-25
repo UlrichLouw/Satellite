@@ -89,7 +89,7 @@ if __name__ == "__main__":
     #########################################################
     SET_PARAMS.Display = False
     SET_PARAMS.Visualize = True
-    SET_PARAMS.save_as = ".csv"
+    SET_PARAMS.save_as = ".xlsx"
     SET_PARAMS.Kalman_filter_use = "None"
     SET_PARAMS.sensor_number = 1
     SET_PARAMS.Number_of_orbits = 2

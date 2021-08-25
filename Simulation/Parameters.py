@@ -107,7 +107,8 @@ class SET_PARAMS:
     ##################
 
     Mass = 20 #kg
-    Dimensions = np.array(([0.3, 0.3, 0.4])) # Lx, Ly, Lz
+    Lx, Ly, Lz = 0.3, 0.3, 0.4
+    Dimensions = np.array(([Lx, Ly, Lz])) # Lx, Ly, Lz
     Ix = 0.4 #kg.m^2
     Iy = 0.45 #kg.m^2
     Iz = 0.3 #kg.m^2
@@ -269,7 +270,8 @@ class SET_PARAMS:
     #####################################################################################
     
     Fault_names_values = {value:key for key, value in Fault_names.items()}
-    
+
+
     #################
     # SENSOR MODELS #
     #################
@@ -292,6 +294,9 @@ class SET_PARAMS:
     Fine_sun_sensor_FOV = 180 # Field of view in degrees
     Fine_sun_sensor_angle = Fine_sun_sensor_FOV/2 # The angle use to check whether the dot product angle is within the field of view
     Fine_sun_noise = 0.001                   #standard deviation away from where the actual sun is
+    # Define sun sensor dimensions
+    Sun_sensor_length = 0.15
+    Sun_sensor_width = 0.075
 
     # Coarse Sun Sensor
     Coarse_sun_sensor_position = np.array(([-1, 0, 0])) # x, y, en z 
@@ -299,9 +304,21 @@ class SET_PARAMS:
     Coarse_sun_sensor_angle = Coarse_sun_sensor_FOV/2 # The angle use to check whether the dot product angle is within the field of view
     Coarse_sun_noise = 0.01 #standard deviation away from where the actual sun is
 
+
     # Angular Momentum sensor
     Angular_sensor_noise = 0.001
-
+    
+    ###################
+    # HARDWARE MODELS #
+    ###################
+    # Number of solar Panels = 4
+    Solar_Panel_position_Fine = np.array(([1, 0, 1]))/np.sqrt(2) # x, y en z
+    Solar_Panel_position_Coarse = np.array(([-1, 0, 1]))/np.sqrt(2) 
+    Length_of_Solar_Panels = Ly
+    Width_of_Solar_Panels = Lx
+    Shortest_distance_between_SolarPanel_and_sun_sensor = Lz/2 - Sun_sensor_length
+    Further_distance_between_SolarPanel_and_sun_sensor = Lz/2 + Sun_sensor_length
+    
     ############################
     # CONSTELLATION PARAMETERS #
     ############################
