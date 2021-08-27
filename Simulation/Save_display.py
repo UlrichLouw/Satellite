@@ -40,12 +40,13 @@ def save_as_pickle(Data, orbit):
 # FUNCTION TO VISUALIZE DATA AS GRAPHS   #
 ##########################################
 def visualize_data(D, fault):
+    doNotVisualize = ["Sun in view", "Current fault", "Current fault binary", "Current fault numeric"]
+    singleVisualize = ["Moving Average"]
+
     for i in D:
-        if i == "Current fault" or i == "Current fault binary" or i == "Current fault numeric":
+        if i in doNotVisualize:
             pass
-        elif i == "Sun in view":
-            pass
-        else:
+        elif i in singleVisualize:
             y = np.array((D[i]))
             fig = make_subplots(rows=3, cols=1)
             x = y.shape[0]
@@ -59,7 +60,24 @@ def visualize_data(D, fault):
                 name = "x"
             ), row=1, col=1)
 
-            """
+            fig.update_yaxes(range=[y_min, y_max], row=1, col=1)
+            fig.update_layout(height=600, width=600, title_text=str(i))
+            fig.write_html("Plots/" + str(fault) +"/"+ str(i)+".html")
+        
+        else:
+            y = np.array((D[i]))
+            fig = make_subplots(rows=3, cols=1)
+            x = y.shape[0]
+            x = np.arange(0,x,1)
+            y_min = np.amin(y)
+            y_max = np.amax(y)
+
+            fig.append_trace(go.Scatter(
+                x=x,
+                y=y[:, 0],
+                name = "x"
+            ), row=1, col=1)
+
             fig.append_trace(go.Scatter(
                 x=x,
                 y=y[:,1],
@@ -71,9 +89,9 @@ def visualize_data(D, fault):
                 y=y[:,2],
                 name = 'z'
             ), row=3, col=1)
-            """
+
             fig.update_yaxes(range=[y_min, y_max], row=1, col=1)
-            #fig.update_yaxes(range=[y_min, y_max], row=2, col=1)
-            #fig.update_yaxes(range=[y_min, y_max], row=3, col=1)
+            fig.update_yaxes(range=[y_min, y_max], row=2, col=1)
+            fig.update_yaxes(range=[y_min, y_max], row=3, col=1)
             fig.update_layout(height=600, width=600, title_text=str(i))
             fig.write_html("Plots/" + str(fault) +"/"+ str(i)+".html")

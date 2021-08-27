@@ -10,8 +10,8 @@ def Reflection(V, N):
 # THIS FUNCTION IS SPECIFIC FOR THE SUN REFLECTION AND DETERMINING THE INTERSECTION BETWEEN THE VECTOR AND A PLANE #
 ####################################################################################################################
 def Intersection(Plane, vector, pointFrom):
-    d = np.sum(np.array(Plane) * np.array(vector))
-    t0 = np.sum(np.array(Plane) * np.array(pointFrom))
+    d = np.sum(np.array(Plane[:3]) * np.array(vector))
+    t0 = np.sum(np.array(Plane[:3]) * np.array(pointFrom))
 
     t = (Plane[3] - d)/t0
 
@@ -24,7 +24,7 @@ def Intersection(Plane, vector, pointFrom):
 ####################################################################################
 # THIS FUNCTION IS USED TO DETERMINE WHETHER A POINT IS BETWEEN TWO PARALLEL LINES #
 ####################################################################################
-def PointWithinParralelLines(Line1, Line2, Point):
+def PointWithinParallelLines(Line1, Line2, Point):
     z1 = Line1[0]*Point[0] + Line1[1]
     z2 = Line2[0]*Point[0] + Line2[1]
 
@@ -33,9 +33,14 @@ def PointWithinParralelLines(Line1, Line2, Point):
     else:
         return False
 
-
+################################
+# FIND THE EQUATION FOR A LINE #
+################################
 def lineEquation(PointFrom, PointTo):
     m = (PointTo[0] - PointFrom[0])/(PointTo[1] - PointFrom[1])
+    c = PointTo[0] - m*PointTo[1]
+    return m, c
+
 
 if __name__ == '__main__':
     a = Plane(Point3D(1/2, 1/2, -1/2), Point3D(1/2, 0, 0), Point3D(1/2, -1/2, -1/2))

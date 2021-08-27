@@ -285,7 +285,7 @@ class SET_PARAMS:
     Magnetometer_noise = 0.001         #standard deviation of magnetometer noise in Tesla
 
     # Earth sensor
-    Earth_sensor_position = np.array(([0, 0, Lz/2])) # x, y, en z
+    Earth_sensor_position = np.array(([0, 0, -Lz/2])) # x, y, en z
     Earth_sensor_FOV = 180 # Field of view in degrees
     Earth_sensor_angle = Earth_sensor_FOV/2 # The angle use to check whether the dot product angle is within the field of view
     Earth_noise = 0.01                  #standard deviation away from where the actual earth is
@@ -298,68 +298,48 @@ class SET_PARAMS:
     # Define sun sensor dimensions
     Sun_sensor_length = 0.15
     Sun_sensor_width = 0.075
-    SSF_Leftcorner = np.array((Fine_sun_sensor_position[0], Fine_sun_sensor_position[1] - Sun_sensor_width/2, Fine_sun_sensor_position[2] - Sun_sensor_length/2))
-    SSF_Rightcorner = np.array((Fine_sun_sensor_position[0], Fine_sun_sensor_position[1] + Sun_sensor_width/2, Fine_sun_sensor_position[2] - Sun_sensor_length/2))
+    SSF_LeftCorner = np.array((Fine_sun_sensor_position[0], Fine_sun_sensor_position[1] - Sun_sensor_width/2, Fine_sun_sensor_position[2] - Sun_sensor_length/2))
+    SSF_RightCorner = np.array((Fine_sun_sensor_position[0], Fine_sun_sensor_position[1] + Sun_sensor_width/2, Fine_sun_sensor_position[2] - Sun_sensor_length/2))
     
+    SSF_Plane = [1/2, 0, 0, Lx/2] # x, y, z, d
     # Coarse Sun Sensor
     Coarse_sun_sensor_position = np.array(([-Lx/2, 0, 0])) # x, y, en z 
     Coarse_sun_sensor_FOV = 180 # Field of view in degrees
     Coarse_sun_sensor_angle = Coarse_sun_sensor_FOV/2 # The angle use to check whether the dot product angle is within the field of view
     Coarse_sun_noise = 0.01 #standard deviation away from where the actual sun is
 
-    SSC_Leftcorner = np.array(([Coarse_sun_sensor_position[0], Coarse_sun_sensor_position[1] - Sun_sensor_width/2, Coarse_sun_sensor_position[2] - Sun_sensor_length/2]))
-    SSC_Rightcorner = np.array(([Coarse_sun_sensor_position[0], Coarse_sun_sensor_position[1] + Sun_sensor_width/2, Coarse_sun_sensor_position[2] - Sun_sensor_length/2]))
+    SSC_LeftCorner = np.array(([Coarse_sun_sensor_position[0], Coarse_sun_sensor_position[1] - Sun_sensor_width/2, Coarse_sun_sensor_position[2] - Sun_sensor_length/2]))
+    SSC_RightCorner = np.array(([Coarse_sun_sensor_position[0], Coarse_sun_sensor_position[1] + Sun_sensor_width/2, Coarse_sun_sensor_position[2] - Sun_sensor_length/2]))
+    
+    SSC_Plane = [-1/2, 0, 0, Lx/2] # x, y, z, d
     # Angular Momentum sensor
     Angular_sensor_noise = 0.001
     
     ###################
     # HARDWARE MODELS #
     ###################
-    SP_Length = Ly
-    SP_width = Lx
+    SP_Length = Lx
+    SP_width = Ly
     # Number of solar Panels = 4, only 2 accounted for with respect to reflection
     SPF_position = np.array(([Lx/2 + SP_Length/2, 0, -Lz/2]))    # Middle point, x, y en z
     SPC_position = np.array(([-Lx/2 - SP_Length/2, 0, -Lz/2]))
     SPC_normal_vector = np.array(([0, 0, 1]))
     SPF_normal_vector = np.array(([0, 0, 1]))
     
-    SPF_LeftTopCorner = SPF_position
-    SPF_RightTopCorner = SPF_position
-    SPF_LeftTopCorner[2] += SP_width/2
-    SPF_RightTopCorner[2] -= SP_width/2
 
-    SPC_LeftTopCorner = SPC_position
-    SPC_RightTopCorner = SPC_position
-    SPC_LeftTopCorner[2] += SP_width/2
-    SPC_RightTopCorner[2] -= SP_width/2
+    # Fine solar panel
+    SPF_LeftTopCorner = np.array(([SPF_position[0] + SP_Length/2, SPF_position[1] + SP_width/2, SPF_position[2]]))
+    SPF_RightTopCorner = np.array(([SPF_position[0] + SP_Length/2, SPF_position[1] - SP_width/2, SPF_position[2]]))
+    SPF_LeftBottomCorner = np.array(([SPF_position[0] - SP_Length/2, SPF_position[1] + SP_width/2, SPF_position[2]]))
+    SPF_RightBottomCorner = np.array(([SPF_position[0] - SP_Length/2, SPF_position[1] - SP_width/2, SPF_position[2]]))
 
-    # Vectors between critical points of fine sun sensor
-    
-    SPFLL = SPF_LeftTopCorner - SSF_Leftcorner
-    SPFLR = SPF_LeftTopCorner - SSF_Rightcorner
-    SPFRR = SPF_RightTopCorner - SSF_Rightcorner
-    SPFRL = SPF_RightTopCorner - SSF_Leftcorner
 
-    # Vectors between critical points of coarse sun sensor
-    SPCLL = SPC_LeftTopCorner - SSC_Leftcorner
-    SPCLR = SPC_LeftTopCorner - SSC_Rightcorner
-    SPCRR = SPC_RightTopCorner - SSC_Rightcorner
-    SPCRL = SPC_RightTopCorner - SSC_Leftcorner
-    
-    # Calculate reflected vector from sun sensor to solar panel
-    Reflected_SPCLL = utilities.Reflection(V = SPCLL, N = SPC_normal_vector)
-    Reflected_SPCLR = utilities.Reflection(V = SPCLR, N = SPC_normal_vector)
-    Reflected_SPCRR = utilities.Reflection(V = SPCRR, N = SPC_normal_vector)
-    Reflected_SPCRL = utilities.Reflection(V = SPCRL, N = SPC_normal_vector)
+    # Coarse Solar Panel
+    SPC_LeftTopCorner = np.array(([SPC_position[0] - SP_Length/2, SPC_position[1] + SP_width/2, SPC_position[2]]))
+    SPC_RightTopCorner = np.array(([SPC_position[0] - SP_Length/2, SPC_position[1] - SP_width/2, SPC_position[2]]))
+    SPC_LeftBottomCorner = np.array(([SPC_position[0] + SP_Length/2, SPC_position[1] + SP_width/2, SPC_position[2]]))
+    SPC_RightBottomCorner = np.array(([SPC_position[0] + SP_Length/2, SPC_position[1] - SP_width/2, SPC_position[2]]))
 
-    ReflectedCoarse = [Reflected_SPCLL, Reflected_SPCLR, Reflected_SPCRR, Reflected_SPCRL]
-
-    Reflected_SPFLL = utilities.Reflection(V = SPFLL, N = SPF_normal_vector)
-    Reflected_SPFLR = utilities.Reflection(V = SPFLR, N = SPF_normal_vector)
-    Reflected_SPFRR = utilities.Reflection(V = SPFRR, N = SPF_normal_vector)
-    Reflected_SPFRL = utilities.Reflection(V = SPFRL, N = SPF_normal_vector)
-
-    ReflectedFine = [Reflected_SPFLL, Reflected_SPFLR, Reflected_SPFRR, Reflected_SPFRL]
 
     # Fix sun parameters (for approximation purposes)
     radiusOfSun = 696340e3

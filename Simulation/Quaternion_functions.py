@@ -23,6 +23,17 @@ def euler_to_quaternion(roll, pitch, yaw):
 
     return np.array(([qx, qy, qz, qw]))
 
+def vectorsToQuaternion(vectorRef, vectorCurrent):
+    Length1 = np.sqrt(np.sum(vectorCurrent**2))
+    Length2 = np.sqrt(np.sum(vectorRef**2))
+    vectorA = np.cross(vectorCurrent, vectorRef)
+    qx, qy, qz = vectorA
+    qw = np.sqrt((Length1**2)*(Length2**2)) + np.dot(vectorCurrent, vectorRef)
+    q = np.array(([qx, qy, qz, qw]))
+    q = q/np.linalg.norm(q)
+    return q
+    
+
 def quaternion_error(current_quaternion, command_quaternion):
     ####################################################################################################
     # FOR THE CONTROL OF THE ADCS THE CONTROL SYSTEM WILL PROVIDE A COMMAND QUATERNION. THE DIFFERENCE #

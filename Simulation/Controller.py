@@ -11,23 +11,35 @@ class Control:
         self.Kd = SET_PARAMS.Kd
         self.w_ref = SET_PARAMS.w_ref
         self.q_ref = SET_PARAMS.q_ref
+        self.v_ref = SET_PARAMS.q_ref[:3]
         self.N_max = SET_PARAMS.N_ws_max
         self.first = True
         self.mode = SET_PARAMS.Mode
 
-    def control(self, w, q, Inertia, B, angular_momentum):
+    def control(self, w, q, Inertia, B, angular_momentum, earthVector, sunVector, sun_in_view):
+               
         if self.mode == "Nominal":   # Normal operation
+            self.q_ref[:3] = earthVector
+
+        elif self.mode =="EARTH/SUN":
+            if sun_in_view:
+                self.q_ref[:3] = sunVector
+            else:
+                self.q_ref[:3] = earthVector
+
+        if self.mode == "Safe":    # Detumbling mode
+            N_magnet = self.magnetic_torquers(B, w)
+            N_wheel = np.zeros((3,1))
+        else:
             N_magnet = np.zeros((3,1))
             N_wheel = self.control_wheel(w, q, Inertia, angular_momentum)
 
-        elif self.mode == "Safe":    # Detumbling mode
-            N_magnet = self.magnetic_torquers(B, w)
-            N_wheel = np.zeros((3,1))
     
         return N_magnet, N_wheel
 
     def control_wheel(self, w, q, Inertia, angular_momentum):
         q_error = Quaternion_functions.quaternion_error(q, self.q_ref)
+        print(q_error)
         w_error = self.w_ref - w
         N = np.reshape((-self.Kp * Inertia @ q_error[0:3]),(3,1)) - self.Kd * Inertia @ w_error + w * (Inertia @ w + angular_momentum)
         N = np.clip(N, -self.N_max,self.N_max)

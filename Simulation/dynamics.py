@@ -10,6 +10,8 @@ from Simulation.Extended_KF import EKF
 from Simulation.SensorPredictions import SensorPredictionsDMD
 import collections
 import math
+from Simulation.utilities import Reflection, Intersection, PointWithinParallelLines, lineEquation
+
 pi = math.pi
 
 Fault_names_to_num = SET_PARAMS.Fault_names
@@ -89,18 +91,26 @@ class Dynamics:
             angle_difference_fine = Quaternion_functions.rad2deg(np.arccos(np.dot(self.S_b[:,0], SET_PARAMS.Fine_sun_sensor_position)))
             angle_difference_coarse = Quaternion_functions.rad2deg(np.arccos(np.dot(self.S_b[:,0], SET_PARAMS.Coarse_sun_sensor_position)))
 
-            if angle_difference_fine < SET_PARAMS.Fine_sun_sensor_angle:   
-                # x = SET_PARAMS.SPF_position[0] + self.S_b[0,0]*t
-                # y = SET_PARAMS.SPF_position[1] + self.S_b[1,0]*t
-                # z = SET_PARAMS.SPF_position[2] + self.S_b[2,0]*t
-                # t = SET_PARAMS
+            if angle_difference_fine < SET_PARAMS.Fine_sun_sensor_angle: 
+                if SET_PARAMS.Reflection: 
+                    reflectedSunVector = Reflection(self.S_b[:,0], SET_PARAMS.SPF_normal_vector)
 
+                    IntersectionPointLeft = Intersection(SET_PARAMS.SSF_Plane, reflectedSunVector, SET_PARAMS.SPF_LeftTopCorner)
 
-                for reflection in SET_PARAMS.ReflectedFine:
-                    angleReflection = np.arccos(np.dot(self.S_b[:,0], reflection))
-                    print(angleReflection*180/pi)
-                    if angleReflection < SET_PARAMS.angleOfSun:
-                        print("Reflected")
+                    IntersectionPointRight = Intersection(SET_PARAMS.SSF_Plane, reflectedSunVector, SET_PARAMS.SPF_RightTopCorner)
+
+                    Line1 = lineEquation(IntersectionPointLeft, SET_PARAMS.SPF_LeftBottomCorner)
+
+                    Line2 = lineEquation(IntersectionPointRight, SET_PARAMS.SPF_RightBottomCorner)
+
+                    reflection = PointWithinParallelLines(Line1, Line2, SET_PARAMS.SSF_LeftCorner)
+
+                    if not reflection:
+                        reflection = PointWithinParallelLines(Line1, Line2, SET_PARAMS.SSF_RightCorner)
+                        if reflection:
+                            self.S_b = np.reshape(reflectedSunVector, (3,1))
+                    else:
+                        self.S_b = np.reshape(reflectedSunVector, (3,1))
 
                 self.S_b = self.Sun_sensor_fault.normal_noise(self.S_b, SET_PARAMS.Fine_sun_noise)
 
@@ -123,12 +133,25 @@ class Dynamics:
                 self.sun_noise = SET_PARAMS.Fine_sun_noise
 
             elif angle_difference_coarse < SET_PARAMS.Coarse_sun_sensor_angle:
-                for reflection in SET_PARAMS.ReflectedCoarse:
-                    angleReflection = np.arccos(np.dot(self.S_b[:,0], reflection))
-                    print(angleReflection*180/pi)
-                    if angleReflection < SET_PARAMS.angleOfSun:
-                        print("Reflected")
-    
+                if SET_PARAMS.Reflection: 
+                    reflectedSunVector = Reflection(self.S_b[:,0], SET_PARAMS.SPC_normal_vector)
+
+                    IntersectionPointLeft = Intersection(SET_PARAMS.SSC_Plane, reflectedSunVector, SET_PARAMS.SPC_LeftTopCorner)
+
+                    IntersectionPointRight = Intersection(SET_PARAMS.SSC_Plane, reflectedSunVector, SET_PARAMS.SPC_RightTopCorner)
+
+                    Line1 = lineEquation(IntersectionPointLeft, SET_PARAMS.SPC_LeftBottomCorner)
+
+                    Line2 = lineEquation(IntersectionPointRight, SET_PARAMS.SPC_RightBottomCorner)
+
+                    reflection = PointWithinParallelLines(Line1, Line2, SET_PARAMS.SSC_LeftCorner)
+
+                    if not reflection:
+                        reflection = PointWithinParallelLines(Line1, Line2, SET_PARAMS.SSC_RightCorner)
+                        if reflection:
+                            self.S_b = np.reshape(reflectedSunVector, (3,1))
+                    else:
+                        self.S_b = np.reshape(reflectedSunVector, (3,1))
 
                 self.S_b = self.Sun_sensor_fault.normal_noise(self.S_b, SET_PARAMS.Coarse_sun_noise)
 
@@ -189,7 +212,7 @@ class Dynamics:
         # CONTROL TORQUES IMPLEMENTED DUE TO THE CONTROL LAW #
         ######################################################
 
-        N_control_magnetic, N_control_wheel = self.control.control(self.w_bi_est, self.q_est, self.Inertia, self.B, self.angular_momentum)
+        N_control_magnetic, N_control_wheel = self.control.control(self.w_bi_est, self.q_est, self.Inertia, self.B, self.angular_momentum, self.r_sat_sbc, self.S_b[:,0], self.sun_in_view)
 
         N_gyro = w * (self.Inertia @ w + self.angular_momentum)
 
@@ -529,7 +552,8 @@ class Single_Satellite(Dynamics):
             "Sun in view": [],                              #True or False values depending on whether the sun is in view of the satellite
             "Current fault": [],                            #What the fault is that the system is currently experiencing
             "Current fault numeric": [],
-            "Current fault binary": []
+            "Current fault binary": [],
+            "Moving Average": []
         }
 
         self.zeros = np.zeros((SET_PARAMS.number_of_faults,), dtype = int)
@@ -686,7 +710,8 @@ class Constellation_Satellites(Dynamics):
             "Sun in view": [],                              #True or False values depending on whether the sun is in view of the satellite
             "Current fault": [],                            #What the fault is that the system is currently experiencing
             "Current fault numeric": [],
-            "Current fault binary": []
+            "Current fault binary": [],
+            "Moving Average": []
         }
 
         self.zeros = np.zeros((SET_PARAMS.number_of_faults,), dtype = int)
