@@ -359,6 +359,8 @@ class Dynamics:
         self.S_EIC, self.sun_in_view = self.sense.sun(self.t)
         self.S_ORC = self.A_EIC_to_ORC @ self.S_EIC
 
+        print(self.A_ORC_to_SBC)
+
         ######################################
         # DETERMINE THE DCM OF THE SATELLITE #
         ######################################
@@ -410,9 +412,7 @@ class Dynamics:
         self.star_tracker_vector_measured = self.Star_tracker_fault.normal_noise(self.A_ORC_to_SBC @ self.star_tracker_vector,SET_PARAMS.star_tracker_noise)
         star_norm = np.linalg.norm(self.star_tracker_vector_measured)
         if star_norm != 0:
-            self.star_tracker_vector_measured = self.star_tracker_vector_measured/np.linalg.norm(self.star_tracker_vector_measured)
-        else:
-            self.star_tracker_vector_measured = np.zeros(self.star_tracker_vector_measured.shape)
+            self.star_tracker_vector_measured = self.star_tracker_vector_measured/star_norm
         
         self.star_tracker_vector_measured = self.Star_tracker_fault.Closed_shutter(self.star_tracker_vector_measured)
 
@@ -533,7 +533,7 @@ class Single_Satellite(Dynamics):
         self.sun_noise = SET_PARAMS.Fine_sun_noise
         self.RKF = RKF()                            # Rate Kalman_filter
         self.EKF = EKF()                            # Extended Kalman_filter
-        self.sensors_kalman = ["Earth_Sensor", "Sun_Sensor", "Star_tracker"] #"Earth_Sensor", "Sun_Sensor", "Star_tracker"
+        self.sensors_kalman = ["Earth_Sensor", "Sun_Sensor", "Star_tracker"] #["Earth_Sensor", "Sun_Sensor", "Star_tracker"]
         super().initiate_fault_parameters()
 
         ####################################################
@@ -553,7 +553,8 @@ class Single_Satellite(Dynamics):
             "Current fault": [],                            #What the fault is that the system is currently experiencing
             "Current fault numeric": [],
             "Current fault binary": [],
-            "Moving Average": []
+            "Moving Average": [],
+            "Control Torques": []
         }
 
         self.zeros = np.zeros((SET_PARAMS.number_of_faults,), dtype = int)
@@ -568,7 +569,7 @@ class Single_Satellite(Dynamics):
         self.Orbit_Data["Angular momentum of wheels"] = self.angular_momentum[:,0]
         self.Orbit_Data["Angular velocity of satellite"] = self.w_bi[:,0]
         self.Orbit_Data["Sun in view"] = self.sun_in_view
-
+        self.Orbit_Data["Control Torques"] = self.Nw[:,0]
         # Predict the sensor parameters and add them to the Orbit_Data
         if SET_PARAMS.SensorPredicting:
             self.SensorPredicting()
@@ -586,82 +587,8 @@ class Single_Satellite(Dynamics):
             temp[Fault_names_to_num[self.fault] - 1] = 1
             self.Orbit_Data["Current fault numeric"] = temp
             self.Orbit_Data["Current fault binary"] = 0 if self.fault == "None" else 1
-"""
-    # Initiate initial parameters for the beginning of each orbit set (fault)
-    def __init__(self, seed, s_list, t_list, J_t, fr):
-        self.seed = seed
-        self.np_random = np.random
-        self.np_random.seed(seed)                   # Ensures that every fault parameters are implemented with different random seeds
-        self.sense = Sensors(s_list, t_list, J_t, fr)
-        self.dist = Disturbances(self.sense)                  # Disturbances of the simulation
-        self.w_bi = SET_PARAMS.wbi                  # Angular velocity in ORC
-        self.w_bi_est = self.w_bi
-        self.wo = SET_PARAMS.wo                     # Angular velocity of satellite around the earth
-        self.angular_wheels = SET_PARAMS.initial_angular_wheels 
-        self.q = SET_PARAMS.quaternion_initial      # Quaternion position
-        self.q_est = self.q
-        self.t = SET_PARAMS.time                    # Beginning time
-        self.dt = SET_PARAMS.Ts                     # Time step
-        self.dh = self.dt/10                        # Size of increments for Runga-kutta method
-        self.Ix = SET_PARAMS.Ix                     # Ixx inertia
-        self.Iy = SET_PARAMS.Iy                     # Iyy inertia
-        self.Iz = SET_PARAMS.Iz                     # Izz inertia
-        self.Inertia = np.identity(3)*np.array(([self.Ix, self.Iy, self.Iz]))
-        self.Iw = SET_PARAMS.Iw                     # Inertia of a reaction wheel
-        self.angular_momentum = SET_PARAMS.initial_angular_wheels # Angular momentum of satellite wheels
-        self.faster_than_control = SET_PARAMS.faster_than_control   # If it is required that satellite must move faster around the earth than Ts
-        self.control = Controller.Control()         # Controller.py is used for control of satellite    
-        self.star_tracker_vector = SET_PARAMS.star_tracker_vector
-        self.sun_noise = SET_PARAMS.Fine_sun_noise
-        self.RKF = RKF()                            # Rate Kalman_filter
-        self.EKF = EKF()                            # Extended Kalman_filter
-        self.sensors_kalman = ["Earth_Sensor", "Sun_Sensor", "Star_tracker"] #"Earth_Sensor", "Sun_Sensor", "Star_tracker"
-        super().initiate_fault_parameters()
 
-        ####################################################
-        #  THE ORBIT_DATA DICTIONARY IS USED TO STORE ALL  #
-        #     THE MEASUREMENTS FOR EACH TIMESTEP (TS)      #
-        # EACH ORBIT HAS AN INDUCED FAULT WITHIN THE ADCS. #
-        ####################################################
 
-        self.Orbit_Data = {
-            "Sun": [],            #S_o measurement (vector of sun in ORC)
-            "Magnetometer": [],    #B vector in SBC
-            "Earth": [],           #Satellite position vector in ORC
-            "Angular momentum of wheels": [],    #Wheel angular velocity of each reaction wheel
-            "Star": [],
-            "Angular velocity of satellite": [],
-            "Sun in view": [],                              #True or False values depending on whether the sun is in view of the satellite
-            "Current fault": [],                            #What the fault is that the system is currently experiencing
-            "Current fault numeric": [],
-            "Current fault binary": []
-        }
-
-        self.zeros = np.zeros((SET_PARAMS.number_of_faults,), dtype = int)
-
-        self.fault = "None"                      # Current fault of the system
-
-    def update(self):
-        self.Orbit_Data["Magnetometer"].append(self.B)
-        self.Orbit_Data["Sun"].append(self.S_b[:,0])
-        self.Orbit_Data["Earth"].append(self.r_sat_sbc)
-        self.Orbit_Data["Star"].append(self.star_tracker_vector_measured)
-        self.Orbit_Data["Angular momentum of wheels"].append(self.angular_momentum[:,0])
-        self.Orbit_Data["Angular velocity of satellite"].append(self.w_bi[:,0])
-        self.Orbit_Data["Sun in view"].append(self.sun_in_view)
-        if self.sun_in_view == False and (self.fault == "Catastrophic_sun" or self.fault == "Erroneous"):
-            self.Orbit_Data["Current fault"].append("None")
-            temp = list(self.zeros)
-            temp[Fault_names_to_num["None"] - 1] = 1
-            self.Orbit_Data["Current fault numeric"].append(temp)
-            self.Orbit_Data["Current fault binary"].append(0)
-        else:
-            self.Orbit_Data["Current fault"].append(self.fault)
-            temp = list(self.zeros)
-            temp[Fault_names_to_num[self.fault] - 1] = 1
-            self.Orbit_Data["Current fault numeric"].append(temp)
-            self.Orbit_Data["Current fault binary"].append(0 if self.fault == "None" else 1)
-"""
 class Constellation_Satellites(Dynamics):
     # Initiate initial parameters for the beginning of each orbit set (fault)
     def __init__(self, seed, s_list, t_list, J_t, fr):
@@ -726,6 +653,7 @@ class Constellation_Satellites(Dynamics):
         self.Orbit_Data["Angular momentum of wheels"] = self.angular_momentum[:,0]
         self.Orbit_Data["Angular velocity of satellite"] = self.w_bi[:,0]
         self.Orbit_Data["Sun in view"] = self.sun_in_view
+        self.Orbit_Data["Control Torques"] = self.Nw
         if self.sun_in_view == False and (self.fault == "Catastrophic_sun" or self.fault == "Erroneous"):
             self.Orbit_Data["Current fault"] = "None"
             temp = list(self.zeros)

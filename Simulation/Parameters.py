@@ -321,6 +321,7 @@ class SET_PARAMS:
     SP_Length = Lx
     SP_width = Ly
     # Number of solar Panels = 4, only 2 accounted for with respect to reflection
+    SolarPanelPosition = np.array(([0, 0, -Lz/2]))
     SPF_position = np.array(([Lx/2 + SP_Length/2, 0, -Lz/2]))    # Middle point, x, y en z
     SPC_position = np.array(([-Lx/2 - SP_Length/2, 0, -Lz/2]))
     SPC_normal_vector = np.array(([0, 0, 1]))
@@ -349,6 +350,7 @@ class SET_PARAMS:
     ############################
     # CONSTELLATION PARAMETERS #
     ############################
+    Reflection = True
     FD_strategy = "Distributed"
     Constellation = False
     Number_of_satellites = 1

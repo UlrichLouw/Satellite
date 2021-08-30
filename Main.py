@@ -27,11 +27,12 @@ def loop(index, D, Data, orbit_descriptions):
     print(SET_PARAMS.Fault_names_values[index])
 
     Overall_data = []
-    Visualize_data = []
 
     if SET_PARAMS.Display:
         satellite = view.initializeCube(SET_PARAMS.Dimensions)
         pv = view.ProjectionViewer(1920, 1080, satellite)
+
+    Visualize_data = {col: [] for col in D.Orbit_Data}
     
     for j in range(1, int(SET_PARAMS.Number_of_orbits*SET_PARAMS.Period/(SET_PARAMS.faster_than_control*SET_PARAMS.Ts)+1)):
         w, q, A, r, sun_in_view = D.rotation()
@@ -54,14 +55,14 @@ def loop(index, D, Data, orbit_descriptions):
 
         # Add all the values to the dictionary that is not numpy arrays
         for col in data_unfiltered:
+            Visualize_data[col].append(data_unfiltered[col])
+
             if not isinstance(data_unfiltered[col], np.ndarray):
                 data[col] = data_unfiltered[col]
 
         Overall_data.append(pd.DataFrame.from_dict(data))
-        Visualize_data.append(pd.DataFrame.from_dict(data_unfiltered))
 
     Data = pd.concat(Overall_data)
-    Visualize_data = pd.concat(Visualize_data)
 
     if SET_PARAMS.Visualize and SET_PARAMS.Display == False:
         path_to_folder = Path("Plots/" + str(D.fault))
@@ -93,21 +94,28 @@ if __name__ == "__main__":
     SET_PARAMS.Display = True
     SET_PARAMS.Visualize = True
     SET_PARAMS.save_as = ".xlsx"
-    SET_PARAMS.Kalman_filter_use = "None"
+    SET_PARAMS.Kalman_filter_use = "EKF"
     SET_PARAMS.sensor_number = 1
     SET_PARAMS.Number_of_orbits = 2
     SET_PARAMS.fixed_orbit_failure = 2
-    SET_PARAMS.Number_of_multiple_orbits = 17
-    SET_PARAMS.skip = 20
+    SET_PARAMS.Number_of_multiple_orbits = 1
+    SET_PARAMS.skip = 1
     SET_PARAMS.Number_of_satellites = 1
     SET_PARAMS.Constellation = False
     SET_PARAMS.k_nearest_satellites = 5
     SET_PARAMS.FD_strategy = "Distributed"
     SET_PARAMS.SensorPredicting = True
     SET_PARAMS.Mode = "EARTH/SUN" # Only focus on the earth during the eclipse
-    SET_PARAMS.Reflection = True
+    SET_PARAMS.Reflection = False
 
-    if SET_PARAMS.Kalman_filter_use == "EKF":
+    SET_PARAMS.Kp = 1.7e-3
+    SET_PARAMS.Kd = 1.1e-1
+
+    if SET_PARAMS.Kalman_filter_use == "EKF" and SET_PARAMS.Mode == "EARTH/SUN":
+        SET_PARAMS.Kp = SET_PARAMS.Kp * 1e-3
+        SET_PARAMS.Kd = SET_PARAMS.Kd * 1e-3
+
+    elif SET_PARAMS.Kalman_filter_use == "EKF":
         SET_PARAMS.Kp = SET_PARAMS.Kp * 1e2
         SET_PARAMS.Kd = SET_PARAMS.Kd * 1e1
 

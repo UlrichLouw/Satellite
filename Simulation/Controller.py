@@ -11,21 +11,25 @@ class Control:
         self.Kd = SET_PARAMS.Kd
         self.w_ref = SET_PARAMS.w_ref
         self.q_ref = SET_PARAMS.q_ref
-        self.v_ref = SET_PARAMS.q_ref[:3]
+        self.SolarPanelPosition = SET_PARAMS.SolarPanelPosition
         self.N_max = SET_PARAMS.N_ws_max
         self.first = True
         self.mode = SET_PARAMS.Mode
 
-    def control(self, w, q, Inertia, B, angular_momentum, earthVector, sunVector, sun_in_view):
-               
+    def control(self, w, q, Inertia, B, angular_momentum, earthVector, sunVector, sun_in_view):             
         if self.mode == "Nominal":   # Normal operation
-            self.q_ref[:3] = earthVector
+            self.q_ref = np.array(([earthVector[0], earthVector[1], earthVector[2],self.q_ref[3]]))
 
         elif self.mode =="EARTH/SUN":
             if sun_in_view:
-                self.q_ref[:3] = sunVector
+                self.SunCommandQuaternion(sunVector)
             else:
-                self.q_ref[:3] = earthVector
+                self.q_ref = SET_PARAMS.q_ref
+
+        normQ = np.linalg.norm(self.q_ref)
+
+        if normQ != 0:
+            self.q_ref = self.q_ref/normQ
 
         if self.mode == "Safe":    # Detumbling mode
             N_magnet = self.magnetic_torquers(B, w)
@@ -37,9 +41,23 @@ class Control:
     
         return N_magnet, N_wheel
 
+
+    ######################################################
+    # DETERMINE THE COMMAND QUATERNION FOR SUN FOLLOWING #
+    ######################################################
+    def SunCommandQuaternion(self, sunVector):
+        u1 = self.SolarPanelPosition * sunVector
+        uc = u1/np.linalg.norm(u1)
+
+        delta = np.clip(np.dot(self.SolarPanelPosition, sunVector),-1,1)
+
+        q13 = uc * np.sin(delta/2)
+        q4 = np.cos(delta/2)
+        self.q_ref = np.array(([q13[0],q13[1],q13[2],q4]))
+
+
     def control_wheel(self, w, q, Inertia, angular_momentum):
         q_error = Quaternion_functions.quaternion_error(q, self.q_ref)
-        print(q_error)
         w_error = self.w_ref - w
         N = np.reshape((-self.Kp * Inertia @ q_error[0:3]),(3,1)) - self.Kd * Inertia @ w_error + w * (Inertia @ w + angular_momentum)
         N = np.clip(N, -self.N_max,self.N_max)
