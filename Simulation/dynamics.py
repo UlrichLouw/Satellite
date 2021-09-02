@@ -10,7 +10,7 @@ from Simulation.Extended_KF import EKF
 from Simulation.SensorPredictions import SensorPredictionsDMD
 import collections
 import math
-from Simulation.utilities import Reflection, Intersection, PointWithinParallelLines, lineEquation
+from Simulation.utilities import Reflection, Intersection, PointWithinParallelLines, lineEquation, line2Equation
 
 pi = math.pi
 
@@ -103,10 +103,23 @@ class Dynamics:
 
                     Line2 = lineEquation(IntersectionPointRight, SET_PARAMS.SPF_RightBottomCorner)
 
-                    reflection = PointWithinParallelLines(Line1, Line2, SET_PARAMS.SSF_LeftCorner)
+                    Line3 = line2Equation(IntersectionPointLeft, SET_PARAMS.SPF_LeftBottomCorner)
+
+                    Line4 = line2Equation(IntersectionPointRight, SET_PARAMS.SPF_RightBottomCorner)
+
+                    reflection1 = PointWithinParallelLines(Line1, Line2, SET_PARAMS.SSF_LeftCorner)
+
+                    reflection2 = PointWithinParallelLines(Line3, Line4, SET_PARAMS.SSF_LeftCorner)
+
+                    reflection = reflection1 and reflection2
 
                     if not reflection:
-                        reflection = PointWithinParallelLines(Line1, Line2, SET_PARAMS.SSF_RightCorner)
+                        reflection1 = PointWithinParallelLines(Line1, Line2, SET_PARAMS.SSF_RightCorner)
+
+                        reflection2 = PointWithinParallelLines(Line3, Line4, SET_PARAMS.SSF_RightCorner)
+
+                        reflection = reflection1 and reflection2
+
                         if reflection:
                             self.S_b = np.reshape(reflectedSunVector, (3,1))
                     else:
@@ -124,7 +137,7 @@ class Dynamics:
                 # IMPLEMENT ERROR OR FAILURE OF SENSOR IF APPLICABLE #
                 ######################################################
 
-                self.S_b = self.Sun_sensor_fault.Catastrophic_sun(self.S_b, "Fine")
+                self.S_b, self.sun_in_view = self.Sun_sensor_fault.Catastrophic_sun(self.S_b, self.sun_in_view, "Fine")
                 self.S_b = self.Sun_sensor_fault.Erroneous_sun(self.S_b, "Fine")
                 self.S_b = self.Common_data_transmission_fault.Bit_flip(self.S_b)
                 self.S_b = self.Common_data_transmission_fault.Sign_flip(self.S_b)
@@ -144,10 +157,23 @@ class Dynamics:
 
                     Line2 = lineEquation(IntersectionPointRight, SET_PARAMS.SPC_RightBottomCorner)
 
-                    reflection = PointWithinParallelLines(Line1, Line2, SET_PARAMS.SSC_LeftCorner)
+                    Line3 = line2Equation(IntersectionPointLeft, SET_PARAMS.SPC_LeftBottomCorner)
+
+                    Line4 = line2Equation(IntersectionPointRight, SET_PARAMS.SPC_RightBottomCorner)
+
+                    reflection1 = PointWithinParallelLines(Line1, Line2, SET_PARAMS.SSC_LeftCorner)
+
+                    reflection2 = PointWithinParallelLines(Line3, Line4, SET_PARAMS.SSC_LeftCorner)
+
+                    reflection = reflection1 and reflection2
 
                     if not reflection:
-                        reflection = PointWithinParallelLines(Line1, Line2, SET_PARAMS.SSC_RightCorner)
+                        reflection1 = PointWithinParallelLines(Line1, Line2, SET_PARAMS.SSC_RightCorner)
+
+                        reflection2 = PointWithinParallelLines(Line3, Line4, SET_PARAMS.SSC_RightCorner)
+
+                        reflection = reflection1 and reflection2
+                        
                         if reflection:
                             self.S_b = np.reshape(reflectedSunVector, (3,1))
                     else:
@@ -165,7 +191,7 @@ class Dynamics:
                 # IMPLEMENT ERROR OR FAILURE OF SENSOR IF APPLICABLE #
                 ######################################################
 
-                self.S_b = self.Sun_sensor_fault.Catastrophic_sun(self.S_b, "Coarse")
+                self.S_b, self.sun_in_view = self.Sun_sensor_fault.Catastrophic_sun(self.S_b, self.sun_in_view, "Coarse")
                 self.S_b = self.Sun_sensor_fault.Erroneous_sun(self.S_b, "Coarse")
                 self.S_b = self.Common_data_transmission_fault.Bit_flip(self.S_b)
                 self.S_b = self.Common_data_transmission_fault.Sign_flip(self.S_b)
@@ -233,6 +259,8 @@ class Dynamics:
 
         Ngg = self.dist.Gravity_gradient_func(self.A_ORC_to_SBC) 
 
+        x01 = x0
+
         n = int(np.round((x - x0)/h))
         y = w
 
@@ -269,7 +297,7 @@ class Dynamics:
         if np.isnan(self.Ngyro).any():
             print("Break")
 
-        self.angular_momentum = rungeKutta_h(x0, self.angular_momentum, x, h, N_control_wheel)
+        self.angular_momentum = rungeKutta_h(x01, self.angular_momentum, x, h, N_control_wheel)
 
         self.angular_momentum = self.Angular_sensor_fault.normal_noise(self.angular_momentum, SET_PARAMS.Angular_sensor_noise)
 
@@ -327,6 +355,9 @@ class Dynamics:
                 self.fault = True_faults[self.np_random.randint(0,len(True_faults))]
                 print(self.fault)
 
+    #################################################
+    # FUNCTION TO PREDICT IF AN ANOMALY HAS OCCURED #
+    #################################################
     def SensorPredicting(self):
 
         if SET_PARAMS.sensor_number == "ALL":
@@ -341,9 +372,19 @@ class Dynamics:
             self.SensePredDMD = SensorPredictionsDMD(self.Sensors_X)
             self.MovingAverage = 0
 
-
         self.MovingAverage = self.SensePredDMD.MovingAverage(self.Sensors_X, self.Sensors_Y)                
 
+        self.predictedFailure = False
+
+    ###############################################################
+    # FUNCTION TO ISOLATE (CLASSIFY) THE ANOMALY THAT HAS OCCURED #
+    ###############################################################
+    def SensorIsolation(self):
+        pass
+
+    ###########################################################
+    # FUNCTION FOR THE STEP BY STEP ROTATION OF THE SATELLITE #
+    ###########################################################
     def rotation(self):
         ##############################################################
         #    DETERMINE WHETHER A FAUKLT OCCURED WITHIN THE SYSTEM    #
@@ -358,8 +399,6 @@ class Dynamics:
 
         self.S_EIC, self.sun_in_view = self.sense.sun(self.t)
         self.S_ORC = self.A_EIC_to_ORC @ self.S_EIC
-
-        print(self.A_ORC_to_SBC)
 
         ######################################
         # DETERMINE THE DCM OF THE SATELLITE #
@@ -441,7 +480,6 @@ class Dynamics:
         # DETERMINE THE ACTUAL POSITION OF THE #
         # SATELLITE FROM THE EARTH AND THE SUN #
         ########################################
-
 
         if SET_PARAMS.Kalman_filter_use == "EKF":
             
@@ -533,7 +571,7 @@ class Single_Satellite(Dynamics):
         self.sun_noise = SET_PARAMS.Fine_sun_noise
         self.RKF = RKF()                            # Rate Kalman_filter
         self.EKF = EKF()                            # Extended Kalman_filter
-        self.sensors_kalman = ["Earth_Sensor", "Sun_Sensor", "Star_tracker"] #["Earth_Sensor", "Sun_Sensor", "Star_tracker"]
+        self.sensors_kalman = ["Sun_Sensor", "Earth_Sensor", "Star_tracker"]
         super().initiate_fault_parameters()
 
         ####################################################
@@ -574,6 +612,9 @@ class Single_Satellite(Dynamics):
         if SET_PARAMS.SensorPredicting:
             self.SensorPredicting()
             self.Orbit_Data["Moving Average"] = self.MovingAverage
+
+        if SET_PARAMS.SensorIsolation:
+            pass
         
         if self.sun_in_view == False and (self.fault == "Catastrophic_sun" or self.fault == "Erroneous"):
             self.Orbit_Data["Current fault"] = "None"

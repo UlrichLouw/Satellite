@@ -1,5 +1,4 @@
 import numpy as np
-from sympy import Point3D, Plane, Line3D
 
 def Reflection(V, N):
     R = V - 2 * N.T * (np.dot(V, N))
@@ -41,14 +40,10 @@ def lineEquation(PointFrom, PointTo):
     c = PointTo[0] - m*PointTo[1]
     return m, c
 
-
-if __name__ == '__main__':
-    a = Plane(Point3D(1/2, 1/2, -1/2), Point3D(1/2, 0, 0), Point3D(1/2, -1/2, -1/2))
-
-    print(a.equation())
-
-    a = Plane(Point3D(1/2, 0, 0), normal_vector=(1/2, 0, 0))
-
-    print(a.equation())
-
-    a.intersection()
+################################
+# FIND THE EQUATION FOR A LINE #
+################################
+def line2Equation(PointFrom, PointTo):
+    m = (PointTo[1] - PointFrom[1])/(PointTo[0] - PointFrom[0])
+    c = PointTo[1] - m*PointTo[0]
+    return m, c

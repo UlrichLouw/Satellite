@@ -18,14 +18,14 @@ def save_as_excel(Data, sheetnames):
 # SAVE AS CSV FILE #
 ####################
 
-def save_as_csv(Data, orbit = None, filename = SET_PARAMS.filename, index = False):
+def save_as_csv(Data, path, orbit = None, filename = SET_PARAMS.filename, index = False):
     if isinstance(Data, pd.DataFrame):
-        Data.to_csv(SET_PARAMS.path + filename + ".csv", index = index)
+        Data.to_csv(path + filename + ".csv", index = index)
     else:
         # Convert array's to individual values in the dictionary
 
         df = pd.DataFrame(Data, columns = Data.keys())
-        df.to_csv(SET_PARAMS.path + filename + str(orbit) + ".csv", index = index)
+        df.to_csv(path + filename + str(orbit) + ".csv", index = index)
 
 #######################################################
 # FUNCTION TO SAVE A PICKLE FILE OF SIMULATION DATA   #
@@ -39,7 +39,7 @@ def save_as_pickle(Data, orbit):
 ##########################################
 # FUNCTION TO VISUALIZE DATA AS GRAPHS   #
 ##########################################
-def visualize_data(D, fault):
+def visualize_data(D, fault, path):
     doNotVisualize = ["Sun in view", "Current fault", "Current fault binary", "Current fault numeric"]
     singleVisualize = ["Moving Average"]
 
@@ -62,7 +62,7 @@ def visualize_data(D, fault):
 
             fig.update_yaxes(range=[y_min, y_max], row=1, col=1)
             fig.update_layout(height=600, width=600, title_text=str(i))
-            fig.write_html("Plots/" + str(fault) +"/"+ str(i)+".html")
+            fig.write_html(path + "/" + str(i)+".html")
         
         else:
             y = np.array((D[i]))
@@ -94,4 +94,4 @@ def visualize_data(D, fault):
             fig.update_yaxes(range=[y_min, y_max], row=2, col=1)
             fig.update_yaxes(range=[y_min, y_max], row=3, col=1)
             fig.update_layout(height=600, width=600, title_text=str(i))
-            fig.write_html("Plots/" + str(fault) +"/"+ str(i)+".html")
+            fig.write_html(path + str(i)+".html")

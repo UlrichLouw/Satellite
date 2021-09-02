@@ -18,9 +18,9 @@ class Control:
 
     def control(self, w, q, Inertia, B, angular_momentum, earthVector, sunVector, sun_in_view):             
         if self.mode == "Nominal":   # Normal operation
-            self.q_ref = np.array(([earthVector[0], earthVector[1], earthVector[2],self.q_ref[3]]))
-
-        elif self.mode =="EARTH/SUN":
+            self.q_ref = SET_PARAMS.q_ref
+            
+        elif self.mode =="EARTH_SUN":
             if sun_in_view:
                 self.SunCommandQuaternion(sunVector)
             else:

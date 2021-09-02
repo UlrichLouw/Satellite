@@ -7,6 +7,7 @@ import pathlib
 import Simulation.utilities as utilities
 
 pi = math.pi
+global faultNames
 
 class SET_PARAMS:
     # All the parameters specific to the satellite and the mission
@@ -213,6 +214,7 @@ class SET_PARAMS:
     # FAULT PREDICTION PARAMETERS #
     ###############################
     SensorPredicting = False
+    SensorIsolation = False
     FeatureExtractionMethods = ["PCA", "DMD"]
     FaultPredictionMethods = ["PhysicsEnabledDMDDecisionTree", "ANN", "RandomForest"]
     
@@ -237,8 +239,13 @@ class SET_PARAMS:
     ####################################
     # FAULT TYPES AND FAULT PARAMETERS #
     ####################################
-    
     number_of_faults = 17
+    global faultNames
+    faultNames = ["None", "Electronics_of_RW", "Overheated_RW", "Catastrophic_RW", "General_sensor_high_noise", "Catastrophic_sun", "Erroneous_sun"]
+
+    Fault_names = {faultNames[i]: i+1 for i in range(len(faultNames))}
+
+    """
     Fault_names = {
     "None": 1,
     "Electronics_of_RW": 2,
@@ -258,7 +265,7 @@ class SET_PARAMS:
     "General_sensor_high_noise": 16,
     "closed_shutter" : 17
     }
-
+    """
     likelyhood_multiplier = 1
     #Fault_simulation_mode = 1 # Continued failure, a mistake that does not go back to normal
     #Fault_simulation_mode = 0 # Failure is based on specified class failure rate. Multiple failures can occure simultaneously
@@ -499,13 +506,14 @@ class Sun_sensor(Fault_parameters):
         }
         self.Failed_sensor = self.sensors[self.np_random.randint(0,1)]
 
-    def Catastrophic_sun(self, sun_sensor, sensor_type):
+    def Catastrophic_sun(self, sun_sensor, sun_in_view, sensor_type):
         if sensor_type == self.Failed_sensor:
             if self.failure == "Catastrophic_sun":
-                pass
-            return np.zeros(sun_sensor.shape) if self.failure == "Catastrophic_sun" else sun_sensor
+                return np.zeros(sun_sensor.shape), False
+            else:
+                return sun_sensor, sun_in_view
         else:
-            return sun_sensor
+            return sun_sensor, sun_in_view
 
     def Erroneous_sun(self, sun_sensor, sensor_type):
         # Sun_sensor must be provided as a unit vector
