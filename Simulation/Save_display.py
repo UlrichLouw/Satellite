@@ -43,11 +43,11 @@ def visualize_data(D, fault, path):
     doNotVisualize = ["Sun in view", "Current fault", "Current fault binary", "Current fault numeric"]
     singleVisualize = ["Moving Average"]
 
-    for i in D:
-        if i in doNotVisualize:
+    for data in D:
+        if data in doNotVisualize:
             pass
-        elif i in singleVisualize:
-            y = np.array((D[i]))
+        elif data in singleVisualize:
+            y = np.array((D[data]))
             fig = make_subplots(rows=3, cols=1)
             x = y.shape[0]
             x = np.arange(0,x,1)
@@ -61,11 +61,11 @@ def visualize_data(D, fault, path):
             ), row=1, col=1)
 
             fig.update_yaxes(range=[y_min, y_max], row=1, col=1)
-            fig.update_layout(height=600, width=600, title_text=str(i))
-            fig.write_html(path + "/" + str(i)+".html")
+            fig.update_layout(height=600, width=600, title_text=str(data))
+            fig.write_html(path + "/" + str(data)+".html")
         
         else:
-            y = np.array((D[i]))
+            y = np.array((D[data]))
             fig = make_subplots(rows=3, cols=1)
             x = y.shape[0]
             x = np.arange(0,x,1)
@@ -93,5 +93,5 @@ def visualize_data(D, fault, path):
             fig.update_yaxes(range=[y_min, y_max], row=1, col=1)
             fig.update_yaxes(range=[y_min, y_max], row=2, col=1)
             fig.update_yaxes(range=[y_min, y_max], row=3, col=1)
-            fig.update_layout(height=600, width=600, title_text=str(i))
-            fig.write_html(path + str(i)+".html")
+            fig.update_layout(height=600, width=600, title_text=str(data))
+            fig.write_html(path + str(data)+".html")

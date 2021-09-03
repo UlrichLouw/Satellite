@@ -359,33 +359,58 @@ class Dynamics:
     # FUNCTION TO HANDLE THE PREDICTION, ISOLATION AND RECOVERY OF SENSORS FAILURES OR ANOMALIES #
     ############################################################################################## 
     def SensorFailureHandling(self):
-        pass
+        if SET_PARAMS.SensorFeatureExtraction:
+            self.SensorFeatureExtraction()
+        
+        if SET_PARAMS.SensorPredicting:
+            self.SensorPredicting()
+
+        if SET_PARAMS.SensorIsolation:
+            self.SensorIsolation()
+        
+        if SET_PARAMS.SensorRecovery:
+            self.SensorRecovery()
+    
+    def SensorFeatureExtraction(self):
+        if SET_PARAMS.SensorPredictor == "DMD":
+            self.Sensors_X = np.concatenate([self.Orbit_Data["Magnetometer"], 
+                                            self.Orbit_Data["Sun"], self.Orbit_Data["Earth"], 
+                                            self.Orbit_Data["Star"],  
+                                            self.Orbit_Data["Angular momentum of wheels"], 
+                                            self.Orbit_Data["Angular velocity of satellite"]])
+            self.Sensors_Y = np.concatenate([self.Orbit_Data["Control Torques"]])
+            
+
+            if self.t == SET_PARAMS.time:
+                # Initiating parameters for SensorPredictions
+                self.SensePredDMD = SensorPredictionsDMD(self.Sensors_X)
+                self.MovingAverage = 0
+            
+            self.MovingAverage = self.SensePredDMD.MovingAverage(self.Sensors_X, self.Sensors_Y)
 
     #################################################
     # FUNCTION TO PREDICT IF AN ANOMALY HAS OCCURED #
     #################################################
     def SensorPredicting(self):
-
-        if SET_PARAMS.sensor_number == "ALL":
-            self.Sensors_X = np.concatenate([self.Orbit_Data["Magnetometer"], self.Orbit_Data["Sun"], self.Orbit_Data["Earth"], self.Orbit_Data["Star"],  self.Orbit_Data["Angular momentum of wheels"], self.Orbit_Data["Angular velocity of satellite"]])
-            self.Sensors_Y = None
-        else:
-            self.Sensors_X = self.Orbit_Data["Magnetometer"]
-            self.Sensors_Y = np.concatenate([self.Orbit_Data["Sun"], self.Orbit_Data["Earth"], self.Orbit_Data["Star"],  self.Orbit_Data["Angular momentum of wheels"], self.Orbit_Data["Angular velocity of satellite"]])
-
-        if self.t == SET_PARAMS.time:
-            # Initiating parameters for SensorPredictions
-            self.SensePredDMD = SensorPredictionsDMD(self.Sensors_X)
-            self.MovingAverage = 0
-
-        self.MovingAverage = self.SensePredDMD.MovingAverage(self.Sensors_X, self.Sensors_Y)                
-
         self.predictedFailure = False
 
     ###############################################################
     # FUNCTION TO ISOLATE (CLASSIFY) THE ANOMALY THAT HAS OCCURED #
     ###############################################################
     def SensorIsolation(self):
+        #! This should account for multiple predictions of failures
+        if SET_PARAMS.SensorPredictor == "DMD":
+            for sensorData in self.availableData:
+                self.Sensors_X = self.Orbit_Data[sensorData]
+                Y = [self.Orbit_Data[data] for data in self.availableData if data != sensorData]
+                self.Sensors_Y = np.concatenate(Y)
+
+                self.MovingAverage = self.SensePredDMD.MovingAverage(self.Sensors_X, self.Sensors_Y)                
+
+    ############################################
+    # FUNCTION TO RECOVER FROM SENSOR FAILURES #
+    ############################################
+    def SensorRecovery(self):
         pass
 
     ###########################################################
@@ -577,9 +602,10 @@ class Single_Satellite(Dynamics):
         self.sun_noise = SET_PARAMS.Fine_sun_noise
         self.RKF = RKF()                            # Rate Kalman_filter
         self.EKF = EKF()                            # Extended Kalman_filter
+        self.MovingAverage = 0
         self.sensors_kalman = ["Sun_Sensor", "Earth_Sensor", "Star_tracker"]
         super().initiate_fault_parameters()
-
+        self.availableData = SET_PARAMS.availableData
         ####################################################
         #  THE ORBIT_DATA DICTIONARY IS USED TO STORE ALL  #
         #     THE MEASUREMENTS FOR EACH TIMESTEP (TS)      #
@@ -593,12 +619,12 @@ class Single_Satellite(Dynamics):
             "Angular momentum of wheels": [],    #Wheel angular velocity of each reaction wheel
             "Star": [],
             "Angular velocity of satellite": [],
+            "Moving Average": [],
+            "Control Torques": [],
             "Sun in view": [],                              #True or False values depending on whether the sun is in view of the satellite
             "Current fault": [],                            #What the fault is that the system is currently experiencing
             "Current fault numeric": [],
-            "Current fault binary": [],
-            "Moving Average": [],
-            "Control Torques": []
+            "Current fault binary": []
         }
 
         self.zeros = np.zeros((SET_PARAMS.number_of_faults,), dtype = int)
@@ -614,10 +640,9 @@ class Single_Satellite(Dynamics):
         self.Orbit_Data["Angular velocity of satellite"] = self.w_bi[:,0]
         self.Orbit_Data["Sun in view"] = self.sun_in_view
         self.Orbit_Data["Control Torques"] = self.Nw[:,0]
+        self.Orbit_Data["Moving Average"] = self.MovingAverage
         # Predict the sensor parameters and add them to the Orbit_Data
-        if SET_PARAMS.SensorPredicting:
-            self.SensorPredicting()
-            self.Orbit_Data["Moving Average"] = self.MovingAverage
+        self.SensorFailureHandling()
 
         if SET_PARAMS.SensorIsolation:
             pass

@@ -11,7 +11,7 @@ def DecisionTreeAllAnomalies(path, depth):
     X_list = []
     Y_list = []
 
-    for index in range(SET_PARAMS.Number_of_multiple_orbits - 1):
+    for index in range(SET_PARAMS.Number_of_multiple_orbits):
         name = SET_PARAMS.Fault_names_values[index+1]
         Y, _, X, _, _ = Dataset_order(name, binary_set = True, buffer = False, categorical_num = False)
         X_list.append(X)    

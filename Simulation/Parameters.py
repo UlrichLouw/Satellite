@@ -187,7 +187,10 @@ class SET_PARAMS:
     #######################################################################
 
     Number_of_orbits = 1 # * This value can constantly be changed as well as the number of orbits
-    Number_of_multiple_orbits = 17
+    Number_of_multiple_orbits = 7
+    numberOfSensors = 6
+    availableData = ["Magnetometer", "Sun", "Earth","Star", "Angular momentum of wheels", 
+        "Angular velocity of satellite", "Control Torques"]
     
     ##########################
     # VISUALIZE MEASUREMENTS #
@@ -213,8 +216,12 @@ class SET_PARAMS:
     ###############################
     # FAULT PREDICTION PARAMETERS #
     ###############################
+    SensorFeatureExtraction = False
     SensorPredicting = False
     SensorIsolation = False
+    SensorRecovery = False
+    Reflection = True
+    SensorPredictor = "DMD"
     FeatureExtractionMethods = ["PCA", "DMD"]
     FaultPredictionMethods = ["PhysicsEnabledDMDDecisionTree", "ANN", "RandomForest"]
     
@@ -240,7 +247,9 @@ class SET_PARAMS:
     # FAULT TYPES AND FAULT PARAMETERS #
     ####################################
     number_of_faults = 17
+
     global faultNames
+
     faultNames = ["None", 
     "Electronics_of_RW", 
     "Overheated_RW", 
@@ -342,7 +351,6 @@ class SET_PARAMS:
     ############################
     # CONSTELLATION PARAMETERS #
     ############################
-    Reflection = True
     FD_strategy = "Distributed"
     Constellation = False
     Number_of_satellites = 1

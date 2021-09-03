@@ -401,6 +401,7 @@ def rungeKutta_w(Inertia, x0, w, x, h, angular_momentum, Nw, Nm, Ngg):
     ######################################################
     # ALL THE DISTURBANCE TORQUES ADDED TO THE SATELLITE #
     ######################################################
+    x01 = x0
 
     N = - Nw - N_gyro + Nm + Ngg
 
@@ -413,7 +414,7 @@ def rungeKutta_w(Inertia, x0, w, x, h, angular_momentum, Nw, Nm, Ngg):
         
         x0 = x0 + h; 
 
-    angular_momentum = rungeKutta_h(x0, angular_momentum, x, h, Nw)
+    angular_momentum = rungeKutta_h(x01, angular_momentum, x, h, Nw)
 
     y = np.clip(y, -SET_PARAMS.wheel_angular_d_max, SET_PARAMS.wheel_angular_d_max)
 

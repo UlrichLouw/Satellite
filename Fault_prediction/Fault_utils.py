@@ -17,8 +17,10 @@ def Binary_split(classified_data):
 
     return classified_data
 
-def Dataset_order(index, binary_set, buffer, categorical_num, use_previously_saved_models = False, columns_compare = None, columns_compare_to = None):
-    #X_buffer_replaced = []
+def Dataset_order(index, binary_set, buffer, categorical_num, controlInputx = True, ControlInput = False, onlySensors = False, use_previously_saved_models = False, columns_compare = None, columns_compare_to = None):
+    
+    shapeSize = 1
+
     if isinstance(index, int):
         if SET_PARAMS.load_as == ".xlsx":
             excel_file = SET_PARAMS.filename + ".xlsx"
@@ -47,11 +49,14 @@ def Dataset_order(index, binary_set, buffer, categorical_num, use_previously_sav
     else:
         Orbit = Binary_split(Data)
 
+    if onlySensors and controlInputx:
+        Orbit = Orbit.drop(columns = ['Moving Average'])
+    elif onlySensors:
+        Orbit = Orbit.drop(columns = ['Moving Average', 'Control Torques_x',
+                            'Control Torques_y', 'Control Torques_z'])
+
     if columns_compare != None:
         columns_to_keep = columns_compare + columns_compare_to
-        for i in columns_to_keep:
-            temp = Orbit[i]
-        
         Orbit = Orbit[columns_to_keep]
         X = Orbit[columns_compare].to_numpy()
         Y = Orbit[columns_compare_to].to_numpy()
@@ -59,6 +64,10 @@ def Dataset_order(index, binary_set, buffer, categorical_num, use_previously_sav
         Orbit.drop(columns = ['Sun in view'], inplace = True)
         X = Orbit.iloc[:,0:-1].to_numpy()
         Y = Orbit.iloc[:,-1].to_numpy()
+
+    if ControlInput:
+        Y = Data.loc[:,Data.columns.str.contains('Control Torques')].to_numpy()
+        shapeSize = 3
 
     buffer_x = collections.deque(maxlen = SET_PARAMS.buffer_size)
     buffer_correlation_sun_earth_magnetometer = collections.deque(maxlen = SET_PARAMS.buffer_size)
@@ -85,10 +94,10 @@ def Dataset_order(index, binary_set, buffer, categorical_num, use_previously_sav
         Y = Y.reshape(X.shape[0], Y.shape[1])
         Y_buffer.append(Y)
     elif buffer == True:
-        Y = np.asarray(Y[SET_PARAMS.buffer_size:]).reshape(X.shape[0],1)
+        Y = np.asarray(Y[SET_PARAMS.buffer_size:]).reshape(X.shape[0],shapeSize)
         Y_buffer.append(Y)
     else:
-        Y = np.asarray(Y).reshape(X.shape[0],1)
+        Y = np.asarray(Y).reshape(X.shape[0],shapeSize)
         Y_buffer.append(Y)
 
     return Y, Y_buffer, X, X_buffer, Orbit

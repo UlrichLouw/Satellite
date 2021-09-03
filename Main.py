@@ -44,7 +44,7 @@ def loop(index, D, Data, orbit_descriptions):
 
         if SET_PARAMS.Fault_simulation_mode == 2 and j%(int(SET_PARAMS.Number_of_orbits*SET_PARAMS.Period/(SET_PARAMS.faster_than_control*SET_PARAMS.Ts)/SET_PARAMS.fixed_orbit_failure)) == 0:
             D.initiate_purposed_fault(SET_PARAMS.Fault_names_values[index])
-            print(SET_PARAMS.Fault_names_values[index], " is initiated")
+            print(SET_PARAMS.Fault_names_values[index], "is initiated")
             if SET_PARAMS.Display:
                 pv.fault = D.fault
 
@@ -66,11 +66,11 @@ def loop(index, D, Data, orbit_descriptions):
 
     if SET_PARAMS.Visualize and SET_PARAMS.Display == False:
         if SET_PARAMS.Reflection:
-            path = "Plots/"+SET_PARAMS.Mode+"_with_reflection/"+ str(D.fault) + "/"
+            path = "Plots/"+"KalmanFilter-"+SET_PARAMS.Kalman_filter_use+"/"+SET_PARAMS.Mode+"_with_reflection/"+ str(D.fault) + "/"
             path_to_folder = Path(path)
             path_to_folder.mkdir(parents = True, exist_ok=True)
         else:
-            path = "Plots/"+SET_PARAMS.Mode+"/"+ str(D.fault) + "/"
+            path = "Plots/"+"KalmanFilter-"+SET_PARAMS.Kalman_filter_use+"/"+SET_PARAMS.Mode+"/"+ str(D.fault) + "/"
             path_to_folder = Path(path)
             path_to_folder.mkdir(parents = True, exist_ok=True)
         visualize_data(Visualize_data, D.fault, path = path)
@@ -84,11 +84,11 @@ def loop(index, D, Data, orbit_descriptions):
 
     if SET_PARAMS.save_as == ".csv":
         if SET_PARAMS.Reflection:
-            path = "Data files/"+SET_PARAMS.Kalman_filter_use+SET_PARAMS.Mode+"_with_reflection/"
+            path = "Data files/"+"KalmanFilter-"+SET_PARAMS.Kalman_filter_use+"/"+SET_PARAMS.Mode+"_with_reflection/"
             path_to_folder = Path(path)
             path_to_folder.mkdir(parents = True, exist_ok=True)
         else:
-            path = "Data files/"+SET_PARAMS.Mode+"/"
+            path = "Data files/"+"KalmanFilter-"+SET_PARAMS.Kalman_filter_use+"/"+SET_PARAMS.Mode+"/"
             path_to_folder = Path(path)
             path_to_folder.mkdir(parents = True, exist_ok=True)
         save_as_csv(Data, filename = SET_PARAMS.Fault_names_values[index], index = index, path = path)
@@ -103,35 +103,36 @@ if __name__ == "__main__":
     # IF THE SAVE AS IS EQUAL TO XLSX, THE THREADING CANNOT #
     #           BE USED TO SAVE SHEETS                      #     
     #########################################################
-    SET_PARAMS.Display = False
+    SET_PARAMS.Display = True
     SET_PARAMS.Visualize = True
-    SET_PARAMS.save_as = ".csv"
-    SET_PARAMS.Kalman_filter_use = "None"
-    SET_PARAMS.sensor_number = 1
+    SET_PARAMS.save_as = ".xlsx"
+    SET_PARAMS.Kalman_filter_use = "EKF"
+    SET_PARAMS.sensor_number = "ALL"
     SET_PARAMS.Number_of_orbits = 2
     SET_PARAMS.fixed_orbit_failure = 2
-    SET_PARAMS.Number_of_multiple_orbits = 1
+    SET_PARAMS.Number_of_multiple_orbits = 7
     SET_PARAMS.skip = 20
     SET_PARAMS.Number_of_satellites = 1
-    SET_PARAMS.Constellation = False
     SET_PARAMS.k_nearest_satellites = 5
     SET_PARAMS.FD_strategy = "Distributed"
-    SET_PARAMS.SensorPredicting = True
-    SET_PARAMS.SensorIsolation = True
-    SET_PARAMS.Mode = "EARTH_SUN" # Only focus on the earth during the eclipse
-    SET_PARAMS.Reflection = True
+    SET_PARAMS.SensorFeatureExtraction = False
+    SET_PARAMS.SensorPredicting = False
+    SET_PARAMS.SensorIsolation = False
+    SET_PARAMS.SensorRecovery = False
+    SET_PARAMS.Mode = "Nominal" # Only focus on the earth during the eclipse
+    SET_PARAMS.Reflection = False
+    SET_PARAMS.SensorPredictor = "DMD"
 
-    SET_PARAMS.Kp = 1.7e-4 * 2
-    SET_PARAMS.Kd = 1.1e-1
-    """
-    if SET_PARAMS.Kalman_filter_use == "EKF" and SET_PARAMS.Mode == "EARTH/SUN":
-        SET_PARAMS.Kp = SET_PARAMS.Kp * 1e-3
-        SET_PARAMS.Kd = SET_PARAMS.Kd * 1e-3
+    SET_PARAMS.Kp = 1.7e-4 * 4
+    SET_PARAMS.Kd = 1.1e-1 / 2
 
     if SET_PARAMS.Kalman_filter_use == "EKF":
-        SET_PARAMS.Kp = SET_PARAMS.Kp * 1e2
-        SET_PARAMS.Kd = SET_PARAMS.Kd * 1e1
-    """
+        if SET_PARAMS.Reflection:
+            SET_PARAMS.Kp = SET_PARAMS.Kp * 1e2
+            SET_PARAMS.Kd = SET_PARAMS.Kd * 1e1  
+        else:
+            SET_PARAMS.Kp = SET_PARAMS.Kp * 1e2
+            SET_PARAMS.Kd = SET_PARAMS.Kd * 1e1
 
     #####################################
     # PARAMETERS FOR SATELLITE DYNAMICS #
@@ -146,7 +147,7 @@ if __name__ == "__main__":
     # ON THE SATELLITES ID AND THE SATELLITES CLOSEST TO IT #
     #########################################################
 
-    if SET_PARAMS.Constellation:
+    if SET_PARAMS.Number_of_satellites > 1:
         Stellar = Constellation.Constellation(SET_PARAMS.Number_of_satellites)
         Overall_data = []
 
