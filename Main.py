@@ -110,7 +110,7 @@ if __name__ == "__main__":
     SET_PARAMS.sensor_number = 1
     SET_PARAMS.Number_of_orbits = 2
     SET_PARAMS.fixed_orbit_failure = 2
-    SET_PARAMS.Number_of_multiple_orbits = 7
+    SET_PARAMS.Number_of_multiple_orbits = 1
     SET_PARAMS.skip = 20
     SET_PARAMS.Number_of_satellites = 1
     SET_PARAMS.Constellation = False

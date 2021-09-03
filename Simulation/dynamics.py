@@ -355,6 +355,12 @@ class Dynamics:
                 self.fault = True_faults[self.np_random.randint(0,len(True_faults))]
                 print(self.fault)
 
+    ##############################################################################################
+    # FUNCTION TO HANDLE THE PREDICTION, ISOLATION AND RECOVERY OF SENSORS FAILURES OR ANOMALIES #
+    ############################################################################################## 
+    def SensorFailureHandling(self):
+        pass
+
     #################################################
     # FUNCTION TO PREDICT IF AN ANOMALY HAS OCCURED #
     #################################################

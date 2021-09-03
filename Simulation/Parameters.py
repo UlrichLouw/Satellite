@@ -241,31 +241,16 @@ class SET_PARAMS:
     ####################################
     number_of_faults = 17
     global faultNames
-    faultNames = ["None", "Electronics_of_RW", "Overheated_RW", "Catastrophic_RW", "General_sensor_high_noise", "Catastrophic_sun", "Erroneous_sun"]
+    faultNames = ["None", 
+    "Electronics_of_RW", 
+    "Overheated_RW", 
+    "Catastrophic_RW", 
+    "General_sensor_high_noise", 
+    "Catastrophic_sun", 
+    "Erroneous_sun"]
 
     Fault_names = {faultNames[i]: i+1 for i in range(len(faultNames))}
 
-    """
-    Fault_names = {
-    "None": 1,
-    "Electronics_of_RW": 2,
-    "Overheated_RW": 3, 
-    "Catastrophic_RW": 4,
-    "Catastrophic_sun": 5, 
-    "Erroneous_sun": 6, 
-    "Inverted_polarities_magnetorquers": 7,
-    "Interference_magnetic": 8, 
-    "Stop_magnetometers": 9,
-    "Increasing_angular_RW_momentum": 10, 
-    "Decreasing_angular_RW_momentum": 11, 
-    "Oscillating_angular_RW_momentum": 12,
-    "Bit_flip": 13,
-    "Sign_flip": 14,
-    "Insertion_of_zero_bit": 15,
-    "General_sensor_high_noise": 16,
-    "closed_shutter" : 17
-    }
-    """
     likelyhood_multiplier = 1
     #Fault_simulation_mode = 1 # Continued failure, a mistake that does not go back to normal
     #Fault_simulation_mode = 0 # Failure is based on specified class failure rate. Multiple failures can occure simultaneously
@@ -325,8 +310,8 @@ class SET_PARAMS:
     ###################
     # HARDWARE MODELS #
     ###################
-    SP_Length = Lx
-    SP_width = Ly
+    SP_Length = Lx/2
+    SP_width = Ly/2
     # Number of solar Panels = 4, only 2 accounted for with respect to reflection
     SolarPanelPosition = np.array(([0, 0, -Lz/2]))
     SPF_position = np.array(([Lx/2 + SP_Length/2, 0, -Lz/2]))    # Middle point, x, y en z
