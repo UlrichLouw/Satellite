@@ -135,8 +135,8 @@ if __name__ == "__main__":
     SET_PARAMS.Reflection = False
     SET_PARAMS.SensorPredictor = "DMD"
 
-    settling_time = 900
-    damping_coefficient = 0.707
+    settling_time = 300
+    damping_coefficient = 0.9
 
     wn = 1/(settling_time*damping_coefficient)
 
@@ -149,7 +149,7 @@ if __name__ == "__main__":
 
     #SET_PARAMS.R_k = np.eye(3)*1e-4
 
-    SET_PARAMS.Q_k = np.eye(7)*1e-2
+    SET_PARAMS.Q_k = np.eye(7) *1e-4
 
     SET_PARAMS.Kp = 2.5e-3 #2e-4 #2e-5 #1e-4
     SET_PARAMS.Kd = 0.05 #1e-2 #4e-2
