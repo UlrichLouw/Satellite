@@ -14,13 +14,12 @@ class Control:
         self.SolarPanelPosition = SET_PARAMS.SolarPanelPosition
         self.N_max = SET_PARAMS.N_ws_max
         self.first = True
-        self.mode = SET_PARAMS.Mode
 
-    def control(self, w, q, Inertia, B, angular_momentum, earthVector, sunVector, sun_in_view):             
-        if self.mode == "Nominal":   # Normal operation
+    def control(self, w_bi_est, w_est, q, Inertia, B, angular_momentum, earthVector, sunVector, sun_in_view):             
+        if SET_PARAMS.Mode == "Nominal":   # Normal operation
             self.q_ref = SET_PARAMS.q_ref
             
-        elif self.mode =="EARTH_SUN":
+        elif SET_PARAMS.Mode == "EARTH_SUN":
             if sun_in_view:
                 self.SunCommandQuaternion(sunVector)
             else:
@@ -31,14 +30,14 @@ class Control:
         if normQ != 0:
             self.q_ref = self.q_ref/normQ
 
-        if self.mode == "Safe":    # Detumbling mode
-            N_magnet = self.magnetic_torquers(B, w)
+        if SET_PARAMS.Mode == "Safe":    # Detumbling mode
+            N_magnet = self.magnetic_torquers(B, w_est)
             N_wheel = np.zeros((3,1))
         else:
             N_magnet = np.zeros((3,1))
-            N_wheel = self.control_wheel(w, q, Inertia, angular_momentum)
+            N_wheel = self.control_wheel(w_bi_est, w_est, q, Inertia, angular_momentum)
 
-    
+        #N_magnet, N_wheel = np.zeros(N_magnet.shape), np.zeros(N_wheel.shape)
         return N_magnet, N_wheel
 
 
@@ -53,13 +52,15 @@ class Control:
 
         q13 = uc * np.sin(delta/2)
         q4 = np.cos(delta/2)
-        self.q_ref = np.array(([q13[0],q13[1],q13[2],q4]))
+        self.q_ref = np.array(([[q13[0]],[q13[1]],[q13[2]],[q4]]))
 
 
-    def control_wheel(self, w, q, Inertia, angular_momentum):
+    def control_wheel(self, w_bi_est, w_est, q, Inertia, angular_momentum):
         q_error = Quaternion_functions.quaternion_error(q, self.q_ref)
-        w_error = self.w_ref - w
-        N = np.reshape((-self.Kp * Inertia @ q_error[0:3]),(3,1)) - self.Kd * Inertia @ w_error + w * (Inertia @ w + angular_momentum)
+        w_error = w_est - self.w_ref
+        print("Proportional", self.Kp * Inertia @ np.reshape(q_error[0:3],(3,1)))
+        print("Derivative", self.Kd * Inertia @ w_error)
+        N = self.Kp * Inertia @ np.reshape(q_error[0:3],(3,1)) + self.Kd * Inertia @ w_error - w_bi_est * (Inertia @ w_bi_est + angular_momentum)
         N = np.clip(N, -self.N_max,self.N_max)
         return N
     

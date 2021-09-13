@@ -6,7 +6,7 @@ from Simulation.Disturbances import Disturbances
 Ts = SET_PARAMS.Ts
 
 def Transformation_matrix(q):
-    q1, q2, q3, q4 = q
+    q1, q2, q3, q4 = q[:,0]
     A = np.zeros((3,3))
     A[0,0] = q1**2-q2**2-q3**2+q4**2
     A[0,1] = 2*(q1*q2 + q3*q4)
@@ -27,7 +27,9 @@ class EKF():
     def __init__(self):
         self.angular_noise = SET_PARAMS.RW_sigma
 
-        self.measurement_noise =  0.5
+        self.measurement_noise =  0.001
+
+        self.process_noise = self.angular_noise
 
         self.P_k = SET_PARAMS.P_k
 
@@ -37,22 +39,20 @@ class EKF():
 
         self.q = SET_PARAMS.quaternion_initial
 
-        self.x_k = np.concatenate((self.w_bi.T, np.reshape(self.q,(1,4))), axis = 1)
+        self.x_k = np.concatenate((self.w_bi, self.q), axis = 0)
 
         self.Inertia = SET_PARAMS.Inertia
 
         self.R_k, self.m_k = measurement_noise_covariance_matrix(self.measurement_noise)       # standard deviation
 
         self.Q_wt = system_noise_covariance_matrix(self.angular_noise)
-
-        self.Q_k = np.linalg.norm(np.eye(7))
-        self.R_k = np.array([[0.5, 0, 0], [0, 0.5, 0], [0, 0, 0.5]])
+        self.Q_k = SET_PARAMS.Q_k
+        self.R_k = SET_PARAMS.R_k
 
         self.wo = SET_PARAMS.wo
         self.angular_momentum = SET_PARAMS.initial_angular_wheels
         self.t = SET_PARAMS.time
-        self.faster_than_controller = 1
-        self.dt = Ts/self.faster_than_controller                     # Time step
+        self.dt = Ts                  # Time step
         self.dh = self.dt/10                        # Size of increments for Runga-kutta method
         self.dist = Disturbances(None)
 
@@ -62,8 +62,7 @@ class EKF():
 
         if self.t != t or self.t == SET_PARAMS.time:
             # Model update
-            for _ in range(self.faster_than_controller):
-                self.Model_update()
+            self.Model_update()
             
             self.t = t
 
@@ -71,7 +70,7 @@ class EKF():
         
         self.Measurement_update()
 
-        return self.x_k
+        return self.x_k, self.w_bo
 
     def Model_update(self):
         self.w_bi, self.angular_momentum = rungeKutta_w(self.Inertia, 0, self.w_bi, self.dt, self.dh, self.angular_momentum, self.Nw, self.Nm, self.Ngg)
@@ -105,8 +104,9 @@ class EKF():
         # AFTER BOTH THE QUATERNIONS AND THE ANGULAR VELOCITY #
         #  IS CALCULATED, THE STATE VECTOR CAN BE CALCULATED  #
         #######################################################
-        self.x_k_estimated = np.concatenate((self.w_bi.T, np.reshape(self.q,(1,4))), axis = 1).T
-    
+        self.x_k_estimated = np.concatenate((self.w_bi, self.q), axis = 0)
+        # temp = np.random.normal(loc = 0, scale = self.process_noise, size = self.x_k.shape)
+        # self.x_k_estimated += temp
 
     def Peripherals_update(self):
         ############################################################
@@ -125,7 +125,8 @@ class EKF():
         # CAN EITHER BE FIXED AT INITIATION OR CALCULATED BASED ON THE CURRENT F_T AND #
         #                THE NOISE OF THE ANGULAR VELOCITY (SELF.Q_WT)                 #
         ################################################################################
-        #! self.Q_k = system_noise_covariance_matrix_discrete(T11, T12, T21, T22, self.Q_wt)
+        #! if self.t == SET_PARAMS.time:
+        #!    self.Q_k = system_noise_covariance_matrix_discrete(T11, T12, T21, T22, self.Q_wt)
 
         ##########################################################
         # CALCULATE THE MEASUREMENT PERTURBATION MATRIX FROM THE #
@@ -161,13 +162,8 @@ class EKF():
         
         self.x_k = state_measurement_update(self.x_k_estimated, K_k, self.e_k)
 
-        ###################################
-        # NORMALIZE THE QUATERNION MATRIX #
-        ###################################
-        self.q = self.x_k[3:]
-        self.q = self.q/np.linalg.norm(self.q)
-        self.x_k[3:] = self.q
-        self.q = self.q[:,0]
+        #! Highly unsure if the quaternion normalisation must take place 
+        #! before updating H_k or afterwards
 
         #################################
         # PRINTS ERROR IF NAN IN SELF.Q #
@@ -186,6 +182,15 @@ class EKF():
 
         self.P_k = update_state_covariance_matrix(K_k, self.H_k, self.P_k_estimated, self.R_k)
 
+        ###################################
+        # NORMALIZE THE QUATERNION MATRIX #
+        ###################################
+        self.q = self.x_k[3:]
+        self.q = self.q/np.linalg.norm(self.q)
+        self.x_k[3:] = self.q
+        self.w_bi = self.x_k[:3]
+        self.A_ORC_to_SBC = Transformation_matrix(self.q)
+        self.w_bo = self.w_bi - self.A_ORC_to_SBC @ np.array(([0],[-self.wo],[0]))
 
     def create_self_variables(self, vmeas_k, vmodel_k, Nm, Nw, Ngyro, Ngg):
         self.A_ORC_to_SBC = Transformation_matrix(self.q)
@@ -193,7 +198,7 @@ class EKF():
         self.Nm = Nm
         self.Ngg = Ngg
         self.Ngg = self.dist.Gravity_gradient_func(self.A_ORC_to_SBC) 
-        self.vmodel_k = vmodel_k
+        self.vmodel_k = vmodel_k #+ np.random.normal(loc = 0, scale = self.measurement_noise, size = vmodel_k.shape)
         self.Ngyro = Ngyro
         self.vmeas_k = vmeas_k
 
@@ -244,7 +249,7 @@ def system_noise_covariance_matrix(angular_noise):
 
 
 def Jacobian_H(q, vmodel_k):
-    q1, q2, q3, q4 = q
+    q1, q2, q3, q4 = q[:,0]
 
     zero3 = np.zeros((3,3))
     h1 = 2 * np.array(([[q1, q2, q3], [q2, -q1, q4], [q3, -q4, -q1]])) @ vmodel_k
@@ -332,7 +337,7 @@ def F_t_function(h, wi, q, omega_k, A):
                     [0 , 2*kgy, 0], 
                     [0 , 0 , 2*kgz]]))
 
-    q1, q2, q3, q4 = q
+    q1, q2, q3, q4 = q[:,0]
 
     A13 = A[0, 2]
     A23 = A[1, 2]

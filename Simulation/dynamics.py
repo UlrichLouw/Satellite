@@ -18,7 +18,7 @@ Fault_names_to_num = SET_PARAMS.Fault_names
 
 # The DCM must be calculated depending on the current quaternions
 def Transformation_matrix(q):
-    q1, q2, q3, q4 = q[:]
+    q1, q2, q3, q4 = q[:,0]
     A = np.zeros((3,3))
     A[0,0] = q1**2-q2**2-q3**2+q4**2
     A[0,1] = 2*(q1*q2 + q3*q4)
@@ -238,7 +238,7 @@ class Dynamics:
         # CONTROL TORQUES IMPLEMENTED DUE TO THE CONTROL LAW #
         ######################################################
 
-        N_control_magnetic, N_control_wheel = self.control.control(self.w_bi_est, self.q_est, self.Inertia, self.B, self.angular_momentum, self.r_sat_sbc, self.S_b[:,0], self.sun_in_view)
+        N_control_magnetic, N_control_wheel = self.control.control(self.w_bi_est, self.w_bo_est, self.q_est, self.Inertia, self.B, self.angular_momentum, self.r_sat_sbc, self.S_b[:,0], self.sun_in_view)
 
         N_gyro = w * (self.Inertia @ w + self.angular_momentum)
 
@@ -316,7 +316,7 @@ class Dynamics:
 
         y = y0
 
-        W = np.array(([0, wz, -wy, wx], [-wz, 0, wx, wy], [wy, -wx, 0, wz], [-wx, -wy, -wz, 0]))
+        W = np.array(([[0, wz, -wy, wx], [-wz, 0, wx, wy], [wy, -wx, 0, wz], [-wx, -wy, -wz, 0]]))
         for _ in range(n):
             k1 = h*(0.5 * W @ y)
             k2 = h*(0.5 * W @ (y + 0.5*k1))
@@ -425,6 +425,8 @@ class Dynamics:
         self.Fault_implementation()
 
         self.A_ORC_to_SBC = Transformation_matrix(self.q)
+        self.w_bo = self.w_bi - self.A_ORC_to_SBC @ np.array(([0],[-self.wo],[0]))
+
         self.r_sat, self.v_sat_EIC, self.A_EIC_to_ORC, r_EIC = self.sense.satellite_vector(self.t)
         self.r_EIC = np.asarray(r_EIC).astype(np.float64)
 
@@ -458,8 +460,8 @@ class Dynamics:
     
         self.Beta = self.sense.magnetometer(self.t) 
 
-        self.B = self.A_EIC_to_ORC @ self.Beta 
-        self.B = self.A_ORC_to_SBC @ self.B
+        self.B_ORC = self.A_EIC_to_ORC @ self.Beta 
+        self.B = self.A_ORC_to_SBC @ self.B_ORC
 
         ######################################################
         # IMPLEMENT ERROR OR FAILURE OF SENSOR IF APPLICABLE #
@@ -487,6 +489,7 @@ class Dynamics:
         self.star_tracker_vector_measured = self.Star_tracker_fault.Closed_shutter(self.star_tracker_vector_measured)
 
         self.sensor_vectors = {
+        "Magnetometer": {"measured": self.B, "modelled": self.B_ORC, "noise": SET_PARAMS.Magnetometer_noise},
         "Sun_Sensor": {"measured": self.S_b, "modelled": self.S_ORC, "noise": self.sun_noise}, 
         "Earth_Sensor": {"measured": self.r_sat_sbc, "modelled": self.r_sat, "noise": SET_PARAMS.Earth_noise}, 
         "Star_tracker": {"measured": self.star_tracker_vector_measured, "modelled": self.star_tracker_vector, "noise": SET_PARAMS.star_tracker_noise}
@@ -532,8 +535,8 @@ class Dynamics:
 
                 if not (v_ORC_k == 0.0).all():
                     # If the measured vector is equal to 0 then the sensor is not able to view the desired measurement
-                    x = self.EKF.Kalman_update(v_measured_k, v_ORC_k, self.Nm, self.Nw, self.Ngyro, self.Ngg, self.t)
-                    self.q_est = x[3:]
+                    x, self.w_bo_est = self.EKF.Kalman_update(v_measured_k, v_ORC_k, self.Nm, self.Nw, self.Ngyro, self.Ngg, self.t)
+                    self.q_est = x[3:][:,0]
                     self.w_bi_est = x[:3]
 
 
@@ -563,6 +566,7 @@ class Dynamics:
         else:
             self.w_bi_est = self.w_bi
             self.q_est = self.q
+            self.w_bo_est = self.w_bo
 
         if np.isnan(self.w_bi).any():
             print("Break")
@@ -571,7 +575,12 @@ class Dynamics:
 
         self.t += self.dt
 
-        return self.w_bi, self.q, self.A_ORC_to_SBC, self.r_EIC, self.sun_in_view
+        #! Just for testing kalman filter
+        self.est_w_error = (np.mean(abs((self.w_bi_est - self.w_bi)/SET_PARAMS.wheel_angular_d_max)) + self.est_w_error * (self.t-self.dt))/(self.t)
+        self.est_q_error = (np.mean(abs(self.q - self.q_est)) + self.est_q_error * (self.t-self.dt))/(self.t)
+        self.est_error = self.est_w_error + self.est_q_error
+
+        return self.w_bi, self.q, self.A_ORC_to_SBC, self.r_EIC, self.sun_in_view, self.est_error
 
 
 class Single_Satellite(Dynamics):
@@ -583,6 +592,8 @@ class Single_Satellite(Dynamics):
         self.dist = Disturbances(self.sense)                  # Disturbances of the simulation
         self.w_bi = SET_PARAMS.wbi                  # Angular velocity in ORC
         self.w_bi_est = self.w_bi
+        self.w_bo = SET_PARAMS.wbo # Angular velocity in SBC
+        self.w_bo_est = self.w_bo
         self.wo = SET_PARAMS.wo                     # Angular velocity of satellite around the earth
         self.angular_wheels = SET_PARAMS.initial_angular_wheels 
         self.q = SET_PARAMS.quaternion_initial      # Quaternion position
@@ -603,7 +614,7 @@ class Single_Satellite(Dynamics):
         self.RKF = RKF()                            # Rate Kalman_filter
         self.EKF = EKF()                            # Extended Kalman_filter
         self.MovingAverage = 0
-        self.sensors_kalman = ["Sun_Sensor", "Earth_Sensor", "Star_tracker"]
+        self.sensors_kalman = ["Earth_Sensor", "Sun_Sensor", "Star_tracker"] #
         super().initiate_fault_parameters()
         self.availableData = SET_PARAMS.availableData
         ####################################################
@@ -631,6 +642,10 @@ class Single_Satellite(Dynamics):
 
         self.fault = "None"                      # Current fault of the system
 
+        #! Just for testing kalman filter
+        self.est_q_error = 0
+        self.est_w_error = 0
+
     def update(self):
         self.Orbit_Data["Magnetometer"] = self.B
         self.Orbit_Data["Sun"] = self.S_b[:,0]
@@ -640,7 +655,7 @@ class Single_Satellite(Dynamics):
         self.Orbit_Data["Angular velocity of satellite"] = self.w_bi[:,0]
         self.Orbit_Data["Sun in view"] = self.sun_in_view
         self.Orbit_Data["Control Torques"] = self.Nw[:,0]
-        self.Orbit_Data["Moving Average"] = self.MovingAverage
+        self.Orbit_Data["Moving Average"] = np.max(abs(self.q - self.q_est))
         # Predict the sensor parameters and add them to the Orbit_Data
         self.SensorFailureHandling()
 

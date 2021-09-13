@@ -7,6 +7,22 @@ import pathlib
 import Simulation.utilities as utilities
 
 pi = math.pi
+
+# The DCM must be calculated depending on the current quaternions
+def Transformation_matrix(q):
+    q1, q2, q3, q4 = q[:,0]
+    A = np.zeros((3,3))
+    A[0,0] = q1**2-q2**2-q3**2+q4**2
+    A[0,1] = 2*(q1*q2 + q3*q4)
+    A[0,2] = 2*(q1*q3 - q2*q4)
+    A[1,0] = 2*(q1*q2 - q3*q4)
+    A[1,1] = -q1**2+q2**2-q3**2+q4**2
+    A[1,2] = 2*(q2*q3 + q1*q4)
+    A[2,0] = 2*(q1*q3 + q2*q4)
+    A[2,1] = 2*(q2*q3 - q1*q4)
+    A[2,2] = -q1**2-q2**2+q3**2+q4**2
+    return A
+
 global faultNames
 
 class SET_PARAMS:
@@ -30,7 +46,7 @@ class SET_PARAMS:
     Argument_of_perigee = 57.4          # in degrees
     omega = Argument_of_perigee
     Period = 86400/Mean_motion          # seconds
-    J_t,fr = jday(2020,2,16,15,30,0)    # current julian date
+    J_t,fr = jday(2020,3,16,15,30,0)    # current julian date
     epoch = J_t - 2433281.5 + fr
     Drag_term = 0.000194                # Remember to update the list term
     wo = Mean_motion_per_second*(2*pi)  # rad/s
@@ -127,8 +143,10 @@ class SET_PARAMS:
     # SATELLITE INITIAL POSITION #
     ##############################
     
-    quaternion_initial = np.array(([0, 0, -1, 0])) #Quaternion_functions.euler_to_quaternion(0,0,0) #roll, pitch, yaw
-    wbi = np.array(([0.0],[0.0],[0.0]))
+    quaternion_initial = np.array(([[0],[0], [1], [0]])) #Quaternion_functions.euler_to_quaternion(0,0,0) #roll, pitch, yaw
+    A_ORC_to_SBC = Transformation_matrix(quaternion_initial)
+    wbo = np.array(([0.0],[0.0],[0.0]))
+    wbi = wbo + A_ORC_to_SBC @ np.array(([0],[-wo],[0]))
     initial_angular_wheels = np.zeros((3,1))
     
     ###############################
@@ -151,12 +169,14 @@ class SET_PARAMS:
     ######################
     
     w_ref = np.zeros((3,1)) # desired angular velocity of satellite
-    q_ref = np.array(([0, 0, 1, 0])) # initial position of satellite
+    q_ref = quaternion_initial # initial position of satellite
     time = 1
     Ts = 1 # Time_step
     wn = 90
 
-
+    #! Testing Kalman Filter
+    best_ij = "-"
+    best_error = 100
 
     # For no filter
     Kp = 1.7e-2 
@@ -171,8 +191,15 @@ class SET_PARAMS:
     ############################
     Qw_t = np.diag([RW_sigma_x, RW_sigma_y, RW_sigma_z])
     Q_k = Ts*Qw_t
-    
-    P_k = np.eye(7)
+    #Q_k = np.diag([measurement_noise**2 + model_noise**2]*7)
+    P_k = np.eye(7)/2
+
+    measurement_noise = 0.01
+    model_noise = 0.1
+
+    R_k = np.array([[measurement_noise**2 + model_noise**2, 0, 0], 
+                    [0, measurement_noise**2 + model_noise**2, 0], 
+                    [0, 0, measurement_noise**2 + model_noise**2]])
 
     ######################
     # DISPLAY PARAMETERS #
@@ -280,22 +307,22 @@ class SET_PARAMS:
     # Star tracker
     star_tracker_vector = np.array(([1.0,1.0,1.0]))
     star_tracker_vector = star_tracker_vector/np.linalg.norm(star_tracker_vector)
-    star_tracker_noise = 0.0001
+    star_tracker_noise = 0 #! 0.0001
 
     # Magnetometer
-    Magnetometer_noise = 0.001         #standard deviation of magnetometer noise in Tesla
+    Magnetometer_noise = 0 #! 0.001         #standard deviation of magnetometer noise in Tesla
 
     # Earth sensor
     Earth_sensor_position = np.array(([0, 0, -Lz/2])) # x, y, en z
     Earth_sensor_FOV = 180 # Field of view in degrees
     Earth_sensor_angle = Earth_sensor_FOV/2 # The angle use to check whether the dot product angle is within the field of view
-    Earth_noise = 0.01                  #standard deviation away from where the actual earth is
+    Earth_noise = 0 #! 0.01                  #standard deviation away from where the actual earth is
 
     # Fine Sun sensor
     Fine_sun_sensor_position = np.array(([Lx/2, 0, 0])) # x, y, en z 
     Fine_sun_sensor_FOV = 180 # Field of view in degrees
     Fine_sun_sensor_angle = Fine_sun_sensor_FOV/2 # The angle use to check whether the dot product angle is within the field of view
-    Fine_sun_noise = 0.001                   #standard deviation away from where the actual sun is
+    Fine_sun_noise = 0 #! 0.001                   #standard deviation away from where the actual sun is
     # Define sun sensor dimensions
     Sun_sensor_length = 0.15
     Sun_sensor_width = 0.075
@@ -307,7 +334,7 @@ class SET_PARAMS:
     Coarse_sun_sensor_position = np.array(([-Lx/2, 0, 0])) # x, y, en z 
     Coarse_sun_sensor_FOV = 180 # Field of view in degrees
     Coarse_sun_sensor_angle = Coarse_sun_sensor_FOV/2 # The angle use to check whether the dot product angle is within the field of view
-    Coarse_sun_noise = 0.01 #standard deviation away from where the actual sun is
+    Coarse_sun_noise = 0 #! 0.01 #standard deviation away from where the actual sun is
 
     SSC_LeftCorner = np.array(([Coarse_sun_sensor_position[0], Coarse_sun_sensor_position[1] - Sun_sensor_width/2, Coarse_sun_sensor_position[2] - Sun_sensor_length/2]))
     SSC_RightCorner = np.array(([Coarse_sun_sensor_position[0], Coarse_sun_sensor_position[1] + Sun_sensor_width/2, Coarse_sun_sensor_position[2] - Sun_sensor_length/2]))
