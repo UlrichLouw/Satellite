@@ -107,12 +107,12 @@ if __name__ == "__main__":
     # IF THE SAVE AS IS EQUAL TO XLSX, THE THREADING CANNOT #
     #           BE USED TO SAVE SHEETS                      #     
     #########################################################
-    SET_PARAMS.Display = False
+    SET_PARAMS.Display = True
     SET_PARAMS.Visualize = True
     SET_PARAMS.save_as = ".csv"
-    SET_PARAMS.Kalman_filter_use = "None"
+    SET_PARAMS.Kalman_filter_use = "EKF"
     SET_PARAMS.sensor_number = "ALL"
-    SET_PARAMS.Number_of_orbits = 1.2
+    SET_PARAMS.Number_of_orbits = 2
     SET_PARAMS.fixed_orbit_failure = 2
     SET_PARAMS.Number_of_multiple_orbits = 1
     SET_PARAMS.skip = 20
@@ -130,7 +130,7 @@ if __name__ == "__main__":
     SET_PARAMS.visualizeKalman = ["w_est","w_act","q_est","q","q_ref",
                                 "w_ref","q_error","w_error"]
 
-    settling_time = 200
+    settling_time = 400
     damping_coefficient = 0.707
 
     wn = 3/(settling_time*damping_coefficient)

@@ -14,6 +14,7 @@ class Control:
         self.SolarPanelPosition = SET_PARAMS.SolarPanelPosition
         self.N_max = SET_PARAMS.N_ws_max
         self.first = True
+        self.angular_momentum_ref = np.zeros((3,1))
 
     def control(self, w_bi_est, w_est, q, Inertia, B, angular_momentum, earthVector, sunVector, sun_in_view):             
         if SET_PARAMS.Mode == "Nominal":   # Normal operation
@@ -83,6 +84,11 @@ class Control:
         N = np.clip(N, -SET_PARAMS.M_magnetic_max, SET_PARAMS.M_magnetic_max)
         return N
     
+    def Momentum_dumping(self, angular_momentum):
+        error = -SET_PARAMS.Kw * (angular_momentum - self.angular_momentum_ref)
+        
+
+
     def reinitialize(self):
         self.Kp = SET_PARAMS.Kp
         self.Kd = SET_PARAMS.Kd

@@ -250,7 +250,6 @@ class Dynamics:
             N_control_wheel = self.Control_fault.Decreasing_angular_RW_momentum(N_control_wheel)
             N_control_wheel = self.Control_fault.Oscillating_angular_RW_momentum(N_control_wheel)
 
-        N_control_wheel = np.clip(N_control_wheel, -SET_PARAMS.N_ws_max, SET_PARAMS.N_ws_max)
         N_aero = 0 # ! self.dist.Aerodynamic(self.A_ORC_to_SBC, self.A_EIC_to_ORC, self.sun_in_view)
 
         ###################################
@@ -270,7 +269,7 @@ class Dynamics:
         # DISTURBANCE OF A REACTION WHEEL IMBALANCE #
         #############################################
 
-        N_rw = np.reshape(self.dist.Wheel_Imbalance(self.angular_momentum/self.Iw, x - x0),(3,1))   
+        N_rw = 0 #np.reshape(self.dist.Wheel_Imbalance(self.angular_momentum/self.Iw, x - x0),(3,1))   
 
         ######################################################
         # ALL THE DISTURBANCE TORQUES ADDED TO THE SATELLITE #
@@ -448,7 +447,6 @@ class Dynamics:
 
         if self.sun_in_view and norm_S_b != 0:
             self.S_b = self.S_b/norm_S_b
- 
 
         ##################################################
         # DETERMINE WHETHER THE SUN AND THE EARTH SENSOR #
@@ -622,7 +620,7 @@ class Single_Satellite(Dynamics):
         self.RKF = RKF()                            # Rate Kalman_filter
         self.EKF = EKF()                            # Extended Kalman_filter
         self.MovingAverage = 0
-        self.sensors_kalman = ["Magnetometer"] #
+        self.sensors_kalman = ["Magnetometer", "Earth_Sensor"] #, "Star_tracker"] #"Sun_Sensor", 
         super().initiate_fault_parameters()
         self.availableData = SET_PARAMS.availableData
         ####################################################

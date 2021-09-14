@@ -5,18 +5,28 @@ from Simulation.Sensors import Sensors
 
 class Disturbances:
     def __init__(self, sense):
-        self.phi_s = np.zeros((3,1)) #arbitrary phase
-        self.phi_d = np.zeros((3,1)) #arbitrary phase
+        self.phi_sx = 0 #arbitrary phase
+        self.phi_sy = 0
+        self.phi_sz = 0
+        self.phi_dx = 0
+        self.phi_dy = 0
+        self.phi_dz = 0
+        
         self.position_vector_of_wheels = np.identity(3)*SET_PARAMS.Dimensions/2 #radius from COM
+        
+        self.position_vector_of_wheelx = np.array(([SET_PARAMS.Lx/2,0,0]))
+        self.position_vector_of_wheely = np.array(([SET_PARAMS.Ly/2,0,0]))
+        self.position_vector_of_wheelz = np.array(([SET_PARAMS.Lz/2,0,0]))
+
         self.orbit = orbit()
         self.sense = sense
 
     def Gravity_gradient_func(self, A):
-        zoB = A * np.array(([[0],[0],[1]]))
+        #? zoB = A * np.array(([[0],[0],[1]]))
         kgx = SET_PARAMS.kgx
         kgy = SET_PARAMS.kgy
         kgz = SET_PARAMS.kgz
-        Ngg = np.array(([kgx*zoB[1,2]*zoB[2,2]],[kgy*zoB[0][2]*zoB[2][2]],[kgz*zoB[0,2]*zoB[1,2]]))
+        Ngg = np.array(([kgx*A[1,2]*A[2,2]],[kgy*A[0][2]*A[2][2]],[kgz*A[0,2]*A[1,2]]))
         
         return Ngg
 
@@ -56,34 +66,56 @@ class Disturbances:
         ###############################################################################
 
         Us = 2.08e-7 #For the RW-0.06 wheels in kg/m; Us = m*r; Assume all the wheels are equally imbalanced
-        omega = rotation_rate #rad/s rotation rate of wheel   
-        F_xs = Us * omega[0,0]**2 * np.array(([np.sin(omega[0,0]*t + self.phi_s[0,0]),np.cos(omega[0,0]*t + self.phi_s[0,0]), 0]))
-        F_ys = Us * omega[1,0]**2 * np.array(([np.cos(omega[1,0]*t + self.phi_s[1,0]), 0, np.sin(omega[1,0]*t + self.phi_s[1,0])]))
-        F_zs = Us * omega[2,0]**2 * np.array(([0, np.sin(omega[2,0]*t + self.phi_s[2,0]), np.cos(omega[2,0]*t + self.phi_s[2,0])]))
-        F = np.array((F_xs, F_ys, F_zs))
-        self.phi_s = omega*t + self.phi_s
-        N_xs = np.matmul(self.position_vector_of_wheels[0,:], F)
-        N_ys = np.matmul(self.position_vector_of_wheels[1,:], F)
-        N_zs = np.matmul(self.position_vector_of_wheels[2,:], F)
-        N_s = np.array(([N_xs[0] + N_ys[0] + N_zs[0], N_xs[1] + N_ys[1] + N_zs[1], N_xs[2] + N_ys[2] + N_zs[2]]))
+        omega = rotation_rate #rad/s rotation rate of wheel  
+
+        wx = omega[0,0]
+        wy = omega[1,0]
+        wz = omega[2,0]
+
+        F_xs = Us * wx**2 * np.array(([np.sin(wx*t+self.phi_sx),np.cos(wx*t + self.phi_sx),0]))
+        F_ys = Us * wy**2 * np.array(([np.sin(wy*t+self.phi_sy),np.cos(wy*t + self.phi_sy),0]))
+        F_zs = Us * wz**2 * np.array(([np.sin(wz*t+self.phi_sz),np.cos(wz*t + self.phi_sz),0]))
+        
+        self.phi_sx = wx*t + self.phi_sx
+        self.phi_sy = wy*t + self.phi_sy
+        self.phi_sz = wz*t + self.phi_sz
+
+        N_xs = np.cross(self.position_vector_of_wheelx,F_xs)
+        N_ys = np.cross(self.position_vector_of_wheely,F_ys)
+        N_zs = np.cross(self.position_vector_of_wheelz,F_zs)
+        N_s = N_xs + N_ys + N_zs
+
+        print('Static', np.max(np.abs(N_s)))
         return N_s
 
     def dynamic(self, rotation_rate, t):
-        Ud = 2.08e-9        #For the RW-0.06 wheels in kg/m^2; Ud = m*r*d
-        omega = rotation_rate   #rad/s rotation rate of wheel  
-        N_xd = Ud * omega[0,0]**2 * np.array(([np.sin(omega[0,0]*t + self.phi_d[0,0]),np.cos(omega[0,0]*t + self.phi_d[0,0]), 0]))
-        N_yd = Ud * omega[1,0]**2 * np.array(([np.cos(omega[1,0]*t + self.phi_d[1,0]), 0, np.sin(omega[1,0]*t + self.phi_d[1,0])]))
-        N_zd = Ud * omega[2,0]**2 * np.array(([0, np.sin(omega[2,0]*t + self.phi_d[2,0]), np.cos(omega[2,0]*t + self.phi_d[2,0])]))
-        self.phi_d = omega*t + self.phi_d 
-        N_d = N_xd[0] + N_yd[0] + N_zd[0]
-        N_d = np.array(([N_xd[0] + N_yd[0] + N_zd[0], N_xd[1] + N_yd[1] + N_zd[1], N_xd[2] + N_yd[2] + N_zd[2]]))
-        return N_d
-
-    def Wheel_Imbalance(self, rotation_rate, t):
         ##############################################################################
         # DYNAMIC IMBALANCE WITH TWO MASSES SEPERATED BY 180 DEGREES AND DISTANCE, D #
         #                         D - WIDTH OF FLYWHEEL IN M                         #
         #                         R - DISTANCE FROM FLYWHEEL                         #
         #                               M - MASS IN KG                               #
         ##############################################################################
-        return (self.static(rotation_rate, t) + self.dynamic(rotation_rate, t))
+
+        Ud = 2.08e-9        #For the RW-0.06 wheels in kg/m^2; Ud = m*r*d
+        omega = rotation_rate   #rad/s rotation rate of wheel  
+        
+        wx = omega[0,0]
+        wy = omega[1,0]
+        wz = omega[2,0]
+
+        N_xd = Ud * wx**2 * np.array(([np.sin(wx*t+self.phi_dx),np.cos(wx*t + self.phi_dx),0]))
+        N_yd = Ud * wy**2 * np.array(([np.sin(wy*t+self.phi_dy),np.cos(wy*t + self.phi_dy),0]))
+        N_zd = Ud * wz**2 * np.array(([np.sin(wz*t+self.phi_dz),np.cos(wz*t + self.phi_dz),0]))
+        
+        self.phi_dx = wx*t + self.phi_dx
+        self.phi_dy = wy*t + self.phi_dy
+        self.phi_dz = wz*t + self.phi_dz
+
+        N_d = N_xd + N_yd + N_zd
+
+        print("Dynamic", np.max(np.abs(N_d)))
+        return N_d
+
+    def Wheel_Imbalance(self, rotation_rate, t):
+        print(np.max(np.abs(rotation_rate)))
+        return self.static(rotation_rate, t) + self.dynamic(rotation_rate, t)
