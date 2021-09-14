@@ -17,3 +17,4 @@ plotly
 pygame
 pydmd
 sympy
+numba

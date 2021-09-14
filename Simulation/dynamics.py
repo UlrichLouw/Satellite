@@ -238,7 +238,7 @@ class Dynamics:
         # CONTROL TORQUES IMPLEMENTED DUE TO THE CONTROL LAW #
         ######################################################
 
-        N_control_magnetic, N_control_wheel = self.control.control(self.w_bi_est, self.w_bo_est, self.q_est, self.Inertia, self.B, self.angular_momentum, self.r_sat_sbc, self.S_b[:,0], self.sun_in_view)
+        N_control_magnetic, N_control_wheel = self.control.control(self.w_bi_est, self.w_bo_est, self.q_est, self.Inertia, self.B, self.angular_momentum_with_noise, self.r_sat_sbc, self.S_b[:,0], self.sun_in_view)
 
         N_gyro = w * (self.Inertia @ w + self.angular_momentum)
 
@@ -299,9 +299,9 @@ class Dynamics:
 
         self.angular_momentum = rungeKutta_h(x01, self.angular_momentum, x, h, N_control_wheel)
 
-        self.angular_momentum = self.Angular_sensor_fault.normal_noise(self.angular_momentum, SET_PARAMS.Angular_sensor_noise)
+        self.angular_momentum_with_noise = self.Angular_sensor_fault.normal_noise(self.angular_momentum, SET_PARAMS.Angular_sensor_noise)
 
-        self.angular_momentum = np.clip(self.angular_momentum, -SET_PARAMS.h_ws_max, SET_PARAMS.h_ws_max)
+        self.angular_momentum_with_noise = np.clip(self.angular_momentum_with_noise, -SET_PARAMS.h_ws_max, SET_PARAMS.h_ws_max)
 
         y = np.clip(y, -SET_PARAMS.wheel_angular_d_max, SET_PARAMS.wheel_angular_d_max)
 
@@ -495,6 +495,11 @@ class Dynamics:
         "Star_tracker": {"measured": self.star_tracker_vector_measured, "modelled": self.star_tracker_vector, "noise": SET_PARAMS.star_tracker_noise}
         }
 
+        self.q = self.rungeKutta_q(self.t, self.q, self.t+self.dt, self.dh)
+
+        if np.isnan(self.q).any() or (self.q == 0).all():
+            print("Break")
+
         ########################################################
         # THE ERROR FOR W_BI IS WITHIN THE RUNGEKUTTA FUNCTION #
         ######################################################## 
@@ -504,11 +509,6 @@ class Dynamics:
             print("break")
         
         self.w_bo = self.w_bi - self.A_ORC_to_SBC @ np.array(([0],[-self.wo],[0]))
-
-        self.q = self.rungeKutta_q(self.t, self.q, self.t+self.dt, self.dh)
-
-        if np.isnan(self.q).any() or (self.q == 0).all():
-            print("Break")
 
         ########################################
         # DETERMINE THE ACTUAL POSITION OF THE #
@@ -536,7 +536,7 @@ class Dynamics:
                 if not (v_ORC_k == 0.0).all():
                     # If the measured vector is equal to 0 then the sensor is not able to view the desired measurement
                     x, self.w_bo_est = self.EKF.Kalman_update(v_measured_k, v_ORC_k, self.Nm, self.Nw, self.Ngyro, self.Ngg, self.t)
-                    self.q_est = x[3:][:,0]
+                    self.q_est = x[3:]
                     self.w_bi_est = x[:3]
 
 
@@ -568,9 +568,6 @@ class Dynamics:
             self.q_est = self.q
             self.w_bo_est = self.w_bo
 
-        if np.isnan(self.w_bi).any():
-            print("Break")
-
         self.update()
 
         self.t += self.dt
@@ -579,6 +576,16 @@ class Dynamics:
         self.est_w_error = (np.mean(abs((self.w_bi_est - self.w_bi)/SET_PARAMS.wheel_angular_d_max)) + self.est_w_error * (self.t-self.dt))/(self.t)
         self.est_q_error = (np.mean(abs(self.q - self.q_est)) + self.est_q_error * (self.t-self.dt))/(self.t)
         self.est_error = self.est_w_error + self.est_q_error
+
+        self.KalmanControl = {"w_est": self.w_bo_est[:,0],
+        "w_act": self.w_bo[:,0],
+        "q_est": self.q_est[:,0],
+        "q": self.q[:,0],
+        "q_ref": self.control.q_ref[:,0],
+        "w_ref": self.control.w_ref[:,0],
+        "q_error": self.control.q_e[:,0],
+        "w_error": self.control.w_e[:,0]
+        }
 
         return self.w_bi, self.q, self.A_ORC_to_SBC, self.r_EIC, self.sun_in_view, self.est_error
 
@@ -607,6 +614,7 @@ class Single_Satellite(Dynamics):
         self.Inertia = np.identity(3)*np.array(([self.Ix, self.Iy, self.Iz]))
         self.Iw = SET_PARAMS.Iw                     # Inertia of a reaction wheel
         self.angular_momentum = SET_PARAMS.initial_angular_wheels # Angular momentum of satellite wheels
+        self.angular_momentum_with_noise = self.angular_momentum
         self.faster_than_control = SET_PARAMS.faster_than_control   # If it is required that satellite must move faster around the earth than Ts
         self.control = Controller.Control()         # Controller.py is used for control of satellite    
         self.star_tracker_vector = SET_PARAMS.star_tracker_vector
@@ -614,7 +622,7 @@ class Single_Satellite(Dynamics):
         self.RKF = RKF()                            # Rate Kalman_filter
         self.EKF = EKF()                            # Extended Kalman_filter
         self.MovingAverage = 0
-        self.sensors_kalman = ["Earth_Sensor", "Sun_Sensor", "Star_tracker"] #
+        self.sensors_kalman = ["Magnetometer"] #
         super().initiate_fault_parameters()
         self.availableData = SET_PARAMS.availableData
         ####################################################

@@ -23,7 +23,7 @@ if SET_PARAMS.Display:
 #       THREADS ARE REQUIRED        #
 #####################################
 
-def loop(index, D, Data, orbit_descriptions, i_k, j_k):
+def loop(index, D, Data, orbit_descriptions):
     #! print(SET_PARAMS.Fault_names_values[index])
 
     Overall_data = []
@@ -33,15 +33,15 @@ def loop(index, D, Data, orbit_descriptions, i_k, j_k):
         pv = view.ProjectionViewer(1920, 1080, satellite)
 
     Visualize_data = {col: [] for col in D.Orbit_Data}
-    
+    KalmanControl = {col: [] for col in SET_PARAMS.visualizeKalman}
+                                
     for j in range(1, int(SET_PARAMS.Number_of_orbits*SET_PARAMS.Period/(SET_PARAMS.faster_than_control*SET_PARAMS.Ts)+1)):
         w, q, A, r, sun_in_view, est_error = D.rotation()
         if SET_PARAMS.Display and j%SET_PARAMS.skip == 0:
             pv.run(w, q, A, r, sun_in_view)
-        
-        """
+
         if j%(int(SET_PARAMS.Number_of_orbits*SET_PARAMS.Period/(SET_PARAMS.faster_than_control*SET_PARAMS.Ts)/10)) == 0:
-            print("Number of time steps for orbit loop number", index + j_k + i_k*j_k, " = ", "%.2f" % float(j/int(SET_PARAMS.Number_of_orbits*SET_PARAMS.Period/(SET_PARAMS.faster_than_control*SET_PARAMS.Ts))))
+            print("Number of time steps for orbit loop number", index, " = ", "%.2f" % float(j/int(SET_PARAMS.Number_of_orbits*SET_PARAMS.Period/(SET_PARAMS.faster_than_control*SET_PARAMS.Ts))))
 
         if SET_PARAMS.Fault_simulation_mode == 2 and j%(int(SET_PARAMS.Number_of_orbits*SET_PARAMS.Period/(SET_PARAMS.faster_than_control*SET_PARAMS.Ts)/SET_PARAMS.fixed_orbit_failure)) == 0:
             D.initiate_purposed_fault(SET_PARAMS.Fault_names_values[index])
@@ -62,9 +62,9 @@ def loop(index, D, Data, orbit_descriptions, i_k, j_k):
                 data[col] = data_unfiltered[col]
 
         Overall_data.append(pd.DataFrame.from_dict(data))
-        """
+        for col in D.KalmanControl:
+            KalmanControl[col].append(D.KalmanControl[col])
 
-    """
     Data = pd.concat(Overall_data)
 
     if SET_PARAMS.Visualize and SET_PARAMS.Display == False:
@@ -77,6 +77,7 @@ def loop(index, D, Data, orbit_descriptions, i_k, j_k):
             path_to_folder = Path(path)
             path_to_folder.mkdir(parents = True, exist_ok=True)
         visualize_data(Visualize_data, D.fault, path = path)
+        visualize_data(KalmanControl, D.fault, path = path)
     
     elif SET_PARAMS.Display == True:
         pv.save_plot(D.fault)
@@ -97,14 +98,6 @@ def loop(index, D, Data, orbit_descriptions, i_k, j_k):
         save_as_csv(Data, filename = SET_PARAMS.Fault_names_values[index], index = index, path = path)
     else:
         save_as_pickle(Data, index)
-    """
-
-    
-    print(i_k,j_k,est_error)
-    if est_error < 0.02:
-        print("i: ", i_k, " j: ", j_k, " Estimated error:", est_error)
-
-    return i_k
 
 ################################################################
 # FOR ALL OF THE FAULTS RUN A NUMBER OF ORBITS TO COLLECT DATA #
@@ -114,12 +107,12 @@ if __name__ == "__main__":
     # IF THE SAVE AS IS EQUAL TO XLSX, THE THREADING CANNOT #
     #           BE USED TO SAVE SHEETS                      #     
     #########################################################
-    SET_PARAMS.Display = True
-    SET_PARAMS.Visualize = False
-    SET_PARAMS.save_as = ".xlsx"
-    SET_PARAMS.Kalman_filter_use = "EKF"
+    SET_PARAMS.Display = False
+    SET_PARAMS.Visualize = True
+    SET_PARAMS.save_as = ".csv"
+    SET_PARAMS.Kalman_filter_use = "None"
     SET_PARAMS.sensor_number = "ALL"
-    SET_PARAMS.Number_of_orbits = 2
+    SET_PARAMS.Number_of_orbits = 1.2
     SET_PARAMS.fixed_orbit_failure = 2
     SET_PARAMS.Number_of_multiple_orbits = 1
     SET_PARAMS.skip = 20
@@ -131,25 +124,22 @@ if __name__ == "__main__":
     SET_PARAMS.SensorIsolation = False
     SET_PARAMS.SensorRecovery = False
     SET_PARAMS.Mode = "EARTH_SUN" # Nominal or EARTH_SUN
-    #SET_PARAMS.Mode  = "Nominal"
+    #SET_PARAMS.Mode = "Nominal"
     SET_PARAMS.Reflection = False
     SET_PARAMS.SensorPredictor = "DMD"
+    SET_PARAMS.visualizeKalman = ["w_est","w_act","q_est","q","q_ref",
+                                "w_ref","q_error","w_error"]
 
-    settling_time = 300
-    damping_coefficient = 0.9
+    settling_time = 200
+    damping_coefficient = 0.707
 
-    wn = 1/(settling_time*damping_coefficient)
-
-
-    range_of_Kp = 1000
-    range_of_Kd = 100
-
+    wn = 3/(settling_time*damping_coefficient)
 
     SET_PARAMS.P_k = np.eye(7)
 
-    #SET_PARAMS.R_k = np.eye(3)*1e-4
+    SET_PARAMS.R_k = np.eye(3)*0.5
 
-    SET_PARAMS.Q_k = np.eye(7) *1e-4
+    SET_PARAMS.Q_k = np.eye(7)*1e-4
 
     SET_PARAMS.Kp = 2.5e-3 #2e-4 #2e-5 #1e-4
     SET_PARAMS.Kd = 0.05 #1e-2 #4e-2
@@ -233,7 +223,12 @@ if __name__ == "__main__":
                 pv = view.ProjectionViewer(1920, 1080, satellite)
             
             Visualize_data = {col: [] for col in D.Orbit_Data}
-            
+            KalmanControl = {"w_est": [],
+                            "w_act": [],
+                            "q_est": [],
+                            "q": []
+                            }
+                                
             for j in range(int(SET_PARAMS.Number_of_orbits*SET_PARAMS.Period/(SET_PARAMS.faster_than_control*SET_PARAMS.Ts)+1)):
                 w, q, A, r, sun_in_view, _ = D.rotation()
 
@@ -266,6 +261,8 @@ if __name__ == "__main__":
                         data[col] = data_unfiltered[col]
 
                 Overall_data.append(pd.DataFrame.from_dict(data))
+                for col in D.KalmanControl:
+                    KalmanControl[col].append(D.KalmanControl[col])
 
             Data = pd.concat(Overall_data)
 
@@ -273,6 +270,7 @@ if __name__ == "__main__":
                 path_to_folder = Path("Plots/" + str(D.fault))
                 path_to_folder.mkdir(exist_ok=True)
                 visualize_data(Visualize_data, D.fault)
+                visualize_data(KalmanControl, D.fault)
             
             elif SET_PARAMS.Display == True:
                 pv.save_plot(D.fault)
@@ -292,22 +290,17 @@ if __name__ == "__main__":
         Data = manager.dict()
         orbit_descriptions = manager.dict()
 
-        #for i in range(1, SET_PARAMS.Number_of_multiple_orbits+1):
-        for i in range(1, range_of_Kd + 1):
-            SET_PARAMS.Kd = 1/(i**2)
-            for j in range(1, range_of_Kp + 1):
-                SET_PARAMS.Kp = 1/(j**2)
-                D = Single_Satellite(i, s_list, t_list, J_t, fr)
+        for i in range(1, SET_PARAMS.Number_of_multiple_orbits+1):
+            D = Single_Satellite(i, s_list, t_list, J_t, fr)
 
-                #! Make index 0 for kalman filter testing
-                t = multiprocessing.Process(target=loop, args=(1, D, Data, orbit_descriptions, i, j))
-                threads.append(t)
-                t.start()
-                #! print("Beginning of", i)
+            #! Make index 0 for kalman filter testing
+            t = multiprocessing.Process(target=loop, args=(i, D, Data, orbit_descriptions))
+            threads.append(t)
+            t.start()
+            #! print("Beginning of", i)
 
-                if j == range_of_Kd or j%16 == 0:
-                    for process in threads:     
-                        process.join()
+            if i == SET_PARAMS.Number_of_multiple_orbits or i%16 == 0:
+                for process in threads:     
+                    process.join()
 
-                    threads = []
-                    print("Current position:", j)
+                threads = []

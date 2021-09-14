@@ -194,8 +194,8 @@ class SET_PARAMS:
     #Q_k = np.diag([measurement_noise**2 + model_noise**2]*7)
     P_k = np.eye(7)/2
 
-    measurement_noise = 0.01
-    model_noise = 0.1
+    measurement_noise = 0.001
+    model_noise = 0.001
 
     R_k = np.array([[measurement_noise**2 + model_noise**2, 0, 0], 
                     [0, measurement_noise**2 + model_noise**2, 0], 
@@ -287,6 +287,9 @@ class SET_PARAMS:
 
     Fault_names = {faultNames[i]: i+1 for i in range(len(faultNames))}
 
+    visualizeKalman = ["w_est","w_act","q_est","q","q_ref",
+                    "w_ref","q_error","w_error"]
+
     likelyhood_multiplier = 1
     #Fault_simulation_mode = 1 # Continued failure, a mistake that does not go back to normal
     #Fault_simulation_mode = 0 # Failure is based on specified class failure rate. Multiple failures can occure simultaneously
@@ -307,22 +310,22 @@ class SET_PARAMS:
     # Star tracker
     star_tracker_vector = np.array(([1.0,1.0,1.0]))
     star_tracker_vector = star_tracker_vector/np.linalg.norm(star_tracker_vector)
-    star_tracker_noise = 0 #! 0.0001
+    star_tracker_noise = 0.00001
 
     # Magnetometer
-    Magnetometer_noise = 0 #! 0.001         #standard deviation of magnetometer noise in Tesla
+    Magnetometer_noise = 0.001         #standard deviation of magnetometer noise in Tesla
 
     # Earth sensor
     Earth_sensor_position = np.array(([0, 0, -Lz/2])) # x, y, en z
     Earth_sensor_FOV = 180 # Field of view in degrees
     Earth_sensor_angle = Earth_sensor_FOV/2 # The angle use to check whether the dot product angle is within the field of view
-    Earth_noise = 0 #! 0.01                  #standard deviation away from where the actual earth is
+    Earth_noise = 0.001                  #standard deviation away from where the actual earth is
 
     # Fine Sun sensor
     Fine_sun_sensor_position = np.array(([Lx/2, 0, 0])) # x, y, en z 
     Fine_sun_sensor_FOV = 180 # Field of view in degrees
     Fine_sun_sensor_angle = Fine_sun_sensor_FOV/2 # The angle use to check whether the dot product angle is within the field of view
-    Fine_sun_noise = 0 #! 0.001                   #standard deviation away from where the actual sun is
+    Fine_sun_noise = 0.0001                   #standard deviation away from where the actual sun is
     # Define sun sensor dimensions
     Sun_sensor_length = 0.15
     Sun_sensor_width = 0.075
@@ -334,7 +337,7 @@ class SET_PARAMS:
     Coarse_sun_sensor_position = np.array(([-Lx/2, 0, 0])) # x, y, en z 
     Coarse_sun_sensor_FOV = 180 # Field of view in degrees
     Coarse_sun_sensor_angle = Coarse_sun_sensor_FOV/2 # The angle use to check whether the dot product angle is within the field of view
-    Coarse_sun_noise = 0 #! 0.01 #standard deviation away from where the actual sun is
+    Coarse_sun_noise = 0.001 #standard deviation away from where the actual sun is
 
     SSC_LeftCorner = np.array(([Coarse_sun_sensor_position[0], Coarse_sun_sensor_position[1] - Sun_sensor_width/2, Coarse_sun_sensor_position[2] - Sun_sensor_length/2]))
     SSC_RightCorner = np.array(([Coarse_sun_sensor_position[0], Coarse_sun_sensor_position[1] + Sun_sensor_width/2, Coarse_sun_sensor_position[2] - Sun_sensor_length/2]))

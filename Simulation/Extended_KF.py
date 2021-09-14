@@ -37,11 +37,16 @@ class EKF():
 
         self.w_bi = SET_PARAMS.wbi
 
+        self.w_bo = SET_PARAMS.wbo # Angular velocity in SBC
+
         self.q = SET_PARAMS.quaternion_initial
 
-        self.x_k = np.concatenate((self.w_bi, self.q), axis = 0)
+        self.x_k = np.concatenate((self.w_bi.T, self.q.T), axis = 1).T
 
-        self.Inertia = SET_PARAMS.Inertia
+        self.Ix = SET_PARAMS.Ix                     # Ixx inertia
+        self.Iy = SET_PARAMS.Iy                     # Iyy inertia
+        self.Iz = SET_PARAMS.Iz                     # Izz inertia
+        self.Inertia = np.identity(3)*np.array(([self.Ix, self.Iy, self.Iz]))
 
         self.R_k, self.m_k = measurement_noise_covariance_matrix(self.measurement_noise)       # standard deviation
 
@@ -73,6 +78,11 @@ class EKF():
         return self.x_k, self.w_bo
 
     def Model_update(self):
+        ########################################################################
+        # THE UPDATED ESTIMATION OF THE QUATERNION MATRIX (ALREADY NORMALIZED) #
+        ########################################################################
+        self.q = rungeKutta_q(self.w_bo, 0, self.q, self.dt, self.dh)
+
         self.w_bi, self.angular_momentum = rungeKutta_w(self.Inertia, 0, self.w_bi, self.dt, self.dh, self.angular_momentum, self.Nw, self.Nm, self.Ngg)
         
         ###################################################
@@ -90,11 +100,6 @@ class EKF():
         #############################################################################
         self.omega_k = omega_k_function(self.w_bo)
 
-        ########################################################################
-        # THE UPDATED ESTIMATION OF THE QUATERNION MATRIX (ALREADY NORMALIZED) #
-        ########################################################################
-        self.q = rungeKutta_q(self.w_bo, 0, self.q, self.dt, self.dh)
-
         #################################
         # PRINTS ERROR IF NAN IN SELF.Q #
         #################################  
@@ -104,9 +109,7 @@ class EKF():
         # AFTER BOTH THE QUATERNIONS AND THE ANGULAR VELOCITY #
         #  IS CALCULATED, THE STATE VECTOR CAN BE CALCULATED  #
         #######################################################
-        self.x_k_estimated = np.concatenate((self.w_bi, self.q), axis = 0)
-        # temp = np.random.normal(loc = 0, scale = self.process_noise, size = self.x_k.shape)
-        # self.x_k_estimated += temp
+        self.x_k_estimated = np.concatenate((self.w_bi.T, self.q.T), axis = 1).T
 
     def Peripherals_update(self):
         ############################################################

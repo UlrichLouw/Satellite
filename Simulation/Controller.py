@@ -21,14 +21,10 @@ class Control:
             
         elif SET_PARAMS.Mode == "EARTH_SUN":
             if sun_in_view:
-                self.SunCommandQuaternion(sunVector)
+                #self.q_ref = self.SunCommandQuaternion(sunVector)
+                self.q_ref = np.array(([[0],[1],[0],[0]]))
             else:
                 self.q_ref = SET_PARAMS.q_ref
-
-        normQ = np.linalg.norm(self.q_ref)
-
-        if normQ != 0:
-            self.q_ref = self.q_ref/normQ
 
         if SET_PARAMS.Mode == "Safe":    # Detumbling mode
             N_magnet = self.magnetic_torquers(B, w_est)
@@ -52,15 +48,15 @@ class Control:
 
         q13 = uc * np.sin(delta/2)
         q4 = np.cos(delta/2)
-        self.q_ref = np.array(([[q13[0]],[q13[1]],[q13[2]],[q4]]))
-
+        q_ref = np.array(([[q13[0]],[q13[1]],[q13[2]],[q4]]))
+        return q_ref
 
     def control_wheel(self, w_bi_est, w_est, q, Inertia, angular_momentum):
         q_error = Quaternion_functions.quaternion_error(q, self.q_ref)
+        self.q_e = q_error[0:3]
         w_error = w_est - self.w_ref
-        print("Proportional", self.Kp * Inertia @ np.reshape(q_error[0:3],(3,1)))
-        print("Derivative", self.Kd * Inertia @ w_error)
-        N = self.Kp * Inertia @ np.reshape(q_error[0:3],(3,1)) + self.Kd * Inertia @ w_error - w_bi_est * (Inertia @ w_bi_est + angular_momentum)
+        self.w_e = w_error
+        N = self.Kp * Inertia @ self.q_e + self.Kd * Inertia @ w_error - w_bi_est * (Inertia @ w_bi_est + angular_momentum)
         N = np.clip(N, -self.N_max,self.N_max)
         return N
     
