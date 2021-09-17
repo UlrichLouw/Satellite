@@ -6,7 +6,7 @@ from Simulation.Disturbances import Disturbances
 Ts = SET_PARAMS.Ts
 
 def Transformation_matrix(q):
-    q1, q2, q3, q4 = q[:,0]
+    q1, q2, q3, q4 = q
     A = np.zeros((3,3))
     A[0,0] = q1**2-q2**2-q3**2+q4**2
     A[0,1] = 2*(q1*q2 + q3*q4)
@@ -41,7 +41,7 @@ class EKF():
 
         self.q = SET_PARAMS.quaternion_initial
 
-        self.x_k = np.concatenate((self.w_bi.T, self.q.T), axis = 1).T
+        self.x_k = np.concatenate((self.w_bi, self.q), axis = 0).T
 
         self.Ix = SET_PARAMS.Ix                     # Ixx inertia
         self.Iy = SET_PARAMS.Iy                     # Iyy inertia
@@ -62,8 +62,8 @@ class EKF():
         self.dist = Disturbances(None)
 
 
-    def Kalman_update(self, vmeas_k, vmodel_k, Nm, Nw, Ngyro, Ngg, t):
-        self.create_self_variables(vmeas_k, vmodel_k, Nm, Nw, Ngyro, Ngg)
+    def Kalman_update(self, vmeas_k, vmodel_k, Nm, Nw, t):
+        self.create_self_variables(vmeas_k, vmodel_k, Nm, Nw)
 
         if self.t != t or self.t == SET_PARAMS.time:
             # Model update
@@ -83,17 +83,19 @@ class EKF():
         ########################################################################
         self.q = rungeKutta_q(self.w_bo, 0, self.q, self.dt, self.dh)
 
-        self.w_bi, self.angular_momentum = rungeKutta_w(self.Inertia, 0, self.w_bi, self.dt, self.dh, self.angular_momentum, self.Nw, self.Nm, self.Ngg)
-        
         ###################################################
         # CALCULATES THE ORC TO SBC TRANSFORMATION_MATRIX #
         ###################################################
         self.A_ORC_to_SBC = Transformation_matrix(self.q)
 
+        self.Ngg = self.dist.Gravity_gradient_func(self.A_ORC_to_SBC) 
+
+        self.w_bi, self.angular_momentum = rungeKutta_w(self.Inertia, 0, self.w_bi, self.dt, self.dh, self.angular_momentum, self.Nw, self.Nm, self.Ngg)
+        
         #################################################################
         # CALCULATES THE ANGULAR VELOCITY FOR THE SATELITE IN ORC FRAME #
         #################################################################
-        self.w_bo = self.w_bi - self.A_ORC_to_SBC @ np.array(([0],[-self.wo],[0]))
+        self.w_bo = self.w_bi - self.A_ORC_to_SBC @ np.array(([0,-self.wo,0]))
 
         #############################################################################
         # PROVIDES THE MATRIX THAT IS USED FOR MULTIPLE CALCULATIONS FROM SELF.W_BO #
@@ -109,7 +111,7 @@ class EKF():
         # AFTER BOTH THE QUATERNIONS AND THE ANGULAR VELOCITY #
         #  IS CALCULATED, THE STATE VECTOR CAN BE CALCULATED  #
         #######################################################
-        self.x_k_estimated = np.concatenate((self.w_bi.T, self.q.T), axis = 1).T
+        self.x_k_estimated = np.concatenate((self.w_bi, self.q), axis = 0).T
 
     def Peripherals_update(self):
         ############################################################
@@ -129,7 +131,7 @@ class EKF():
         #                THE NOISE OF THE ANGULAR VELOCITY (SELF.Q_WT)                 #
         ################################################################################
         #! if self.t == SET_PARAMS.time:
-        #!    self.Q_k = system_noise_covariance_matrix_discrete(T11, T12, T21, T22, self.Q_wt)
+        #!   self.Q_k = system_noise_covariance_matrix_discrete(T11, T12, T21, T22, self.Q_wt)
 
         ##########################################################
         # CALCULATE THE MEASUREMENT PERTURBATION MATRIX FROM THE #
@@ -142,11 +144,6 @@ class EKF():
         ###################################################
         self.P_k_estimated = state_covariance_matrix(self.Q_k, self.P_k, self.sigma_k)
 
-        ###################################################
-        # CALCULATES THE ORC TO SBC TRANSFORMATION_MATRIX #
-        ###################################################
-        self.A_ORC_to_SBC = Transformation_matrix(self.q)
-
         #####################################################################
         # CALCULATE THE DIFFERENCE BETWEEN THE MODELLED AND MEASURED VECTOR #
         #####################################################################
@@ -154,8 +151,6 @@ class EKF():
 
 
     def Measurement_update(self):
-        if np.linalg.det(self.H_k @ self.P_k_estimated @ self.H_k.T + self.R_k) == 0:
-            print("break")
         #################################
         # CALCULATE THE GAIN MATRIX K_K #
         #################################
@@ -164,9 +159,6 @@ class EKF():
         error_message(K_k)
         
         self.x_k = state_measurement_update(self.x_k_estimated, K_k, self.e_k)
-
-        #! Highly unsure if the quaternion normalisation must take place 
-        #! before updating H_k or afterwards
 
         #################################
         # PRINTS ERROR IF NAN IN SELF.Q #
@@ -193,16 +185,13 @@ class EKF():
         self.x_k[3:] = self.q
         self.w_bi = self.x_k[:3]
         self.A_ORC_to_SBC = Transformation_matrix(self.q)
-        self.w_bo = self.w_bi - self.A_ORC_to_SBC @ np.array(([0],[-self.wo],[0]))
+        self.w_bo = self.w_bi - self.A_ORC_to_SBC @ np.array(([0,-self.wo,0]))
 
-    def create_self_variables(self, vmeas_k, vmodel_k, Nm, Nw, Ngyro, Ngg):
+    def create_self_variables(self, vmeas_k, vmodel_k, Nm, Nw):
         self.A_ORC_to_SBC = Transformation_matrix(self.q)
         self.Nw = Nw
         self.Nm = Nm
-        self.Ngg = Ngg
-        self.Ngg = self.dist.Gravity_gradient_func(self.A_ORC_to_SBC) 
-        self.vmodel_k = vmodel_k #+ np.random.normal(loc = 0, scale = self.measurement_noise, size = vmodel_k.shape)
-        self.Ngyro = Ngyro
+        self.vmodel_k = vmodel_k
         self.vmeas_k = vmeas_k
 
 def error_message(variable):
@@ -211,20 +200,46 @@ def error_message(variable):
 
 
 def system_noise_covariance_matrix_discrete(T11, T12, T21, T22, Q_wt):
-    TL = Ts*Q_wt
-    TR = 0.5 * (Ts**2) * (Q_wt @ T21.T)
-    BL = 0.5 * (Ts**2) * (T21 @ Q_wt)
-    BR = (1/3) * (Ts**3) * (T21 @ Q_wt @ T21.T)
+    # TL = Ts*Q_wt
+    # TR = 0.5 * (Ts**2) * (Q_wt @ T21.T)
+    # BL = 0.5 * (Ts**2) * (T21 @ Q_wt)
+    # BR = (1/3) * (Ts**3) * (T21 @ Q_wt @ T21.T)
+    # T = np.concatenate((TL, TR), axis = 1)
+
+    # B = np.concatenate((BL, BR), axis = 1)
+
+    # Q_k = np.concatenate((T, B))
+    S1 = np.diag([SET_PARAMS.RW_sigma**2, SET_PARAMS.RW_sigma**2, SET_PARAMS.RW_sigma**2, 0, 0, 0, 0])
+
+    TL = Q_wt @ T11.T + T11 @ Q_wt 
+    TR = Q_wt @ T21.T
+    BL = T21 @ Q_wt
+    BR = np.zeros((4,4))
+    
     T = np.concatenate((TL, TR), axis = 1)
 
     B = np.concatenate((BL, BR), axis = 1)
 
-    Q_k = np.concatenate((T, B))
+    S2 = np.concatenate((T, B))
+
+    TL = T11 @ Q_wt @ T11.T
+    TR = T11 @ Q_wt @ T21.T
+    BL = T21 @ Q_wt @ T11.T
+    BR = T21 @ Q_wt @ T21.T
+    
+    T = np.concatenate((TL, TR), axis = 1)
+
+    B = np.concatenate((BL, BR), axis = 1)
+
+    S3 = np.concatenate((T, B))
+
+    Q_k = Ts*S1 + 0.5 * Ts**2 * S2 + (1/3) * Ts**3 * S3
+
     return Q_k
 
 
 def omega_k_function(w_bo):
-    wx, wy, wz = w_bo[:,0]
+    wx, wy, wz = w_bo
 
     W = np.array(([0, wz, -wy, wx], 
                   [-wz, 0, wx, wy], 
@@ -234,7 +249,7 @@ def omega_k_function(w_bo):
 
 
 def kq_function(w_bo):
-    wx, wy, wz = w_bo[:,0]
+    wx, wy, wz = w_bo
     w_bo_norm = np.sqrt(wx**2 + wy**2 + wz**2)
     kq = Ts/2 * w_bo_norm
     return kq, w_bo_norm
@@ -252,7 +267,9 @@ def system_noise_covariance_matrix(angular_noise):
 
 
 def Jacobian_H(q, vmodel_k):
-    q1, q2, q3, q4 = q[:,0]
+    q1, q2, q3, q4 = q
+
+    vmodel_k = np.reshape(vmodel_k, (3,1))
 
     zero3 = np.zeros((3,3))
     h1 = 2 * np.array(([[q1, q2, q3], [q2, -q1, q4], [q3, -q4, -q1]])) @ vmodel_k
@@ -297,11 +314,7 @@ def state_measurement_update(x_k, K_k, e_k):
 
 
 def e_k_function(vmeas_k, A, vmodel_k):
-    vmodel_k = A @ vmodel_k
-    v_norm = np.linalg.norm(vmodel_k)
-    if v_norm != 0:
-        vmodel_k = vmodel_k/v_norm
-    e_k = vmeas_k - vmodel_k
+    e_k = vmeas_k - A @ vmodel_k
     return e_k
 
 
@@ -311,8 +324,8 @@ def sigma_k_function(F_t):
 
 
 def F_t_function(h, wi, q, omega_k, A):
-    wx, wy, wz = wi[:,0]
-    hx, hy, hz = h[:,0]
+    wx, wy, wz = wi
+    hx, hy, hz = h
 
     Ix = SET_PARAMS.Ix
     Iy = SET_PARAMS.Iy
@@ -340,7 +353,7 @@ def F_t_function(h, wi, q, omega_k, A):
                     [0 , 2*kgy, 0], 
                     [0 , 0 , 2*kgz]]))
 
-    q1, q2, q3, q4 = q[:,0]
+    q1, q2, q3, q4 = q
 
     A13 = A[0, 2]
     A23 = A[1, 2]
@@ -401,7 +414,7 @@ def rungeKutta_w(Inertia, x0, w, x, h, angular_momentum, Nw, Nm, Ngg):
     ######################################################
     # CONTROL TORQUES IMPLEMENTED DUE TO THE CONTROL LAW #
     ######################################################
-    N_gyro = w * (Inertia @ w + angular_momentum)
+    N_gyro = np.cross(w,(Inertia @ w + angular_momentum))
 
     n = int(np.round((x - x0)/h))
     y = w
@@ -433,12 +446,12 @@ def rungeKutta_w(Inertia, x0, w, x, h, angular_momentum, Nw, Nm, Ngg):
 ###########################################################################################
 
 def rungeKutta_q(w_bo, x0, y0, x, h):      
-    wx, wy, wz = w_bo[:,0]
+    wx, wy, wz = w_bo
     n = int(np.round((x - x0)/h))
 
     y = y0
 
-    W = np.array(([0, wz, -wy, wx], [-wz, 0, wx, wy], [wy, -wx, 0, wz], [-wx, -wy, -wz, 0]))
+    W = np.array(([[0, wz, -wy, wx], [-wz, 0, wx, wy], [wy, -wx, 0, wz], [-wx, -wy, -wz, 0]]))
     for _ in range(n):
         k1 = h*(0.5 * W @ y)
         k2 = h*(0.5 * W @ (y + 0.5*k1))

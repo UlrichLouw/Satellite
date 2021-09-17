@@ -25,18 +25,18 @@ class Sensors:
         lambda_e = lambda_Mo + 1.914666471*np.sin(M_o*pi/180) + 0.019994643*math.sin(2*M_o*pi/180)      #degrees
         epsilon =  23.439291 - 0.013004200*T_jc                 #degrees
         r_o = 1.00140612 - 0.016708617*np.cos(M_o*pi/180) - 0.000139589*np.cos(2*M_o*pi/180)        #degrees
-        rsun = r_o * np.array(([np.cos(lambda_e*pi/180)],[np.cos(epsilon*pi/180)*np.sin(lambda_e*pi/180)],[np.sin(epsilon*pi/180)*np.sin(lambda_e*pi/180)]))
+        rsun = r_o * np.array(([np.cos(lambda_e*pi/180),np.cos(epsilon*pi/180)*np.sin(lambda_e*pi/180),np.sin(epsilon*pi/180)*np.sin(lambda_e*pi/180)]))
         rsun = rsun*(149597871)*1000
         norm_rsun = np.linalg.norm(rsun)
-        S_EIC = rsun - np.reshape(self.r_sat_EIC, (3,1))
+        S_EIC = rsun - self.r_sat_EIC
         norm_S_EIC = np.linalg.norm(S_EIC)
         norm_r_sat = max(np.linalg.norm(self.r_sat_EIC),SET_PARAMS.Radius_earth)
         theta_e = np.arcsin(SET_PARAMS.Radius_earth/norm_r_sat)
         theta_s = np.arcsin(SET_PARAMS.Radius_sun/norm_S_EIC)
-        theta = np.arccos(np.dot(self.r_sat_EIC, rsun[:,0])/(norm_rsun*norm_r_sat))
+        theta = np.arccos(np.dot(self.r_sat_EIC, rsun)/(norm_rsun*norm_r_sat))
         if (theta_e > theta_s) and (theta < (theta_e-theta_s)):
             self.in_sun_view = False
-            S_EIC = np.zeros((3,1))
+            S_EIC = np.zeros(3)
         else:
             self.in_sun_view = True
         return S_EIC, self.in_sun_view     #in m
@@ -49,7 +49,7 @@ class Sensors:
 
         return B
 
-    def satellite_vector(self, t):
+    def Earth(self, t):
         e, r_sat, v_sat = self.satellite.sgp4(SET_PARAMS.J_t, SET_PARAMS.fr + t/86400)
         self.r_sat_EIC = np.array((r_sat)) # convert r_sat to m
         self.v_sat_EIC = np.array((v_sat)) # v_sat to m/s
@@ -59,6 +59,7 @@ class Sensors:
         self.A_EIC_to_ORC = self.orbit.EIC_to_ORC(self.r_sat_EIC, self.v_sat_EIC)
         self.r_sat = np.matmul(self.A_EIC_to_ORC, self.r_sat_EIC)
         self.v_sat = np.matmul(self.A_EIC_to_ORC, self.v_sat_EIC)
+        self.r_sat = self.r_sat/np.linalg.norm(self.r_sat)
         self.r_sat_EIC = self.r_sat_EIC*1000
         self.v_sat_EIC = self.v_sat_EIC*1000
-        return self.r_sat, self.v_sat/np.linalg.norm(self.v_sat), self.A_EIC_to_ORC, r_sat
+        return self.r_sat, self.v_sat/np.linalg.norm(self.v_sat), self.A_EIC_to_ORC, self.r_sat_EIC

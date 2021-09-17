@@ -6,7 +6,7 @@ SET_PARAMS = Parameters.SET_PARAMS
 from Simulation.Sensors import Sensors
 import Simulation.Quaternion_functions as Quaternion_functions
 from Simulation.Kalman_filter import RKF
-from Simulation.Extended_KF import EKF
+from Simulation.EKF_changed import EKF
 from Simulation.SensorPredictions import SensorPredictionsDMD
 import collections
 import math
@@ -18,7 +18,7 @@ Fault_names_to_num = SET_PARAMS.Fault_names
 
 # The DCM must be calculated depending on the current quaternions
 def Transformation_matrix(q):
-    q1, q2, q3, q4 = q[:,0]
+    q1, q2, q3, q4 = q
     A = np.zeros((3,3))
     A[0,0] = q1**2-q2**2-q3**2+q4**2
     A[0,1] = 2*(q1*q2 + q3*q4)
@@ -49,10 +49,40 @@ def rungeKutta_h(x0, angular, x, h, N_control):
 
         x0 = x0 + h; 
     
+    y = np.clip(y, -SET_PARAMS.h_ws_max, SET_PARAMS.h_ws_max)
+
     return y
 
 
 class Dynamics:
+
+    def determine_magnetometer(self):
+        #* Normalize self.B_ORC
+        norm_B_ORC = np.linalg.norm(self.B_ORC)
+
+        if norm_B_ORC != 0:
+            self.B_ORC = self.B_ORC/norm_B_ORC
+
+        self.B_sbc = self.A_ORC_to_SBC @ self.B_ORC
+        ######################################################
+        # IMPLEMENT ERROR OR FAILURE OF SENSOR IF APPLICABLE #
+        ######################################################
+        self.B_sbc = self.Magnetometer_fault.normal_noise(self.B_sbc, SET_PARAMS.Magnetometer_noise)
+        self.B_sbc = self.Magnetometer_fault.Stop_magnetometers (self.B_sbc)
+        self.B_sbc = self.Magnetometer_fault.Interference_magnetic(self.B_sbc)
+        self.B_sbc = self.Magnetometer_fault.General_sensor_high_noise(self.B_sbc)
+
+        self.B_sbc = self.Common_data_transmission_fault.Bit_flip(self.B_sbc)
+        self.B_sbc = self.Common_data_transmission_fault.Sign_flip(self.B_sbc)
+        self.B_sbc = self.Common_data_transmission_fault.Insertion_of_zero_bit(self.B_sbc)
+
+    def determine_star_tracker(self):
+        self.star_tracker_ORC = self.Star_tracker_fault.normal_noise(self.star_tracker_vector,SET_PARAMS.star_tracker_noise)
+        self.star_tracker_ORC = self.Star_tracker_fault.Closed_shutter(self.star_tracker_ORC)
+
+        #* Star tracker
+        self.star_tracker_sbc = self.A_ORC_to_SBC @ self.star_tracker_ORC
+
     def determine_earth_vision(self):
         #################################################################
         #      FOR THIS SPECIFIC SATELLITE MODEL, THE EARTH SENSOR      #
@@ -60,6 +90,8 @@ class Dynamics:
         # THIS IS ACCORDING TO THE ORBIT AS DEFINED BY JANSE VAN VUUREN #
         #             THIS IS DETERMINED WITH THE SBC FRAME             #
         #################################################################
+        #* self.r_sat_ORC is already normalized
+        self.r_sat_sbc = self.A_ORC_to_SBC @ self.r_sat_ORC
 
         angle_difference = Quaternion_functions.rad2deg(np.arccos(np.clip(np.dot(self.r_sat_sbc, SET_PARAMS.Earth_sensor_position),-1,1)))
         if angle_difference < SET_PARAMS.Earth_sensor_angle:
@@ -68,14 +100,10 @@ class Dynamics:
             self.r_sat_sbc = self.Common_data_transmission_fault.Bit_flip(self.r_sat_sbc)
             self.r_sat_sbc = self.Common_data_transmission_fault.Sign_flip(self.r_sat_sbc)
             self.r_sat_sbc = self.Common_data_transmission_fault.Insertion_of_zero_bit(self.r_sat_sbc) 
-            norm_r = np.linalg.norm(self.r_sat_sbc)
-            norm_r_ORC = np.linalg.norm(self.r_sat)
-            if norm_r != 0:
-                self.r_sat_sbc = self.r_sat_sbc/norm_r
-                self.r_sat = self.r_sat/norm_r_ORC
+
         else:
             self.r_sat_sbc = np.zeros(self.r_sat_sbc.shape)
-            self.r_sat = np.zeros(self.r_sat.shape)
+            self.r_sat_ORC = np.zeros(self.r_sat_ORC.shape)
 
     def determine_sun_vision(self):
         #################################################################
@@ -85,15 +113,22 @@ class Dynamics:
         # THIS IS ACCORDING TO THE ORBIT AS DEFINED BY JANSE VAN VUUREN #
         #             THIS IS DETERMINED WITH THE SBC FRAME             #
         #################################################################
+        #* Normalize self.S_ORC
+        norm_S_ORC = np.linalg.norm(self.S_ORC)
+
+        if norm_S_ORC != 0:
+             self.S_ORC = self.S_ORC/norm_S_ORC
+
+        self.S_sbc = self.A_ORC_to_SBC @ self.S_ORC
 
         if self.sun_in_view:
             
-            angle_difference_fine = Quaternion_functions.rad2deg(np.arccos(np.dot(self.S_b[:,0], SET_PARAMS.Fine_sun_sensor_position)))
-            angle_difference_coarse = Quaternion_functions.rad2deg(np.arccos(np.dot(self.S_b[:,0], SET_PARAMS.Coarse_sun_sensor_position)))
+            angle_difference_fine = Quaternion_functions.rad2deg(np.arccos(np.dot(self.S_sbc, SET_PARAMS.Fine_sun_sensor_position)))
+            angle_difference_coarse = Quaternion_functions.rad2deg(np.arccos(np.dot(self.S_sbc, SET_PARAMS.Coarse_sun_sensor_position)))
 
             if angle_difference_fine < SET_PARAMS.Fine_sun_sensor_angle: 
                 if SET_PARAMS.Reflection: 
-                    reflectedSunVector = Reflection(self.S_b[:,0], SET_PARAMS.SPF_normal_vector)
+                    reflectedSunVector = Reflection(self.S_sbc, SET_PARAMS.SPF_normal_vector)
 
                     IntersectionPointLeft = Intersection(SET_PARAMS.SSF_Plane, reflectedSunVector, SET_PARAMS.SPF_LeftTopCorner)
 
@@ -121,33 +156,29 @@ class Dynamics:
                         reflection = reflection1 and reflection2
 
                         if reflection:
-                            self.S_b = np.reshape(reflectedSunVector, (3,1))
+                            self.S_ORC = reflectedSunVector
                     else:
-                        self.S_b = np.reshape(reflectedSunVector, (3,1))
+                        self.S_ORC = reflectedSunVector
 
-                self.S_b = self.Sun_sensor_fault.normal_noise(self.S_b, SET_PARAMS.Fine_sun_noise)
+                self.S_sbc = self.A_ORC_to_SBC @ self.S_ORC
 
-                norm_S_b = np.linalg.norm(self.S_b)
-                S_ORC_norm = np.linalg.norm(self.S_ORC)
-                if norm_S_b != 0:
-                    self.S_b = self.S_b/norm_S_b
-                    self.S_ORC = self.S_ORC/S_ORC_norm
+                self.S_sbc = self.Sun_sensor_fault.normal_noise(self.S_sbc, SET_PARAMS.Coarse_sun_noise)
 
                 ######################################################
                 # IMPLEMENT ERROR OR FAILURE OF SENSOR IF APPLICABLE #
                 ######################################################
 
-                self.S_b, self.sun_in_view = self.Sun_sensor_fault.Catastrophic_sun(self.S_b, self.sun_in_view, "Fine")
-                self.S_b = self.Sun_sensor_fault.Erroneous_sun(self.S_b, "Fine")
-                self.S_b = self.Common_data_transmission_fault.Bit_flip(self.S_b)
-                self.S_b = self.Common_data_transmission_fault.Sign_flip(self.S_b)
-                self.S_b = self.Common_data_transmission_fault.Insertion_of_zero_bit(self.S_b)  
+                self.S_sbc, self.sun_in_view = self.Sun_sensor_fault.Catastrophic_sun(self.S_sbc, self.sun_in_view, "Fine")
+                self.S_sbc = self.Sun_sensor_fault.Erroneous_sun(self.S_sbc, "Fine")
+                self.S_sbc = self.Common_data_transmission_fault.Bit_flip(self.S_sbc)
+                self.S_sbc = self.Common_data_transmission_fault.Sign_flip(self.S_sbc)
+                self.S_sbc = self.Common_data_transmission_fault.Insertion_of_zero_bit(self.S_sbc)  
 
                 self.sun_noise = SET_PARAMS.Fine_sun_noise
 
             elif angle_difference_coarse < SET_PARAMS.Coarse_sun_sensor_angle:
                 if SET_PARAMS.Reflection: 
-                    reflectedSunVector = Reflection(self.S_b[:,0], SET_PARAMS.SPC_normal_vector)
+                    reflectedSunVector = Reflection(self.S_sbc, SET_PARAMS.SPC_normal_vector)
 
                     IntersectionPointLeft = Intersection(SET_PARAMS.SSC_Plane, reflectedSunVector, SET_PARAMS.SPC_LeftTopCorner)
 
@@ -175,31 +206,27 @@ class Dynamics:
                         reflection = reflection1 and reflection2
                         
                         if reflection:
-                            self.S_b = np.reshape(reflectedSunVector, (3,1))
+                            self.S_ORC = reflectedSunVector
                     else:
-                        self.S_b = np.reshape(reflectedSunVector, (3,1))
+                        self.S_ORC = reflectedSunVector
+                
+                self.S_sbc = self.A_ORC_to_SBC @ self.S_ORC
 
-                self.S_b = self.Sun_sensor_fault.normal_noise(self.S_b, SET_PARAMS.Coarse_sun_noise)
-
-                norm_S_b =np.linalg.norm(self.S_b)
-                S_ORC_norm = np.linalg.norm(self.S_ORC)
-                if norm_S_b != 0:
-                    self.S_b = self.S_b/norm_S_b
-                    self.S_ORC = self.S_ORC/S_ORC_norm
+                self.S_sbc = self.Sun_sensor_fault.normal_noise(self.S_sbc, SET_PARAMS.Coarse_sun_noise)
 
                 ######################################################
                 # IMPLEMENT ERROR OR FAILURE OF SENSOR IF APPLICABLE #
                 ######################################################
 
-                self.S_b, self.sun_in_view = self.Sun_sensor_fault.Catastrophic_sun(self.S_b, self.sun_in_view, "Coarse")
-                self.S_b = self.Sun_sensor_fault.Erroneous_sun(self.S_b, "Coarse")
-                self.S_b = self.Common_data_transmission_fault.Bit_flip(self.S_b)
-                self.S_b = self.Common_data_transmission_fault.Sign_flip(self.S_b)
-                self.S_b = self.Common_data_transmission_fault.Insertion_of_zero_bit(self.S_b)  
+                self.S_sbc, self.sun_in_view = self.Sun_sensor_fault.Catastrophic_sun(self.S_sbc, self.sun_in_view, "Coarse")
+                self.S_sbc = self.Sun_sensor_fault.Erroneous_sun(self.S_sbc, "Coarse")
+                self.S_sbc = self.Common_data_transmission_fault.Bit_flip(self.S_sbc)
+                self.S_sbc = self.Common_data_transmission_fault.Sign_flip(self.S_sbc)
+                self.S_sbc = self.Common_data_transmission_fault.Insertion_of_zero_bit(self.S_sbc)  
 
                 self.sun_noise = SET_PARAMS.Coarse_sun_noise
             else:
-                self.S_b = np.zeros(self.S_b.shape)
+                self.S_sbc = np.zeros(self.S_sbc.shape)
                 self.S_ORC = np.zeros(self.S_ORC.shape)
         
 
@@ -238,9 +265,9 @@ class Dynamics:
         # CONTROL TORQUES IMPLEMENTED DUE TO THE CONTROL LAW #
         ######################################################
 
-        N_control_magnetic, N_control_wheel = self.control.control(self.w_bi_est, self.w_bo_est, self.q_est, self.Inertia, self.B, self.angular_momentum_with_noise, self.r_sat_sbc, self.S_b[:,0], self.sun_in_view)
+        N_control_magnetic, N_control_wheel = self.control.control(self.w_bi_est, self.w_bo_est, self.q_est, self.Inertia, self.B_sbc, self.angular_momentum_with_noise, self.r_sat_sbc, self.S_sbc, self.sun_in_view)
 
-        N_gyro = w * (self.Inertia @ w + self.angular_momentum)
+        N_gyro = np.cross(w,(self.Inertia @ w + self.angular_momentum))
 
         if "RW" in self.fault:
             N_control_wheel = self.Reaction_wheel_fault.Electronics_of_RW_failure(N_control_wheel)
@@ -263,38 +290,36 @@ class Dynamics:
         n = int(np.round((x - x0)/h))
         y = w
 
-        if np.isnan(N_gyro).any() or np.isinf(N_gyro).any():
-            print("Break")
-        #############################################
-        # DISTURBANCE OF A REACTION WHEEL IMBALANCE #
-        #############################################
-
-        N_rw = 0 #np.reshape(self.dist.Wheel_Imbalance(self.angular_momentum/self.Iw, x - x0),(3,1))   
-
-        ######################################################
-        # ALL THE DISTURBANCE TORQUES ADDED TO THE SATELLITE #
-        ######################################################
-
-        N_disturbance = Ngg + N_aero + N_rw - N_gyro                
-        N_control = N_control_magnetic - N_control_wheel
-        N = N_control + N_disturbance
-
         for _ in range(n):
-            k1 = h*((np.linalg.inv(self.Inertia) @ N)) 
-            k2 = h*((np.linalg.inv(self.Inertia) @ N) + 0.5*k1) 
-            k3 = h*((np.linalg.inv(self.Inertia) @ N) + 0.5*k2) 
-            k4 = h*((np.linalg.inv(self.Inertia) @ N) + k3) 
+            #############################################
+            # DISTURBANCE OF A REACTION WHEEL IMBALANCE #
+            #############################################
+
+            N_rw = self.dist.Wheel_Imbalance(self.angular_momentum/self.Iw, x - x0)
+
+            ######################################################
+            # ALL THE DISTURBANCE TORQUES ADDED TO THE SATELLITE #
+            ######################################################
+
+            N_disturbance = Ngg + N_aero + N_rw - N_gyro   
+
+            N_control = N_control_magnetic - N_control_wheel
+            N = N_control + N_disturbance
+
+            k1 = h*((self.Inertia_Inverse @ N)) 
+            k2 = h*((self.Inertia_Inverse @ N) + 0.5*k1) 
+            k3 = h*((self.Inertia_Inverse @ N) + 0.5*k2) 
+            k4 = h*((self.Inertia_Inverse @ N) + k3) 
             y = y + (1.0/6.0)*(k1 + 2*k2 + 2*k3 + k4)
             
-            x0 = x0 + h; 
+            x0 = x0 + h
         
         self.Ngyro = N_gyro
         self.Nm = N_control_magnetic
         self.Nw = N_control_wheel
         self.Ngg = Ngg
-
-        if np.isnan(self.Ngyro).any():
-            print("Break")
+        self.Nrw = N_rw
+        self.Naero = N_aero
 
         self.angular_momentum = rungeKutta_h(x01, self.angular_momentum, x, h, N_control_wheel)
 
@@ -310,12 +335,12 @@ class Dynamics:
     # FUNCTION TO CALCULATE THE SATELLITE QUATERNION POSITION BASED ON THE DERIVATIVE THEREOF #
     ###########################################################################################
     def rungeKutta_q(self, x0, y0, x, h):      
-        wx, wy, wz = self.w_bo[:,0]
+        wx, wy, wz = self.w_bo
         n = int(np.round((x - x0)/h))
 
         y = y0
 
-        W = np.array(([[0, wz, -wy, wx], [-wz, 0, wx, wy], [wy, -wx, 0, wz], [-wx, -wy, -wz, 0]]))
+        W = np.array([[0, wz, -wy, wx], [-wz, 0, wx, wy], [wy, -wx, 0, wz], [-wx, -wy, -wz, 0]])
         for _ in range(n):
             k1 = h*(0.5 * W @ y)
             k2 = h*(0.5 * W @ (y + 0.5*k1))
@@ -423,90 +448,57 @@ class Dynamics:
 
         self.Fault_implementation()
 
-        self.A_ORC_to_SBC = Transformation_matrix(self.q)
-        self.w_bo = self.w_bi - self.A_ORC_to_SBC @ np.array(([0],[-self.wo],[0]))
-
-        self.r_sat, self.v_sat_EIC, self.A_EIC_to_ORC, r_EIC = self.sense.satellite_vector(self.t)
-        self.r_EIC = np.asarray(r_EIC).astype(np.float64)
-
-        self.S_EIC, self.sun_in_view = self.sense.sun(self.t)
-        self.S_ORC = self.A_EIC_to_ORC @ self.S_EIC
-
         ######################################
         # DETERMINE THE DCM OF THE SATELLITE #
         ######################################
+        self.A_ORC_to_SBC = Transformation_matrix(self.q)
+        self.w_bo = self.w_bi - self.A_ORC_to_SBC @ np.array(([0,-self.wo,0]))
+
+        ##################################################
+        # USE SENSOR MODELS TO FIND NADIR AND SUN VECTOR #
+        ##################################################
         
-        self.r_sat_sbc = self.A_ORC_to_SBC @ self.r_sat
+        #* Earth sensor
+        self.r_sat_ORC, self.v_sat_EIC, self.A_EIC_to_ORC, self.r_EIC = self.sense.Earth(self.t)
 
-        if (self.S_EIC == np.nan).any():
-            print("break")
+        #* Sun sensor
+        S_EIC, self.sun_in_view = self.sense.sun(self.t)
+        self.S_ORC = self.A_EIC_to_ORC @ S_EIC
 
-        self.S_b = self.A_ORC_to_SBC  @ self.S_ORC
-        
-        norm_S_b = np.linalg.norm(self.S_b)
+        #* Magnetometer
+        self.Beta = self.sense.magnetometer(self.t) 
 
-        if self.sun_in_view and norm_S_b != 0:
-            self.S_b = self.S_b/norm_S_b
+        self.B_ORC = self.A_EIC_to_ORC @ self.Beta 
 
         ##################################################
         # DETERMINE WHETHER THE SUN AND THE EARTH SENSOR #
         #   IS IN VIEW OF THE VECTOR ON THE SATELLITE    #
         ##################################################
-
         self.determine_sun_vision()
         self.determine_earth_vision()
-    
-        self.Beta = self.sense.magnetometer(self.t) 
 
-        self.B_ORC = self.A_EIC_to_ORC @ self.Beta 
-        self.B = self.A_ORC_to_SBC @ self.B_ORC
+        #############################################
+        # ADD NOISE AND ANOMALIES TO SENSORS IN ORC #
+        #############################################
+        self.determine_magnetometer()
+        self.determine_star_tracker()
 
-        ######################################################
-        # IMPLEMENT ERROR OR FAILURE OF SENSOR IF APPLICABLE #
-        ######################################################
-        self.B = self.Magnetometer_fault.normal_noise(self.B, SET_PARAMS.Magnetometer_noise)
-
-        norm_B = np.linalg.norm(self.B)
-
-        if norm_B != 0:
-            self.B = self.B/norm_B
-
-        self.B = self.Magnetometer_fault.Stop_magnetometers (self.B)
-        self.B = self.Magnetometer_fault.Interference_magnetic(self.B)
-        self.B = self.Magnetometer_fault.General_sensor_high_noise(self.B)
-        self.B = self.Common_data_transmission_fault.Bit_flip(self.B)
-        self.B = self.Common_data_transmission_fault.Sign_flip(self.B)
-        self.B = self.Common_data_transmission_fault.Insertion_of_zero_bit(self.B)
-
-        # Model star tracker vector as measured
-        self.star_tracker_vector_measured = self.Star_tracker_fault.normal_noise(self.A_ORC_to_SBC @ self.star_tracker_vector,SET_PARAMS.star_tracker_noise)
-        star_norm = np.linalg.norm(self.star_tracker_vector_measured)
-        if star_norm != 0:
-            self.star_tracker_vector_measured = self.star_tracker_vector_measured/star_norm
-        
-        self.star_tracker_vector_measured = self.Star_tracker_fault.Closed_shutter(self.star_tracker_vector_measured)
-
+        #* Create dictionary of all the sensors
         self.sensor_vectors = {
-        "Magnetometer": {"measured": self.B, "modelled": self.B_ORC, "noise": SET_PARAMS.Magnetometer_noise},
-        "Sun_Sensor": {"measured": self.S_b, "modelled": self.S_ORC, "noise": self.sun_noise}, 
-        "Earth_Sensor": {"measured": self.r_sat_sbc, "modelled": self.r_sat, "noise": SET_PARAMS.Earth_noise}, 
-        "Star_tracker": {"measured": self.star_tracker_vector_measured, "modelled": self.star_tracker_vector, "noise": SET_PARAMS.star_tracker_noise}
+        "Magnetometer": {"SBC": self.B_sbc, "ORC": self.B_ORC, "noise": SET_PARAMS.Magnetometer_noise},
+        "Sun_Sensor": {"SBC": self.S_sbc, "ORC": self.S_ORC, "noise": self.sun_noise}, 
+        "Earth_Sensor": {"SBC": self.r_sat_sbc, "ORC": self.r_sat_ORC, "noise": SET_PARAMS.Earth_noise}, 
+        "Star_tracker": {"SBC": self.star_tracker_sbc, "ORC": self.star_tracker_ORC, "noise": SET_PARAMS.star_tracker_noise}
         }
 
         self.q = self.rungeKutta_q(self.t, self.q, self.t+self.dt, self.dh)
-
-        if np.isnan(self.q).any() or (self.q == 0).all():
-            print("Break")
 
         ########################################################
         # THE ERROR FOR W_BI IS WITHIN THE RUNGEKUTTA FUNCTION #
         ######################################################## 
         self.w_bi = self.rungeKutta_w(self.t, self.w_bi, self.t+self.dt, self.dh)
 
-        if np.isnan(self.w_bi).any():
-            print("break")
-        
-        self.w_bo = self.w_bi - self.A_ORC_to_SBC @ np.array(([0],[-self.wo],[0]))
+        self.w_bo = self.w_bi - self.A_ORC_to_SBC @ np.array(([0,-self.wo,0]))
 
         ########################################
         # DETERMINE THE ACTUAL POSITION OF THE #
@@ -525,15 +517,12 @@ class Dynamics:
                 # Only noise is added to the measurement
 
                 v = self.sensor_vectors[sensor]
-                v_ORC_k = np.reshape(v["modelled"],(3,1))
-                v_norm = np.linalg.norm(v_ORC_k)
-                if (v_norm != 0).any():
-                    v_ORC_k = v_ORC_k/np.linalg.norm(v_ORC_k)
-                v_measured_k = np.reshape(v["measured"],(3,1))
+                v_ORC_k = v["ORC"]
+                v_measured_k = v["SBC"]
 
                 if not (v_ORC_k == 0.0).all():
                     # If the measured vector is equal to 0 then the sensor is not able to view the desired measurement
-                    x, self.w_bo_est = self.EKF.Kalman_update(v_measured_k, v_ORC_k, self.Nm, self.Nw, self.Ngyro, self.Ngg, self.t)
+                    x, self.w_bo_est = self.EKF.Kalman_update(v_measured_k, v_ORC_k, self.Nm, self.Nw, self.t)
                     self.q_est = x[3:]
                     self.w_bi_est = x[:3]
 
@@ -549,14 +538,11 @@ class Dynamics:
                 # Only noise is added to the measurement
 
                 v = self.sensor_vectors[sensor]
-                v_ORC_k = np.reshape(v["modelled"],(3,1))
-                v_norm = np.linalg.norm(v_ORC_k)
-                if (v_norm != 0).any():
-                    v_ORC_k = v_ORC_k/np.linalg.norm(v_ORC_k)
-                v_measured_k = np.reshape(v["measured"],(3,1))
-                self.EKF.measurement_noise = v["noise"]
+                v_model_k = v["ORC"]
+                v_measured_k = v["SBC"]
+                self.RKF.measurement_noise = v["noise"]
 
-                if not (v_ORC_k == 0.0).all():
+                if not (v_model_k == 0.0).all():
                     # If the measured vektor is equal to 0 then the sensor is not able to view the desired measurement
                     x = self.RKF.Kalman_update(v_measured_k, self.Nm, self.Nw, self.Ngyro, self.t)
                     self.w_bi_est = np.clip(x, -SET_PARAMS.wheel_angular_d_max, SET_PARAMS.wheel_angular_d_max)
@@ -570,22 +556,17 @@ class Dynamics:
 
         self.t += self.dt
 
-        #! Just for testing kalman filter
-        self.est_w_error = (np.mean(abs((self.w_bi_est - self.w_bi)/SET_PARAMS.wheel_angular_d_max)) + self.est_w_error * (self.t-self.dt))/(self.t)
-        self.est_q_error = (np.mean(abs(self.q - self.q_est)) + self.est_q_error * (self.t-self.dt))/(self.t)
-        self.est_error = self.est_w_error + self.est_q_error
-
-        self.KalmanControl = {"w_est": self.w_bo_est[:,0],
-        "w_act": self.w_bo[:,0],
-        "q_est": self.q_est[:,0],
-        "q": self.q[:,0],
-        "q_ref": self.control.q_ref[:,0],
-        "w_ref": self.control.w_ref[:,0],
-        "q_error": self.control.q_e[:,0],
-        "w_error": self.control.w_e[:,0]
+        self.KalmanControl = {"w_est": self.w_bo_est,
+        "w_act": self.w_bo,
+        "quaternion_est": self.q_est,
+        "quaternion_actual": self.q,
+        "quaternion_ref": self.control.q_ref,
+        "w_ref": self.control.w_ref,
+        "quaternion_error": self.control.q_e,
+        "w_error": self.control.w_e
         }
 
-        return self.w_bi, self.q, self.A_ORC_to_SBC, self.r_EIC, self.sun_in_view, self.est_error
+        return self.w_bi, self.q, self.A_ORC_to_SBC, self.r_EIC, self.sun_in_view
 
 
 class Single_Satellite(Dynamics):
@@ -609,7 +590,8 @@ class Single_Satellite(Dynamics):
         self.Ix = SET_PARAMS.Ix                     # Ixx inertia
         self.Iy = SET_PARAMS.Iy                     # Iyy inertia
         self.Iz = SET_PARAMS.Iz                     # Izz inertia
-        self.Inertia = np.identity(3)*np.array(([self.Ix, self.Iy, self.Iz]))
+        self.Inertia = np.diag([self.Ix, self.Iy, self.Iz])
+        self.Inertia_Inverse = np.linalg.inv(self.Inertia)
         self.Iw = SET_PARAMS.Iw                     # Inertia of a reaction wheel
         self.angular_momentum = SET_PARAMS.initial_angular_wheels # Angular momentum of satellite wheels
         self.angular_momentum_with_noise = self.angular_momentum
@@ -620,7 +602,8 @@ class Single_Satellite(Dynamics):
         self.RKF = RKF()                            # Rate Kalman_filter
         self.EKF = EKF()                            # Extended Kalman_filter
         self.MovingAverage = 0
-        self.sensors_kalman = ["Magnetometer", "Earth_Sensor"] #, "Star_tracker"] #"Sun_Sensor", 
+        self.sensors_kalman = ["Magnetometer", "Earth_Sensor", "Sun_Sensor", "Star_tracker"] #, "Star_tracker"] #Sun_Sensor, Earth_Sensor, Magnetometer
+        #? self.EKF = {sensor: EKF() for sensor in self.sensors_kalman}
         super().initiate_fault_parameters()
         self.availableData = SET_PARAMS.availableData
         ####################################################
@@ -637,11 +620,15 @@ class Single_Satellite(Dynamics):
             "Star": [],
             "Angular velocity of satellite": [],
             "Moving Average": [],
-            "Control Torques": [],
+            "Wheel Control Torques": [],
+            "Magnetic Control Torques": [], 
             "Sun in view": [],                              #True or False values depending on whether the sun is in view of the satellite
             "Current fault": [],                            #What the fault is that the system is currently experiencing
             "Current fault numeric": [],
-            "Current fault binary": []
+            "Current fault binary": [],
+            "Wheel disturbance torques": [],
+            "Gravity Gradient toques": [],
+            "Gyroscopic torques": []
         }
 
         self.zeros = np.zeros((SET_PARAMS.number_of_faults,), dtype = int)
@@ -653,14 +640,18 @@ class Single_Satellite(Dynamics):
         self.est_w_error = 0
 
     def update(self):
-        self.Orbit_Data["Magnetometer"] = self.B
-        self.Orbit_Data["Sun"] = self.S_b[:,0]
+        self.Orbit_Data["Magnetometer"] = self.B_sbc
+        self.Orbit_Data["Sun"] = self.S_sbc
         self.Orbit_Data["Earth"] = self.r_sat_sbc
-        self.Orbit_Data["Star"] = self.star_tracker_vector_measured
-        self.Orbit_Data["Angular momentum of wheels"] = self.angular_momentum[:,0]
-        self.Orbit_Data["Angular velocity of satellite"] = self.w_bi[:,0]
+        self.Orbit_Data["Star"] = self.star_tracker_sbc
+        self.Orbit_Data["Angular momentum of wheels"] = self.angular_momentum_with_noise
+        self.Orbit_Data["Angular velocity of satellite"] = self.w_bi
         self.Orbit_Data["Sun in view"] = self.sun_in_view
-        self.Orbit_Data["Control Torques"] = self.Nw[:,0]
+        self.Orbit_Data["Wheel Control Torques"] = self.Nw
+        self.Orbit_Data["Wheel disturbance torques"] = self.Nrw
+        self.Orbit_Data["Gravity Gradient toques"] = self.Ngg
+        self.Orbit_Data["Gyroscopic torques"] = self.Ngyro
+        self.Orbit_Data["Magnetic Control Torques"] = self.Nm
         self.Orbit_Data["Moving Average"] = np.max(abs(self.q - self.q_est))
         # Predict the sensor parameters and add them to the Orbit_Data
         self.SensorFailureHandling()
@@ -703,11 +694,12 @@ class Constellation_Satellites(Dynamics):
         self.Iy = SET_PARAMS.Iy                     # Iyy inertia
         self.Iz = SET_PARAMS.Iz                     # Izz inertia
         self.Inertia = np.identity(3)*np.array(([self.Ix, self.Iy, self.Iz]))
+        self.Inertia_Inverse = np.linalg.inv(self.Inertia)
         self.Iw = SET_PARAMS.Iw                     # Inertia of a reaction wheel
         self.angular_momentum = SET_PARAMS.initial_angular_wheels # Angular momentum of satellite wheels
         self.faster_than_control = SET_PARAMS.faster_than_control   # If it is required that satellite must move faster around the earth than Ts
         self.control = Controller.Control()         # Controller.py is used for control of satellite    
-        self.star_tracker_vector = SET_PARAMS.star_tracker_vector
+        self.star_tracker_ORC = SET_PARAMS.star_tracker_ORC
         self.sun_noise = SET_PARAMS.Fine_sun_noise
         self.RKF = RKF()                            # Rate Kalman_filter
         self.EKF = EKF()                            # Extended Kalman_filter
@@ -739,12 +731,12 @@ class Constellation_Satellites(Dynamics):
         self.fault = "None"                      # Current fault of the system
 
     def update(self):
-        self.Orbit_Data["Magnetometer"] = self.B
-        self.Orbit_Data["Sun"] = self.S_b[:,0]
+        self.Orbit_Data["Magnetometer"] = self.B_sbc
+        self.Orbit_Data["Sun"] = self.S_sbc
         self.Orbit_Data["Earth"] = self.r_sat_sbc
-        self.Orbit_Data["Star"] = self.star_tracker_vector_measured
-        self.Orbit_Data["Angular momentum of wheels"] = self.angular_momentum[:,0]
-        self.Orbit_Data["Angular velocity of satellite"] = self.w_bi[:,0]
+        self.Orbit_Data["Star"] = self.star_tracker_sbc
+        self.Orbit_Data["Angular momentum of wheels"] = self.angular_momentum
+        self.Orbit_Data["Angular velocity of satellite"] = self.w_bi
         self.Orbit_Data["Sun in view"] = self.sun_in_view
         self.Orbit_Data["Control Torques"] = self.Nw
         if self.sun_in_view == False and (self.fault == "Catastrophic_sun" or self.fault == "Erroneous"):

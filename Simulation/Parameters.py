@@ -10,7 +10,7 @@ pi = math.pi
 
 # The DCM must be calculated depending on the current quaternions
 def Transformation_matrix(q):
-    q1, q2, q3, q4 = q[:,0]
+    q1, q2, q3, q4 = q
     A = np.zeros((3,3))
     A[0,0] = q1**2-q2**2-q3**2+q4**2
     A[0,1] = 2*(q1*q2 + q3*q4)
@@ -143,11 +143,11 @@ class SET_PARAMS:
     # SATELLITE INITIAL POSITION #
     ##############################
     
-    quaternion_initial = np.array(([[0],[0], [1], [0]])) #Quaternion_functions.euler_to_quaternion(0,0,0) #roll, pitch, yaw
+    quaternion_initial = np.array(([0,0,1,0])) #Quaternion_functions.euler_to_quaternion(0,0,0) #roll, pitch, yaw
     A_ORC_to_SBC = Transformation_matrix(quaternion_initial)
-    wbo = np.array(([0.0],[0.0],[0.0]))
-    wbi = wbo + A_ORC_to_SBC @ np.array(([0],[-wo],[0]))
-    initial_angular_wheels = np.zeros((3,1))
+    wbo = np.array(([0.0,0.0,0.0]))
+    wbi = wbo + A_ORC_to_SBC @ np.array(([0,-wo,0]))
+    initial_angular_wheels = np.zeros(3)
     
     ###############################
     # MAX PARAMETERS OF ACTUATERS #
@@ -155,12 +155,12 @@ class SET_PARAMS:
     
     wheel_angular_d_max = 2.0 #degrees per second (theta derived), angular velocity
     wheel_angular_d_d = 0.133 # degrees per second^2 (rotation speed derived), angular acceleration
-    h_ws_max = 36.9e-3 # Nms
-    N_ws_max = 10.6e-3 # Nm
+    h_ws_max = 60e-3 # Nms
+    N_ws_max = 5e-3 # Nm
     M_magnetic_max = 25e-6 # Nm
-    RW_sigma_x = 14.6/10
-    RW_sigma_y = 8.8/10
-    RW_sigma_z = 21.2/10
+    RW_sigma_x = 14.6
+    RW_sigma_y = 8.8
+    RW_sigma_z = 21.2
     RW_sigma = np.mean([RW_sigma_x, RW_sigma_y, RW_sigma_y])
     Rotation_max = 2.0 # degrees per second
     
@@ -168,7 +168,7 @@ class SET_PARAMS:
     # CONTROL PARAMETERS #
     ######################
     
-    w_ref = np.zeros((3,1)) # desired angular velocity of satellite
+    w_ref = np.zeros(3) # desired angular velocity of satellite
     q_ref = quaternion_initial # initial position of satellite
     time = 1
     Ts = 1 # Time_step
@@ -179,8 +179,9 @@ class SET_PARAMS:
     best_error = 100
 
     # For no filter
-    Kp = 1.7e-2 
-    Kd = 1.1e-1
+    Kp = 0
+    Kd = 0
+    Kw = 0
 
     Kd_magnet = 1e-7
     Ks_magnet = 1e-7
@@ -195,7 +196,7 @@ class SET_PARAMS:
     P_k = np.eye(7)/2
 
     measurement_noise = 0.001
-    model_noise = 0.001
+    model_noise = 0.01
 
     R_k = np.array([[measurement_noise**2 + model_noise**2, 0, 0], 
                     [0, measurement_noise**2 + model_noise**2, 0], 
@@ -310,22 +311,22 @@ class SET_PARAMS:
     # Star tracker
     star_tracker_vector = np.array(([1.0,1.0,1.0]))
     star_tracker_vector = star_tracker_vector/np.linalg.norm(star_tracker_vector)
-    star_tracker_noise = 0.00001
+    star_tracker_noise = 5e-5
 
     # Magnetometer
-    Magnetometer_noise = 0.001         #standard deviation of magnetometer noise in Tesla
+    Magnetometer_noise = 1e-2         #standard deviation of magnetometer noise in Tesla
 
     # Earth sensor
     Earth_sensor_position = np.array(([0, 0, -Lz/2])) # x, y, en z
     Earth_sensor_FOV = 180 # Field of view in degrees
     Earth_sensor_angle = Earth_sensor_FOV/2 # The angle use to check whether the dot product angle is within the field of view
-    Earth_noise = 0.001                  #standard deviation away from where the actual earth is
+    Earth_noise = 1e-3                  #standard deviation away from where the actual earth is
 
     # Fine Sun sensor
     Fine_sun_sensor_position = np.array(([Lx/2, 0, 0])) # x, y, en z 
     Fine_sun_sensor_FOV = 180 # Field of view in degrees
     Fine_sun_sensor_angle = Fine_sun_sensor_FOV/2 # The angle use to check whether the dot product angle is within the field of view
-    Fine_sun_noise = 0.0001                   #standard deviation away from where the actual sun is
+    Fine_sun_noise = 1e-4                   #standard deviation away from where the actual sun is
     # Define sun sensor dimensions
     Sun_sensor_length = 0.15
     Sun_sensor_width = 0.075
@@ -337,14 +338,14 @@ class SET_PARAMS:
     Coarse_sun_sensor_position = np.array(([-Lx/2, 0, 0])) # x, y, en z 
     Coarse_sun_sensor_FOV = 180 # Field of view in degrees
     Coarse_sun_sensor_angle = Coarse_sun_sensor_FOV/2 # The angle use to check whether the dot product angle is within the field of view
-    Coarse_sun_noise = 0.001 #standard deviation away from where the actual sun is
+    Coarse_sun_noise = 1e-3 #standard deviation away from where the actual sun is
 
     SSC_LeftCorner = np.array(([Coarse_sun_sensor_position[0], Coarse_sun_sensor_position[1] - Sun_sensor_width/2, Coarse_sun_sensor_position[2] - Sun_sensor_length/2]))
     SSC_RightCorner = np.array(([Coarse_sun_sensor_position[0], Coarse_sun_sensor_position[1] + Sun_sensor_width/2, Coarse_sun_sensor_position[2] - Sun_sensor_length/2]))
     
     SSC_Plane = [-1/2, 0, 0, Lx/2] # x, y, z, d
     # Angular Momentum sensor
-    Angular_sensor_noise = 0.001
+    Angular_sensor_noise = 1e-3
     
     ###################
     # HARDWARE MODELS #
@@ -487,7 +488,7 @@ class Reaction_wheels(Fault_parameters):
                 tries += 1
 
         self.number_of_failed_wheels = sorted(self.number_of_failed_wheels)
-        self.angular_failed_wheel = np.zeros((3,1))
+        self.angular_failed_wheel = np.zeros(3)
 
 
     def Electronics_of_RW_failure(self, angular_wheels):

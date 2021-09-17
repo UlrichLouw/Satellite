@@ -36,7 +36,7 @@ def loop(index, D, Data, orbit_descriptions):
     KalmanControl = {col: [] for col in SET_PARAMS.visualizeKalman}
                                 
     for j in range(1, int(SET_PARAMS.Number_of_orbits*SET_PARAMS.Period/(SET_PARAMS.faster_than_control*SET_PARAMS.Ts)+1)):
-        w, q, A, r, sun_in_view, est_error = D.rotation()
+        w, q, A, r, sun_in_view = D.rotation()
         if SET_PARAMS.Display and j%SET_PARAMS.skip == 0:
             pv.run(w, q, A, r, sun_in_view)
 
@@ -107,12 +107,12 @@ if __name__ == "__main__":
     # IF THE SAVE AS IS EQUAL TO XLSX, THE THREADING CANNOT #
     #           BE USED TO SAVE SHEETS                      #     
     #########################################################
-    SET_PARAMS.Display = True
+    SET_PARAMS.Display = False
     SET_PARAMS.Visualize = True
     SET_PARAMS.save_as = ".csv"
     SET_PARAMS.Kalman_filter_use = "EKF"
     SET_PARAMS.sensor_number = "ALL"
-    SET_PARAMS.Number_of_orbits = 2
+    SET_PARAMS.Number_of_orbits = 20
     SET_PARAMS.fixed_orbit_failure = 2
     SET_PARAMS.Number_of_multiple_orbits = 1
     SET_PARAMS.skip = 20
@@ -125,39 +125,23 @@ if __name__ == "__main__":
     SET_PARAMS.SensorRecovery = False
     SET_PARAMS.Mode = "EARTH_SUN" # Nominal or EARTH_SUN
     #SET_PARAMS.Mode = "Nominal"
-    SET_PARAMS.Reflection = False
+    SET_PARAMS.Reflection = True
     SET_PARAMS.SensorPredictor = "DMD"
-    SET_PARAMS.visualizeKalman = ["w_est","w_act","q_est","q","q_ref",
-                                "w_ref","q_error","w_error"]
+    SET_PARAMS.visualizeKalman = ["w_est","w_act","quaternion_est","quaternion_actual",
+                                "quaternion_ref", "w_ref","quaternion_error",
+                                "w_error"]
 
-    settling_time = 400
+    settling_time = 300
     damping_coefficient = 0.707
-
     wn = 3/(settling_time*damping_coefficient)
 
     SET_PARAMS.P_k = np.eye(7)
-
-    SET_PARAMS.R_k = np.eye(3)*0.5
-
-    SET_PARAMS.Q_k = np.eye(7)*1e-4
-
-    SET_PARAMS.Kp = 2.5e-3 #2e-4 #2e-5 #1e-4
-    SET_PARAMS.Kd = 0.05 #1e-2 #4e-2
-
+    SET_PARAMS.R_k = np.eye(3)*1e-4
+    SET_PARAMS.Q_k = np.eye(7)*0.01
 
     SET_PARAMS.Kp = 2 * wn**2
     SET_PARAMS.Kd = 2 * damping_coefficient * wn
-
-    if SET_PARAMS.Kalman_filter_use == "EKF":
-        if SET_PARAMS.Reflection:
-            SET_PARAMS.Kp = SET_PARAMS.Kp * 1e2
-            SET_PARAMS.Kd = SET_PARAMS.Kd * 1e1  
-        else:
-            pass
-            SET_PARAMS.Kp = SET_PARAMS.Kp * 1.1223
-            SET_PARAMS.Kd = SET_PARAMS.Kd / 1.1223
-            #SET_PARAMS.Kp = SET_PARAMS.Kp * 1e-1
-            #SET_PARAMS.Kd = SET_PARAMS.Kd * 1e-1
+    SET_PARAMS.Kw = SET_PARAMS.Kp*1e-3 #! I just changed this from e-6 to e-5 to e-4
 
     #####################################
     # PARAMETERS FOR SATELLITE DYNAMICS #
@@ -230,7 +214,7 @@ if __name__ == "__main__":
                             }
                                 
             for j in range(int(SET_PARAMS.Number_of_orbits*SET_PARAMS.Period/(SET_PARAMS.faster_than_control*SET_PARAMS.Ts)+1)):
-                w, q, A, r, sun_in_view, _ = D.rotation()
+                w, q, A, r, sun_in_view = D.rotation()
 
                 # Detect faults based on data from Dynamics (D):
                 Fault = FD.Per_Timestep(D.Orbit_Data, None)

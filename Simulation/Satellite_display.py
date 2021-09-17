@@ -61,6 +61,7 @@ class ProjectionViewer:
 
     def display(self,q,A,r,sun_in_view, only_positions, sat_num):
         """ Draw the wireframes on the screen. """
+        r = r/1000
         self.screen.fill(self.background)
 
         if not only_positions:

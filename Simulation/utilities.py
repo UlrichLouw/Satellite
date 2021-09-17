@@ -2,6 +2,7 @@ import numpy as np
 
 def Reflection(V, N):
     R = V - 2 * N.T * (np.dot(V, N))
+    R = R/np.linalg.norm(R)
     return R
 
 

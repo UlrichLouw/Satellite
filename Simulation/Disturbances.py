@@ -12,22 +12,24 @@ class Disturbances:
         self.phi_dy = 0
         self.phi_dz = 0
         
-        self.position_vector_of_wheels = np.identity(3)*SET_PARAMS.Dimensions/2 #radius from COM
-        
         self.position_vector_of_wheelx = np.array(([SET_PARAMS.Lx/2,0,0]))
-        self.position_vector_of_wheely = np.array(([SET_PARAMS.Ly/2,0,0]))
-        self.position_vector_of_wheelz = np.array(([SET_PARAMS.Lz/2,0,0]))
+        self.position_vector_of_wheely = np.array(([0,SET_PARAMS.Ly/2,0]))
+        self.position_vector_of_wheelz = np.array(([0,0,SET_PARAMS.Lz/2]))
 
         self.orbit = orbit()
         self.sense = sense
 
     def Gravity_gradient_func(self, A):
+        zoB = A @ np.array(([0,0,1])).T
+        Ngg = 3 * SET_PARAMS.wo**2 * (np.cross(zoB, SET_PARAMS.Inertia@zoB))
+
+        """
         #? zoB = A * np.array(([[0],[0],[1]]))
         kgx = SET_PARAMS.kgx
         kgy = SET_PARAMS.kgy
         kgz = SET_PARAMS.kgz
         Ngg = np.array(([kgx*A[1,2]*A[2,2]],[kgy*A[0][2]*A[2][2]],[kgz*A[0,2]*A[1,2]]))
-        
+        """
         return Ngg
 
     def Aerodynamic(self, DCM, EIC_to_ORC, sun_in_view):
@@ -67,10 +69,8 @@ class Disturbances:
 
         Us = 2.08e-7 #For the RW-0.06 wheels in kg/m; Us = m*r; Assume all the wheels are equally imbalanced
         omega = rotation_rate #rad/s rotation rate of wheel  
-
-        wx = omega[0,0]
-        wy = omega[1,0]
-        wz = omega[2,0]
+        
+        wx, wy, wz = omega
 
         F_xs = Us * wx**2 * np.array(([np.sin(wx*t+self.phi_sx),np.cos(wx*t + self.phi_sx),0]))
         F_ys = Us * wy**2 * np.array(([np.sin(wy*t+self.phi_sy),np.cos(wy*t + self.phi_sy),0]))
@@ -85,7 +85,6 @@ class Disturbances:
         N_zs = np.cross(self.position_vector_of_wheelz,F_zs)
         N_s = N_xs + N_ys + N_zs
 
-        print('Static', np.max(np.abs(N_s)))
         return N_s
 
     def dynamic(self, rotation_rate, t):
@@ -99,9 +98,7 @@ class Disturbances:
         Ud = 2.08e-9        #For the RW-0.06 wheels in kg/m^2; Ud = m*r*d
         omega = rotation_rate   #rad/s rotation rate of wheel  
         
-        wx = omega[0,0]
-        wy = omega[1,0]
-        wz = omega[2,0]
+        wx, wy, wz = omega
 
         N_xd = Ud * wx**2 * np.array(([np.sin(wx*t+self.phi_dx),np.cos(wx*t + self.phi_dx),0]))
         N_yd = Ud * wy**2 * np.array(([np.sin(wy*t+self.phi_dy),np.cos(wy*t + self.phi_dy),0]))
@@ -113,9 +110,7 @@ class Disturbances:
 
         N_d = N_xd + N_yd + N_zd
 
-        print("Dynamic", np.max(np.abs(N_d)))
         return N_d
 
     def Wheel_Imbalance(self, rotation_rate, t):
-        print(np.max(np.abs(rotation_rate)))
         return self.static(rotation_rate, t) + self.dynamic(rotation_rate, t)

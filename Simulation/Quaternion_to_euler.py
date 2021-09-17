@@ -31,7 +31,7 @@ def getEulerAngles(q):
         return rad2deg(yaw_z), rad2deg(pitch_y), rad2deg(roll_x)
 
 def getRotMat(q):
-    q1, q2, q3, q4 = q[:]
+    q1, q2, q3, q4 = q
     A = np.zeros((3,3))
     A[0,0] = q1**2-q2**2-q3**2+q4**2
     A[0,1] = 2*(q1*q2 + q3*q4)
