@@ -3,7 +3,7 @@ import numpy as np
 from Simulation.Parameters import SET_PARAMS
 from pathlib import Path
 
-def MatrixAB(path, fromTimeStep = 0, ToTimeStep = 10000):
+def MatrixAB(path, fromTimeStep = 0, ToTimeStep = 100000):
     SET_PARAMS.load_as == ".csv"
     # Firstly the data must be extracted from the csv file. 
     # Afterwards the DMD operations must be executed.
@@ -36,19 +36,18 @@ def MatrixAB(path, fromTimeStep = 0, ToTimeStep = 10000):
 
     G = x2 @ np.linalg.pinv(np.concatenate((x1, y1)))
 
+    
     if sensor_number == "ALL":
-        A = G[:,:-3]
-        B = np.roll(G,3)[:,:3]
+        # 6 is for the vector of the magnetorquer and the control wheels
+        # The control torques are used as y in the DMD
+        A = G[:,:-6]
+        B = np.roll(G,3)[:,:6]
     else:
+        # 3 is used since it is the vector for a single sensor
         A = G[:,:3]
         B = G[:,3:]
 
     X2 = A @ x1 + B @ y1
-
-    print(x1.shape)
-    print(y1.shape)
-    print(A.shape)
-    print(B.shape)
 
     path_to_folder = Path(path)
     path_to_folder.mkdir(exist_ok=True)

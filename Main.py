@@ -34,6 +34,7 @@ def loop(index, D, Data, orbit_descriptions):
 
     Visualize_data = {col: [] for col in D.Orbit_Data}
     KalmanControl = {col: [] for col in SET_PARAMS.visualizeKalman}
+    MeasurementUpdates = {col: [] for col in SET_PARAMS.measurementUpdateVars}
                                 
     for j in range(1, int(SET_PARAMS.Number_of_orbits*SET_PARAMS.Period/(SET_PARAMS.faster_than_control*SET_PARAMS.Ts)+1)):
         w, q, A, r, sun_in_view = D.rotation()
@@ -65,19 +66,25 @@ def loop(index, D, Data, orbit_descriptions):
         for col in D.KalmanControl:
             KalmanControl[col].append(D.KalmanControl[col])
 
+        for col in D.MeasurementUpdateDictionary:
+            perTimestep = D.MeasurementUpdateDictionary[col]
+            for var in perTimestep:
+                MeasurementUpdates[col].append(var)
+
     Data = pd.concat(Overall_data)
 
     if SET_PARAMS.Visualize and SET_PARAMS.Display == False:
         if SET_PARAMS.Reflection:
-            path = "Plots/"+"KalmanFilter-"+SET_PARAMS.Kalman_filter_use+"/"+SET_PARAMS.Mode+"_with_reflection/"+ str(D.fault) + "/"
+            path = "Plots/"+ "Predictor-" + SET_PARAMS.SensorPredictor + "/KalmanFilter-"+SET_PARAMS.Kalman_filter_use+"/"+SET_PARAMS.Mode+"_with_reflection/"+ str(D.fault) + "/"
             path_to_folder = Path(path)
             path_to_folder.mkdir(parents = True, exist_ok=True)
         else:
-            path = "Plots/"+"KalmanFilter-"+SET_PARAMS.Kalman_filter_use+"/"+SET_PARAMS.Mode+"/"+ str(D.fault) + "/"
+            path = "Plots/"+ "Predictor-" + SET_PARAMS.SensorPredictor+ "/KalmanFilter-"+SET_PARAMS.Kalman_filter_use+"/"+SET_PARAMS.Mode+"/"+ str(D.fault) + "/"
             path_to_folder = Path(path)
             path_to_folder.mkdir(parents = True, exist_ok=True)
         visualize_data(Visualize_data, D.fault, path = path)
         visualize_data(KalmanControl, D.fault, path = path)
+        visualize_data(MeasurementUpdates, D.fault, path = path)
     
     elif SET_PARAMS.Display == True:
         pv.save_plot(D.fault)
@@ -88,11 +95,11 @@ def loop(index, D, Data, orbit_descriptions):
 
     if SET_PARAMS.save_as == ".csv":
         if SET_PARAMS.Reflection:
-            path = "Data files/"+"KalmanFilter-"+SET_PARAMS.Kalman_filter_use+"/"+SET_PARAMS.Mode+"_with_reflection/"
+            path = "Data files/" + "Predictor-" + SET_PARAMS.SensorPredictor +"/KalmanFilter-"+SET_PARAMS.Kalman_filter_use+"/"+SET_PARAMS.Mode+"_with_reflection/"
             path_to_folder = Path(path)
             path_to_folder.mkdir(parents = True, exist_ok=True)
         else:
-            path = "Data files/"+"KalmanFilter-"+SET_PARAMS.Kalman_filter_use+"/"+SET_PARAMS.Mode+"/"
+            path = "Data files/"+ "Predictor-" + SET_PARAMS.SensorPredictor +"/KalmanFilter-"+SET_PARAMS.Kalman_filter_use+"/"+SET_PARAMS.Mode+"/"
             path_to_folder = Path(path)
             path_to_folder.mkdir(parents = True, exist_ok=True)
         save_as_csv(Data, filename = SET_PARAMS.Fault_names_values[index], index = index, path = path)
@@ -112,24 +119,26 @@ if __name__ == "__main__":
     SET_PARAMS.save_as = ".csv"
     SET_PARAMS.Kalman_filter_use = "EKF"
     SET_PARAMS.sensor_number = "ALL"
-    SET_PARAMS.Number_of_orbits = 20
+    SET_PARAMS.Number_of_orbits = 2
     SET_PARAMS.fixed_orbit_failure = 2
-    SET_PARAMS.Number_of_multiple_orbits = 1
+    SET_PARAMS.Number_of_multiple_orbits = 7
     SET_PARAMS.skip = 20
     SET_PARAMS.Number_of_satellites = 1
     SET_PARAMS.k_nearest_satellites = 5
     SET_PARAMS.FD_strategy = "Distributed"
-    SET_PARAMS.SensorFeatureExtraction = False
-    SET_PARAMS.SensorPredicting = False
-    SET_PARAMS.SensorIsolation = False
-    SET_PARAMS.SensorRecovery = False
+    SET_PARAMS.SensorFDIR = True
     SET_PARAMS.Mode = "EARTH_SUN" # Nominal or EARTH_SUN
     #SET_PARAMS.Mode = "Nominal"
     SET_PARAMS.Reflection = True
-    SET_PARAMS.SensorPredictor = "DMD"
+    SET_PARAMS.FeatureExtraction = "DMD"
+    SET_PARAMS.SensorPredictor = "DecisionTrees"
+    SET_PARAMS.SensorIsolator = "DMD"
+    SET_PARAMS.SensorRecoveror = "EKF"
     SET_PARAMS.visualizeKalman = ["w_est","w_act","quaternion_est","quaternion_actual",
                                 "quaternion_ref", "w_ref","quaternion_error",
                                 "w_error"]
+
+    SET_PARAMS.measurementUpdateVars = ["Mean", "Covariance"]
 
     settling_time = 300
     damping_coefficient = 0.707

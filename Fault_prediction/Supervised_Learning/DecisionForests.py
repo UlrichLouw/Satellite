@@ -24,7 +24,6 @@ def DecisionTreeAllAnomalies(path, depth):
     # This must however include the moving average
     clf = tree.DecisionTreeClassifier()
 
-
     # Split data into traning and testing data
     mask = np.random.rand(len(X)) <= 0.6
     training_data = X[mask]
@@ -45,22 +44,9 @@ def DecisionTreeAllAnomalies(path, depth):
     path_to_folder.mkdir(exist_ok=True)
 
     if SET_PARAMS.Visualize:
-        fig = plt.figure(figsize=(25,20))
+        fig = plt.figure(figsize=(250,200))
         tree.plot_tree(clf,
                         filled=True, max_depth = depth)
         fig.savefig(path + '/DecisionTree.png')
 
     pickle.dump(clf, open(path + '/DecisionTreesPhysicsEnabledDMD.sav', 'wb'))
-
-#######################################
-# PREDICT WHETHER THERE IS AN ANOMALY #
-#######################################
-class DecisionTreePredict():
-    def __init__(self, path):
-        self.clf = pickle.load(open(path, 'rb'))
-    
-    def Predict(self, X):
-        y_predict = self.clf.predict(X)
-        if y_predict:
-            print("Fault Detected")
-        return y_predict

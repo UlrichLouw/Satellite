@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 import collections
 from Simulation.Parameters import SET_PARAMS
+import pickle
 
 ######################################################
 # BASIC DETECTION WITH THRESHOLDS AND IF STATEMENTS. #
@@ -219,6 +220,16 @@ class Correlation_detection:
     def magnetometer_fault(self, magnetometer):
         pass
 
+#######################################
+# PREDICT WHETHER THERE IS AN ANOMALY #
+#######################################
+class DecisionTreePredict():
+    def __init__(self, path):
+        self.clf = pickle.load(open(path, 'rb'))
+    
+    def Predict(self, X):
+        y_predict = self.clf.predict(X)[0]
+        return y_predict
 
 ###################################################
 # THIS CLASS IS THE MOST NOVEL DETECTION METHODS  #

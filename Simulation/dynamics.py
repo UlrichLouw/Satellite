@@ -6,11 +6,12 @@ SET_PARAMS = Parameters.SET_PARAMS
 from Simulation.Sensors import Sensors
 import Simulation.Quaternion_functions as Quaternion_functions
 from Simulation.Kalman_filter import RKF
-from Simulation.EKF_changed import EKF
+from Simulation.EKF import EKF
 from Simulation.SensorPredictions import SensorPredictionsDMD
 import collections
 import math
 from Simulation.utilities import Reflection, Intersection, PointWithinParallelLines, lineEquation, line2Equation
+import Fault_prediction.Fault_detection as FaultDetection
 
 pi = math.pi
 
@@ -383,59 +384,73 @@ class Dynamics:
     # FUNCTION TO HANDLE THE PREDICTION, ISOLATION AND RECOVERY OF SENSORS FAILURES OR ANOMALIES #
     ############################################################################################## 
     def SensorFailureHandling(self):
-        if SET_PARAMS.SensorFeatureExtraction:
-            self.SensorFeatureExtraction()
-        
-        if SET_PARAMS.SensorPredicting:
-            self.SensorPredicting()
+        if SET_PARAMS.SensorFDIR:
+            Sensors_X, Sensors_Y = self.SensorFeatureExtraction()
 
-        if SET_PARAMS.SensorIsolation:
-            self.SensorIsolation()
-        
-        if SET_PARAMS.SensorRecovery:
-            self.SensorRecovery()
+            self.predictedFailure = self.SensorPredicting(Sensors_X)
+
+            # # If a failure is predicted the cause of the failure must be determined
+            # if predictedFailure:
+            #     sensorFailed = self.SensorIsolation()
+
+            #     # After the specific sensor that has failed is identified 
+            #     # The system must recover
+            #     self.SensorRecovery(sensorFailed)
     
     def SensorFeatureExtraction(self):
-        if SET_PARAMS.SensorPredictor == "DMD":
-            self.Sensors_X = np.concatenate([self.Orbit_Data["Magnetometer"], 
+        if SET_PARAMS.FeatureExtraction == "DMD":
+            Sensors_X = np.concatenate([self.Orbit_Data["Magnetometer"], 
                                             self.Orbit_Data["Sun"], self.Orbit_Data["Earth"], 
                                             self.Orbit_Data["Star"],  
-                                            self.Orbit_Data["Angular momentum of wheels"], 
-                                            self.Orbit_Data["Angular velocity of satellite"]])
-            self.Sensors_Y = np.concatenate([self.Orbit_Data["Control Torques"]])
+                                            self.Orbit_Data["Angular momentum of wheels"]])
+            Sensors_Y = np.concatenate([self.Orbit_Data["Wheel Control Torques"], 
+                                    self.Orbit_Data["Magnetic Control Torques"]])
             
 
             if self.t == SET_PARAMS.time:
                 # Initiating parameters for SensorPredictions
-                self.SensePredDMD = SensorPredictionsDMD(self.Sensors_X)
+                self.SensePredDMD = SensorPredictionsDMD(Sensors_X)
                 self.MovingAverage = 0
             
-            self.MovingAverage = self.SensePredDMD.MovingAverage(self.Sensors_X, self.Sensors_Y)
+            self.MovingAverage = self.SensePredDMD.MovingAverage(Sensors_X, Sensors_Y)
+
+        return Sensors_X, Sensors_Y
 
     #################################################
     # FUNCTION TO PREDICT IF AN ANOMALY HAS OCCURED #
     #################################################
-    def SensorPredicting(self):
-        self.predictedFailure = False
+    def SensorPredicting(self, Sensors_X):
+        if SET_PARAMS.SensorPredictor == "DecisionTrees":
+            Sensors_X = np.array([np.concatenate([Sensors_X, np.array([self.MovingAverage])])])
+            predictedFailure = self.DecisionTreeDMD.Predict(Sensors_X)
+            
+        return predictedFailure
 
     ###############################################################
     # FUNCTION TO ISOLATE (CLASSIFY) THE ANOMALY THAT HAS OCCURED #
     ###############################################################
     def SensorIsolation(self):
         #! This should account for multiple predictions of failures
-        if SET_PARAMS.SensorPredictor == "DMD":
+        if SET_PARAMS.SensorIsolator == "DMD":
             for sensorData in self.availableData:
                 self.Sensors_X = self.Orbit_Data[sensorData]
                 Y = [self.Orbit_Data[data] for data in self.availableData if data != sensorData]
                 self.Sensors_Y = np.concatenate(Y)
 
                 self.MovingAverage = self.SensePredDMD.MovingAverage(self.Sensors_X, self.Sensors_Y)                
+        
+        
+        elif SET_PARAMS.SensorIsolator == "DecisionTrees":
+            pass
+
 
     ############################################
     # FUNCTION TO RECOVER FROM SENSOR FAILURES #
     ############################################
-    def SensorRecovery(self):
-        pass
+    def SensorRecovery(self, failedSensor):
+        if SET_PARAMS.sensorRecoveror == "EKF":
+            self.sensors_kalman.pop(self.sensors_kalman.index(failedSensor))
+            
 
     ###########################################################
     # FUNCTION FOR THE STEP BY STEP ROTATION OF THE SATELLITE #
@@ -504,6 +519,8 @@ class Dynamics:
         # DETERMINE THE ACTUAL POSITION OF THE #
         # SATELLITE FROM THE EARTH AND THE SUN #
         ########################################
+        mean = []
+        covariance = []
 
         if SET_PARAMS.Kalman_filter_use == "EKF":
             
@@ -522,9 +539,12 @@ class Dynamics:
 
                 if not (v_ORC_k == 0.0).all():
                     # If the measured vector is equal to 0 then the sensor is not able to view the desired measurement
-                    x, self.w_bo_est = self.EKF.Kalman_update(v_measured_k, v_ORC_k, self.Nm, self.Nw, self.t)
+                    x, self.w_bo_est, P_k = self.EKF.Kalman_update(v_measured_k, v_ORC_k, self.Nm, self.Nw, self.t)
                     self.q_est = x[3:]
                     self.w_bi_est = x[:3]
+                    mean.append(np.mean(x))
+                    covariance.append(np.mean(P_k))
+
 
 
         elif SET_PARAMS.Kalman_filter_use == "RKF":
@@ -566,6 +586,9 @@ class Dynamics:
         "w_error": self.control.w_e
         }
 
+        self.MeasurementUpdateDictionary = {"Mean": mean,
+                            "Covariance": covariance}
+
         return self.w_bi, self.q, self.A_ORC_to_SBC, self.r_EIC, self.sun_in_view
 
 
@@ -603,7 +626,7 @@ class Single_Satellite(Dynamics):
         self.EKF = EKF()                            # Extended Kalman_filter
         self.MovingAverage = 0
         self.sensors_kalman = ["Magnetometer", "Earth_Sensor", "Sun_Sensor", "Star_tracker"] #, "Star_tracker"] #Sun_Sensor, Earth_Sensor, Magnetometer
-        #? self.EKF = {sensor: EKF() for sensor in self.sensors_kalman}
+        self.DecisionTreeDMD = FaultDetection.DecisionTreePredict(path = SET_PARAMS.pathHyperParameters + '/PhysicsEnabledDMDMethod/DecisionTreesPhysicsEnabledDMD.sav')
         super().initiate_fault_parameters()
         self.availableData = SET_PARAMS.availableData
         ####################################################
@@ -628,7 +651,8 @@ class Single_Satellite(Dynamics):
             "Current fault binary": [],
             "Wheel disturbance torques": [],
             "Gravity Gradient toques": [],
-            "Gyroscopic torques": []
+            "Gyroscopic torques": [],
+            "Predicted fault": []
         }
 
         self.zeros = np.zeros((SET_PARAMS.number_of_faults,), dtype = int)
@@ -652,13 +676,12 @@ class Single_Satellite(Dynamics):
         self.Orbit_Data["Gravity Gradient toques"] = self.Ngg
         self.Orbit_Data["Gyroscopic torques"] = self.Ngyro
         self.Orbit_Data["Magnetic Control Torques"] = self.Nm
-        self.Orbit_Data["Moving Average"] = np.max(abs(self.q - self.q_est))
+        self.Orbit_Data["Moving Average"] = self.MovingAverage
         # Predict the sensor parameters and add them to the Orbit_Data
         self.SensorFailureHandling()
 
-        if SET_PARAMS.SensorIsolation:
-            pass
-        
+        self.Orbit_Data["Predicted fault"] = self.predictedFailure
+
         if self.sun_in_view == False and (self.fault == "Catastrophic_sun" or self.fault == "Erroneous"):
             self.Orbit_Data["Current fault"] = "None"
             temp = list(self.zeros)

@@ -49,12 +49,13 @@ def Dataset_order(index, binary_set, buffer, categorical_num, controlInputx = Tr
     else:
         Orbit = Binary_split(Data)
 
+    """
     if onlySensors and controlInputx:
         Orbit = Orbit.drop(columns = ['Moving Average'])
     elif onlySensors:
-        Orbit = Orbit.drop(columns = ['Moving Average', 'Control Torques_x',
-                            'Control Torques_y', 'Control Torques_z'])
-
+        Orbit = Orbit.drop(columns = ['Moving Average', 'Wheel Control Torques_x',
+                            'Wheel Control Torques_y', 'Wheel Control Torques_z'])
+    """
     if columns_compare != None:
         columns_to_keep = columns_compare + columns_compare_to
         Orbit = Orbit[columns_to_keep]
@@ -62,12 +63,20 @@ def Dataset_order(index, binary_set, buffer, categorical_num, controlInputx = Tr
         Y = Orbit[columns_compare_to].to_numpy()
     else:
         Orbit.drop(columns = ['Sun in view'], inplace = True)
-        X = Orbit.iloc[:,0:-1].to_numpy()
-        Y = Orbit.iloc[:,-1].to_numpy()
+        if onlySensors:
+            X = Orbit.loc[:,Orbit.columns.str.contains('Sun') | Orbit.columns.str.contains('Magnetometer') |
+                            Orbit.columns.str.contains('Earth') | Orbit.columns.str.contains('Angular momentum of wheels') | 
+                            Orbit.columns.str.contains('Star')].to_numpy()
+        else:
+            X = Orbit.loc[:,Orbit.columns.str.contains('Sun') | Orbit.columns.str.contains('Magnetometer') |
+                            Orbit.columns.str.contains('Earth') | Orbit.columns.str.contains('Angular momentum of wheels') | 
+                            Orbit.columns.str.contains('Star') | 
+                            Orbit.columns.str.contains('Moving Average') ].to_numpy()
+        Y = Orbit.loc[:,Orbit.columns.str.contains('fault')].to_numpy()
 
     if ControlInput:
         Y = Data.loc[:,Data.columns.str.contains('Control Torques')].to_numpy()
-        shapeSize = 3
+        shapeSize = 6
 
     buffer_x = collections.deque(maxlen = SET_PARAMS.buffer_size)
     buffer_correlation_sun_earth_magnetometer = collections.deque(maxlen = SET_PARAMS.buffer_size)

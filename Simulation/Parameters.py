@@ -218,7 +218,7 @@ class SET_PARAMS:
     Number_of_multiple_orbits = 7
     numberOfSensors = 6
     availableData = ["Magnetometer", "Sun", "Earth","Star", "Angular momentum of wheels", 
-        "Angular velocity of satellite", "Control Torques"]
+        "Wheel Control Torques", "Magnetic Control Torques"]
     
     ##########################
     # VISUALIZE MEASUREMENTS #
@@ -244,12 +244,12 @@ class SET_PARAMS:
     ###############################
     # FAULT PREDICTION PARAMETERS #
     ###############################
-    SensorFeatureExtraction = False
-    SensorPredicting = False
-    SensorIsolation = False
-    SensorRecovery = False
+    SensorFDIR = False
     Reflection = True
     SensorPredictor = "DMD"
+    FeatureExtraction = "DMD"
+    SensorIsolator = "DMD"
+    SensorRecoveror = "EKF"
     FeatureExtractionMethods = ["PCA", "DMD"]
     FaultPredictionMethods = ["PhysicsEnabledDMDDecisionTree", "ANN", "RandomForest"]
     
@@ -290,6 +290,7 @@ class SET_PARAMS:
 
     visualizeKalman = ["w_est","w_act","q_est","q","q_ref",
                     "w_ref","q_error","w_error"]
+    measurementUpdateVars = []
 
     likelyhood_multiplier = 1
     #Fault_simulation_mode = 1 # Continued failure, a mistake that does not go back to normal
@@ -495,7 +496,7 @@ class Reaction_wheels(Fault_parameters):
         if self.first:
             self.angular_failed_wheel = angular_wheels[self.number_of_failed_wheels]
             self.first = 0
-        self.angular_failed_wheel = np.maximum((self.angular_failed_wheel - abs(self.angular_failed_wheel)/10), self.angular_wheels_min*np.ones((self.number,1))) if self.failure == "Electronics_of_RW" else self.angular_failed_wheel
+        self.angular_failed_wheel = np.maximum((self.angular_failed_wheel - abs(self.angular_failed_wheel)/10), self.angular_wheels_min*np.ones(self.number)) if self.failure == "Electronics_of_RW" else self.angular_failed_wheel
         angular_wheels[self.number_of_failed_wheels] = self.angular_failed_wheel
         return angular_wheels
 
@@ -503,7 +504,7 @@ class Reaction_wheels(Fault_parameters):
         if self.first:
             self.angular_failed_wheel = angular_wheels[self.number_of_failed_wheels]
             self.first = 0
-        self.angular_failed_wheel = np.maximum((self.angular_failed_wheel - abs(self.angular_failed_wheel)/10), self.angular_wheels_min*np.ones((self.number,1))) if self.failure == "Overheated_RW" else self.angular_failed_wheel
+        self.angular_failed_wheel = np.maximum((self.angular_failed_wheel - abs(self.angular_failed_wheel)/10), self.angular_wheels_min*np.ones(self.number)) if self.failure == "Overheated_RW" else self.angular_failed_wheel
         angular_wheels[self.number_of_failed_wheels] = self.angular_failed_wheel
         return angular_wheels
 
@@ -511,7 +512,7 @@ class Reaction_wheels(Fault_parameters):
         if self.first:
             self.angular_failed_wheel = angular_wheels[self.number_of_failed_wheels]
             self.first = 0
-        self.angular_failed_wheel = np.zeros((self.number,1)) if self.failure == "Catastrophic_RW" else self.angular_failed_wheel
+        self.angular_failed_wheel = np.zeros(self.number) if self.failure == "Catastrophic_RW" else self.angular_failed_wheel
         angular_wheels[self.number_of_failed_wheels] = self.angular_failed_wheel
         return angular_wheels
 
@@ -586,7 +587,7 @@ class Magnetometers(Fault_parameters):
     def Stop_magnetometers(self, magnetometer):
         # All of the magnetometers are zero
         if self.failure == "Stop_magnetometers":
-            magnetometer = np.zeros((3,))
+            magnetometer = np.zeros(3)
 
         return magnetometer
 
