@@ -41,21 +41,19 @@ def Dataset_order(index, binary_set, buffer, categorical_num, controlInputx = Tr
             Data = pd.read_pickle(pickle_file)
     Data = Data.loc[:, ~Data.columns.str.contains("^Unnamed")]
 
-
     if binary_set and use_previously_saved_models == False:
-        Orbit = Data.drop(columns = ['Current fault', 'Current fault numeric'])
+        Orbit = Data.drop(columns = ["Predicted fault", 'Current fault', 'Current fault numeric'])
     elif categorical_num == True:
-        Orbit = Data.drop(columns = ['Current fault', 'Current fault binary'])
+        Orbit = Data.drop(columns = ["Predicted fault", 'Current fault', 'Current fault binary'])
     else:
         Orbit = Binary_split(Data)
 
-    """
     if onlySensors and controlInputx:
         Orbit = Orbit.drop(columns = ['Moving Average'])
     elif onlySensors:
         Orbit = Orbit.drop(columns = ['Moving Average', 'Wheel Control Torques_x',
                             'Wheel Control Torques_y', 'Wheel Control Torques_z'])
-    """
+
     if columns_compare != None:
         columns_to_keep = columns_compare + columns_compare_to
         Orbit = Orbit[columns_to_keep]

@@ -217,9 +217,12 @@ class SET_PARAMS:
     Number_of_orbits = 1 # * This value can constantly be changed as well as the number of orbits
     Number_of_multiple_orbits = 7
     numberOfSensors = 6
-    availableData = ["Magnetometer", "Sun", "Earth","Star", "Angular momentum of wheels", 
-        "Wheel Control Torques", "Magnetic Control Torques"]
-    
+    availableData = ["Magnetometer", "Sun", "Earth", "Star", "Angular momentum of wheels"]
+    availableSensors = {"Magnetometer": "Magnetometer", 
+                        "Sun": "Sun_Sensor", 
+                        "Earth": "Earth_Sensor",
+                        "Star": "Star_tracker", 
+                        "Angular momentum of wheels": "Angular momentum of wheels"}
     ##########################
     # VISUALIZE MEASUREMENTS #
     ##########################
@@ -282,9 +285,18 @@ class SET_PARAMS:
     "Electronics_of_RW", 
     "Overheated_RW", 
     "Catastrophic_RW", 
-    "General_sensor_high_noise", 
+    "Angular_sensor_high_noise", 
+    "Earth_sensor_high_noise",
+    "Magnetometer_sensor_high_noise",
     "Catastrophic_sun", 
-    "Erroneous_sun"]
+    "Erroneous_sun",
+    "Closed_shutter",
+    "Inverted_polarities_magnetorquers",
+    "Interference_magnetic",
+    "Stop_magnetometers",
+    "Increasing_angular_RW_momentum",
+    "Decreasing_angular_RW_momentum",
+    "Oscillating_angular_RW_momentum"]
 
     Fault_names = {faultNames[i]: i+1 for i in range(len(faultNames))}
 
@@ -577,10 +589,11 @@ class Magnetorquers(Fault_parameters):
 class Magnetometers(Fault_parameters):
     def __init__(self, seed):
         self.Fault_rate_per_hour = 8.15e-9 * SET_PARAMS.likelyhood_multiplier
-        self.number_of_failures = 2
+        self.number_of_failures = 3
         self.failures = {
             0: "Stop_magnetometers",
-            1: "Interference_magnetic"
+            1: "Interference_magnetic",
+            2: "Magnetometer_sensor_high_noise"
         }
         super().__init__(self.Fault_rate_per_hour, self.number_of_failures, self.failures, seed)
 
@@ -595,29 +608,33 @@ class Magnetometers(Fault_parameters):
         self.magnetometers = magnetometers*random_size(min_inteference, max_Interference_magnetic) if self.failure == "Interference_magnetic" else magnetometers
         return self.magnetometers
     
-    def General_sensor_high_noise(self, sensor):
-        return sensor*random_size(minimum = Min_high_noise, maximum = Max_high_noise) if self.failure == "General_sensor_high_noise" else sensor
+    def Magnetometer_sensor_high_noise(self, sensor):
+        return sensor*random_size(minimum = Min_high_noise, maximum = Max_high_noise) if self.failure == "Magnetometer_sensor_high_noise" else sensor
 
 class Earth_Sensor(Fault_parameters):
     def __init__(self, seed):
         self.Fault_rate_per_hour = 8.15e-9 * SET_PARAMS.likelyhood_multiplier
         self.number_of_failures = 1
         self.failures = {
-            0: "General_sensor_high_noise"
+            0: "Earth_sensor_high_noise"
         }
         super().__init__(self.Fault_rate_per_hour, self.number_of_failures, self.failures, seed)
 
-    def General_sensor_high_noise(self, sensor):
-        return sensor*random_size(minimum = Min_high_noise, maximum = Max_high_noise) if self.failure == "General_sensor_high_noise" else sensor
+    def Earth_sensor_high_noise(self, sensor):
+        return sensor*random_size(minimum = Min_high_noise, maximum = Max_high_noise) if self.failure == "Earth_sensor_high_noise" else sensor
 
 class Angular_Sensor(Fault_parameters):
     def __init__(self, seed):
         self.Fault_rate_per_hour = 8.15e-9 * SET_PARAMS.likelyhood_multiplier
         self.number_of_failures = 1
         self.failures = {
-            0: "General_sensor_high_noise"
+            0: "Angular_sensor_high_noise"
         }
         super().__init__(self.Fault_rate_per_hour, self.number_of_failures, self.failures, seed)
+
+    def Angular_sensor_high_noise(self, sensor):
+        return sensor*random_size(minimum = Min_high_noise, maximum = Max_high_noise) if self.failure == "Angular_sensor_high_noise" else sensor
+
 
 class Star_tracker(Fault_parameters):
     def __init__(self, seed):

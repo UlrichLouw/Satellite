@@ -24,7 +24,7 @@ def DecisionTreeAllAnomalies(path, depth):
     # This must however include the moving average
     clf = tree.DecisionTreeClassifier()
 
-    # Split data into traning and testing data
+    # Split data into training and testing data
     mask = np.random.rand(len(X)) <= 0.6
     training_data = X[mask]
     testing_data = X[~mask]

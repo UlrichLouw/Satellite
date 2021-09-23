@@ -68,14 +68,14 @@ class Dynamics:
         ######################################################
         # IMPLEMENT ERROR OR FAILURE OF SENSOR IF APPLICABLE #
         ######################################################
-        self.B_sbc = self.Magnetometer_fault.normal_noise(self.B_sbc, SET_PARAMS.Magnetometer_noise)
-        self.B_sbc = self.Magnetometer_fault.Stop_magnetometers (self.B_sbc)
-        self.B_sbc = self.Magnetometer_fault.Interference_magnetic(self.B_sbc)
-        self.B_sbc = self.Magnetometer_fault.General_sensor_high_noise(self.B_sbc)
+        self.B_sbc_meas = self.Magnetometer_fault.normal_noise(self.B_sbc, SET_PARAMS.Magnetometer_noise)
+        self.B_sbc_meas = self.Magnetometer_fault.Stop_magnetometers (self.B_sbc_meas)
+        self.B_sbc_meas = self.Magnetometer_fault.Interference_magnetic(self.B_sbc_meas)
+        self.B_sbc_meas = self.Magnetometer_fault.Magnetometer_sensor_high_noise(self.B_sbc_meas)
 
-        self.B_sbc = self.Common_data_transmission_fault.Bit_flip(self.B_sbc)
-        self.B_sbc = self.Common_data_transmission_fault.Sign_flip(self.B_sbc)
-        self.B_sbc = self.Common_data_transmission_fault.Insertion_of_zero_bit(self.B_sbc)
+        self.B_sbc_meas = self.Common_data_transmission_fault.Bit_flip(self.B_sbc_meas)
+        self.B_sbc_meas = self.Common_data_transmission_fault.Sign_flip(self.B_sbc_meas)
+        self.B_sbc_meas = self.Common_data_transmission_fault.Insertion_of_zero_bit(self.B_sbc_meas)
 
     def determine_star_tracker(self):
         self.star_tracker_ORC = self.Star_tracker_fault.normal_noise(self.star_tracker_vector,SET_PARAMS.star_tracker_noise)
@@ -97,7 +97,7 @@ class Dynamics:
         angle_difference = Quaternion_functions.rad2deg(np.arccos(np.clip(np.dot(self.r_sat_sbc, SET_PARAMS.Earth_sensor_position),-1,1)))
         if angle_difference < SET_PARAMS.Earth_sensor_angle:
             self.r_sat_sbc = self.Earth_sensor_fault.normal_noise(self.r_sat_sbc, SET_PARAMS.Earth_noise)
-            self.r_sat_sbc = self.Earth_sensor_fault.General_sensor_high_noise(self.r_sat_sbc)
+            self.r_sat_sbc = self.Earth_sensor_fault.Earth_sensor_high_noise(self.r_sat_sbc)
             self.r_sat_sbc = self.Common_data_transmission_fault.Bit_flip(self.r_sat_sbc)
             self.r_sat_sbc = self.Common_data_transmission_fault.Sign_flip(self.r_sat_sbc)
             self.r_sat_sbc = self.Common_data_transmission_fault.Insertion_of_zero_bit(self.r_sat_sbc) 
@@ -325,6 +325,7 @@ class Dynamics:
         self.angular_momentum = rungeKutta_h(x01, self.angular_momentum, x, h, N_control_wheel)
 
         self.angular_momentum_with_noise = self.Angular_sensor_fault.normal_noise(self.angular_momentum, SET_PARAMS.Angular_sensor_noise)
+        self.angular_momentum_with_noise = self.Angular_sensor_fault.Angular_sensor_high_noise(self.angular_momentum)
 
         self.angular_momentum_with_noise = np.clip(self.angular_momentum_with_noise, -SET_PARAMS.h_ws_max, SET_PARAMS.h_ws_max)
 
@@ -384,37 +385,50 @@ class Dynamics:
     # FUNCTION TO HANDLE THE PREDICTION, ISOLATION AND RECOVERY OF SENSORS FAILURES OR ANOMALIES #
     ############################################################################################## 
     def SensorFailureHandling(self):
+        Sensors_X, Sensors_Y, MovingAverageDict = self.SensorFeatureExtraction()
+        
         if SET_PARAMS.SensorFDIR:
-            Sensors_X, Sensors_Y = self.SensorFeatureExtraction()
-
             self.predictedFailure = self.SensorPredicting(Sensors_X)
 
-            # # If a failure is predicted the cause of the failure must be determined
-            # if predictedFailure:
-            #     sensorFailed = self.SensorIsolation()
+            # If a failure is predicted the cause of the failure must be determined
+            if self.predictedFailure:
+                sensorFailed = self.SensorIsolation(MovingAverageDict)
 
-            #     # After the specific sensor that has failed is identified 
-            #     # The system must recover
-            #     self.SensorRecovery(sensorFailed)
+                # After the specific sensor that has failed is identified 
+                # The system must recover
+                self.SensorRecovery(sensorFailed)
     
     def SensorFeatureExtraction(self):
         if SET_PARAMS.FeatureExtraction == "DMD":
-            Sensors_X = np.concatenate([self.Orbit_Data["Magnetometer"], 
-                                            self.Orbit_Data["Sun"], self.Orbit_Data["Earth"], 
-                                            self.Orbit_Data["Star"],  
-                                            self.Orbit_Data["Angular momentum of wheels"]])
+            Sensors_X = np.concatenate([self.Orbit_Data["Sun"], 
+                                            self.Orbit_Data["Magnetometer"], self.Orbit_Data["Earth"], 
+                                            self.Orbit_Data["Angular momentum of wheels"],  
+                                            self.Orbit_Data["Star"]])
             Sensors_Y = np.concatenate([self.Orbit_Data["Wheel Control Torques"], 
                                     self.Orbit_Data["Magnetic Control Torques"]])
             
 
             if self.t == SET_PARAMS.time:
                 # Initiating parameters for SensorPredictions
-                self.SensePredDMD = SensorPredictionsDMD(Sensors_X)
-                self.MovingAverage = 0
-            
-            self.MovingAverage = self.SensePredDMD.MovingAverage(Sensors_X, Sensors_Y)
+                self.SensePredDMDALL = SensorPredictionsDMD(Sensors_X, "ALL")             
 
-        return Sensors_X, Sensors_Y
+
+            self.MovingAverage = self.SensePredDMDALL.MovingAverage(Sensors_X, Sensors_Y)
+
+            MovingAverageDict = {}
+
+            for sensorData in self.availableData:
+                Sensors_X_temp = self.Orbit_Data[sensorData]
+
+                if self.t == SET_PARAMS.time:
+                    self.SensePredDMDDict[sensorData] = SensorPredictionsDMD(Sensors_X_temp, self.availableData.index(sensorData))   
+                
+                Y = [self.Orbit_Data[data] for data in self.availableData if data != sensorData]
+                Sensors_Y_temp = np.concatenate(Y)
+
+                MovingAverageDict[sensorData] = self.SensePredDMDDict[sensorData].MovingAverage(Sensors_X_temp, Sensors_Y_temp)                
+
+        return Sensors_X, Sensors_Y, MovingAverageDict
 
     #################################################
     # FUNCTION TO PREDICT IF AN ANOMALY HAS OCCURED #
@@ -423,33 +437,32 @@ class Dynamics:
         if SET_PARAMS.SensorPredictor == "DecisionTrees":
             Sensors_X = np.array([np.concatenate([Sensors_X, np.array([self.MovingAverage])])])
             predictedFailure = self.DecisionTreeDMD.Predict(Sensors_X)
-            
+
         return predictedFailure
 
     ###############################################################
     # FUNCTION TO ISOLATE (CLASSIFY) THE ANOMALY THAT HAS OCCURED #
     ###############################################################
-    def SensorIsolation(self):
+    def SensorIsolation(self, MovingAverageDict):
         #! This should account for multiple predictions of failures
         if SET_PARAMS.SensorIsolator == "DMD":
-            for sensorData in self.availableData:
-                self.Sensors_X = self.Orbit_Data[sensorData]
-                Y = [self.Orbit_Data[data] for data in self.availableData if data != sensorData]
-                self.Sensors_Y = np.concatenate(Y)
-
-                self.MovingAverage = self.SensePredDMD.MovingAverage(self.Sensors_X, self.Sensors_Y)                
-        
+            FailedSensor = max(zip(MovingAverageDict.values(), MovingAverageDict.keys()))[1]
+            self.FailedSensor = FailedSensor
         
         elif SET_PARAMS.SensorIsolator == "DecisionTrees":
             pass
 
+        return FailedSensor
 
     ############################################
     # FUNCTION TO RECOVER FROM SENSOR FAILURES #
     ############################################
     def SensorRecovery(self, failedSensor):
-        if SET_PARAMS.sensorRecoveror == "EKF":
-            self.sensors_kalman.pop(self.sensors_kalman.index(failedSensor))
+        if SET_PARAMS.SensorRecoveror == "EKF":
+            sensors_kalman = ["Magnetometer", "Earth_Sensor", "Sun_Sensor", "Star_tracker"]
+            if SET_PARAMS.availableSensors[failedSensor] in sensors_kalman:
+                sensors_kalman.pop(sensors_kalman.index(SET_PARAMS.availableSensors[failedSensor]))
+            self.sensors_kalman = sensors_kalman
             
 
     ###########################################################
@@ -457,7 +470,7 @@ class Dynamics:
     ###########################################################
     def rotation(self):
         ##############################################################
-        #    DETERMINE WHETHER A FAUKLT OCCURED WITHIN THE SYSTEM    #
+        #     DETERMINE WHETHER A FAULT OCCURED WITHIN THE SYSTEM    #
         # BASED ON THE STATISTICAL PROBABILITY DEFINED IN PARAMETERS #
         ##############################################################
 
@@ -500,7 +513,7 @@ class Dynamics:
 
         #* Create dictionary of all the sensors
         self.sensor_vectors = {
-        "Magnetometer": {"SBC": self.B_sbc, "ORC": self.B_ORC, "noise": SET_PARAMS.Magnetometer_noise},
+        "Magnetometer": {"SBC": self.B_sbc_meas, "ORC": self.B_ORC, "noise": SET_PARAMS.Magnetometer_noise},
         "Sun_Sensor": {"SBC": self.S_sbc, "ORC": self.S_ORC, "noise": self.sun_noise}, 
         "Earth_Sensor": {"SBC": self.r_sat_sbc, "ORC": self.r_sat_ORC, "noise": SET_PARAMS.Earth_noise}, 
         "Star_tracker": {"SBC": self.star_tracker_sbc, "ORC": self.star_tracker_ORC, "noise": SET_PARAMS.star_tracker_noise}
@@ -629,6 +642,8 @@ class Single_Satellite(Dynamics):
         self.DecisionTreeDMD = FaultDetection.DecisionTreePredict(path = SET_PARAMS.pathHyperParameters + '/PhysicsEnabledDMDMethod/DecisionTreesPhysicsEnabledDMD.sav')
         super().initiate_fault_parameters()
         self.availableData = SET_PARAMS.availableData
+        self.predictedFailure = 0
+        self.SensePredDMDDict = {}
         ####################################################
         #  THE ORBIT_DATA DICTIONARY IS USED TO STORE ALL  #
         #     THE MEASUREMENTS FOR EACH TIMESTEP (TS)      #
@@ -664,7 +679,7 @@ class Single_Satellite(Dynamics):
         self.est_w_error = 0
 
     def update(self):
-        self.Orbit_Data["Magnetometer"] = self.B_sbc
+        self.Orbit_Data["Magnetometer"] = self.B_sbc_meas
         self.Orbit_Data["Sun"] = self.S_sbc
         self.Orbit_Data["Earth"] = self.r_sat_sbc
         self.Orbit_Data["Star"] = self.star_tracker_sbc
@@ -728,6 +743,7 @@ class Constellation_Satellites(Dynamics):
         self.EKF = EKF()                            # Extended Kalman_filter
         self.sensors_kalman = ["Earth_Sensor", "Sun_Sensor", "Star_tracker"] #"Earth_Sensor", "Sun_Sensor", "Star_tracker"
         super().initiate_fault_parameters()
+        self.SensePredDMDDict = {}
 
         ####################################################
         #  THE ORBIT_DATA DICTIONARY IS USED TO STORE ALL  #

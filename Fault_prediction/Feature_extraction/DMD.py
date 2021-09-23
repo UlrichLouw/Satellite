@@ -3,7 +3,7 @@ import numpy as np
 from Simulation.Parameters import SET_PARAMS
 from pathlib import Path
 
-def MatrixAB(path, fromTimeStep = 0, ToTimeStep = 100000):
+def MatrixAB(path, fromTimeStep = 0, ToTimeStep = -1):
     SET_PARAMS.load_as == ".csv"
     # Firstly the data must be extracted from the csv file. 
     # Afterwards the DMD operations must be executed.

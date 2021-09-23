@@ -109,7 +109,8 @@ def loop(index, D, Data, orbit_descriptions):
 ################################################################
 # FOR ALL OF THE FAULTS RUN A NUMBER OF ORBITS TO COLLECT DATA #
 ################################################################
-if __name__ == "__main__":
+#if __name__ == "__main__":
+def main():
     #########################################################
     # IF THE SAVE AS IS EQUAL TO XLSX, THE THREADING CANNOT #
     #           BE USED TO SAVE SHEETS                      #     
@@ -121,7 +122,7 @@ if __name__ == "__main__":
     SET_PARAMS.sensor_number = "ALL"
     SET_PARAMS.Number_of_orbits = 2
     SET_PARAMS.fixed_orbit_failure = 2
-    SET_PARAMS.Number_of_multiple_orbits = 7
+    SET_PARAMS.Number_of_multiple_orbits = len(SET_PARAMS.Fault_names)
     SET_PARAMS.skip = 20
     SET_PARAMS.Number_of_satellites = 1
     SET_PARAMS.k_nearest_satellites = 5
@@ -130,10 +131,18 @@ if __name__ == "__main__":
     SET_PARAMS.Mode = "EARTH_SUN" # Nominal or EARTH_SUN
     #SET_PARAMS.Mode = "Nominal"
     SET_PARAMS.Reflection = True
-    SET_PARAMS.FeatureExtraction = "DMD"
-    SET_PARAMS.SensorPredictor = "DecisionTrees"
-    SET_PARAMS.SensorIsolator = "DMD"
-    SET_PARAMS.SensorRecoveror = "EKF"
+
+    if SET_PARAMS.SensorFDIR:
+        SET_PARAMS.FeatureExtraction = "DMD"
+        SET_PARAMS.SensorPredictor = "DecisionTrees"
+        SET_PARAMS.SensorIsolator = "DMD"
+        SET_PARAMS.SensorRecoveror = "EKF"
+    else:
+        SET_PARAMS.FeatureExtraction = "DMD"
+        SET_PARAMS.SensorPredictor = "None"
+        SET_PARAMS.SensorIsolator = "None"
+        SET_PARAMS.SensorRecoveror = "None"
+    
     SET_PARAMS.visualizeKalman = ["w_est","w_act","quaternion_est","quaternion_actual",
                                 "quaternion_ref", "w_ref","quaternion_error",
                                 "w_error"]
@@ -286,14 +295,18 @@ if __name__ == "__main__":
         for i in range(1, SET_PARAMS.Number_of_multiple_orbits+1):
             D = Single_Satellite(i, s_list, t_list, J_t, fr)
 
-            #! Make index 0 for kalman filter testing
             t = multiprocessing.Process(target=loop, args=(i, D, Data, orbit_descriptions))
             threads.append(t)
             t.start()
-            #! print("Beginning of", i)
+            print("Beginning of", i)
 
             if i == SET_PARAMS.Number_of_multiple_orbits or i%16 == 0:
                 for process in threads:     
                     process.join()
 
                 threads = []
+
+if __name__ == "__main__":
+    #import cProfile
+    #cProfile.run('main()')
+    main()
