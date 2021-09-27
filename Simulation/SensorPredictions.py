@@ -20,15 +20,18 @@ class SensorPredictionsDMD:
             x_est = self.DMD_Prediction_A @ self.x_est + self.DMD_Prediction_B @ sensors_Y + self.DMD_Prediction_k*(self.x - self.x_est)
 
         self.x = sensors_X
-        self.Buffer_est.append(self.x_est)
+        self.Buffer_est.append(x_est)
         self.Buffer_act.append(self.x)
 
-        self.x_est = x_est/np.linalg.norm(x_est)
+        #self.x_est = x_est/np.linalg.norm(x_est)
 
-        Actual_Sensor = np.array(self.Buffer_act)
+        summation = np.zeros(x_est.shape)
 
-        Estimated_Sensor = np.array(self.Buffer_est)
+        for index in range(len(self.Buffer_act)):
+            Actual_Sensor = self.Buffer_act[index]
+            Estimated_Sensor = self.Buffer_est[index]
+            summation += (Actual_Sensor - Estimated_Sensor) @ (Actual_Sensor - Estimated_Sensor).T
 
-        V = 1/SET_PARAMS.MovingAverageSizeOfBuffer * np.sum((Actual_Sensor - Estimated_Sensor) @ (Actual_Sensor - Estimated_Sensor).T)
+        V = 1/SET_PARAMS.MovingAverageSizeOfBuffer * summation
 
         return V

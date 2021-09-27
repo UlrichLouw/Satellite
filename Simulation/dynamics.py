@@ -434,8 +434,10 @@ class Dynamics:
     # FUNCTION TO PREDICT IF AN ANOMALY HAS OCCURED #
     #################################################
     def SensorPredicting(self, Sensors_X):
+        predictedFailure = False
+        
         if SET_PARAMS.SensorPredictor == "DecisionTrees":
-            Sensors_X = np.array([np.concatenate([Sensors_X, np.array([self.MovingAverage])])])
+            Sensors_X = np.array([np.concatenate([Sensors_X, self.MovingAverage])])
             predictedFailure = self.DecisionTreeDMD.Predict(Sensors_X)
 
         return predictedFailure
@@ -444,6 +446,7 @@ class Dynamics:
     # FUNCTION TO ISOLATE (CLASSIFY) THE ANOMALY THAT HAS OCCURED #
     ###############################################################
     def SensorIsolation(self, MovingAverageDict):
+        FailedSensor = "None"
         #! This should account for multiple predictions of failures
         if SET_PARAMS.SensorIsolator == "DMD":
             FailedSensor = max(zip(MovingAverageDict.values(), MovingAverageDict.keys()))[1]
@@ -451,6 +454,8 @@ class Dynamics:
         
         elif SET_PARAMS.SensorIsolator == "DecisionTrees":
             pass
+            
+        self.FailedSensor = FailedSensor
 
         return FailedSensor
 

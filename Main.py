@@ -53,7 +53,7 @@ def loop(index, D, Data, orbit_descriptions):
         data_unfiltered = D.Orbit_Data
 
         # Convert array's to individual values in the dictionary
-        data = {col + "_" + dimensions[i]: data_unfiltered[col][i] for col in data_unfiltered if isinstance(data_unfiltered[col], np.ndarray) for i in range(len(data_unfiltered[col]))}
+        data = {col + "_" + dimensions[i]: data_unfiltered[col][i] for col in data_unfiltered if isinstance(data_unfiltered[col], np.ndarray) and col != "Moving Average" for i in range(len(data_unfiltered[col]))}
 
         # Add all the values to the dictionary that is not numpy arrays
         for col in data_unfiltered:
@@ -75,11 +75,11 @@ def loop(index, D, Data, orbit_descriptions):
 
     if SET_PARAMS.Visualize and SET_PARAMS.Display == False:
         if SET_PARAMS.Reflection:
-            path = "Plots/"+ "Predictor-" + SET_PARAMS.SensorPredictor + "/KalmanFilter-"+SET_PARAMS.Kalman_filter_use+"/"+SET_PARAMS.Mode+"_with_reflection/"+ str(D.fault) + "/"
+            path = "Plots/"+ "Predictor-" + SET_PARAMS.SensorPredictor + "/Isolator-" + SET_PARAMS.SensorIsolator + "/Recovery-" + SET_PARAMS.SensorRecoveror + "/KalmanFilter-"+SET_PARAMS.Kalman_filter_use+"/"+SET_PARAMS.Mode+"_with_reflection/"+ str(D.fault) + "/"
             path_to_folder = Path(path)
             path_to_folder.mkdir(parents = True, exist_ok=True)
         else:
-            path = "Plots/"+ "Predictor-" + SET_PARAMS.SensorPredictor+ "/KalmanFilter-"+SET_PARAMS.Kalman_filter_use+"/"+SET_PARAMS.Mode+"/"+ str(D.fault) + "/"
+            path = "Plots/"+ "Predictor-" + SET_PARAMS.SensorPredictor+ "/Isolator-" + SET_PARAMS.SensorIsolator + "/Recovery-" + SET_PARAMS.SensorRecoveror +"/KalmanFilter-"+SET_PARAMS.Kalman_filter_use+"/"+SET_PARAMS.Mode+"/"+ str(D.fault) + "/"
             path_to_folder = Path(path)
             path_to_folder.mkdir(parents = True, exist_ok=True)
         visualize_data(Visualize_data, D.fault, path = path)
@@ -95,11 +95,11 @@ def loop(index, D, Data, orbit_descriptions):
 
     if SET_PARAMS.save_as == ".csv":
         if SET_PARAMS.Reflection:
-            path = "Data files/" + "Predictor-" + SET_PARAMS.SensorPredictor +"/KalmanFilter-"+SET_PARAMS.Kalman_filter_use+"/"+SET_PARAMS.Mode+"_with_reflection/"
+            path = "Data files/" + "Predictor-" + SET_PARAMS.SensorPredictor + "/Isolator-" + SET_PARAMS.SensorIsolator + "/Recovery-" + SET_PARAMS.SensorRecoveror +"/KalmanFilter-"+SET_PARAMS.Kalman_filter_use+"/"+SET_PARAMS.Mode+"_with_reflection/"
             path_to_folder = Path(path)
             path_to_folder.mkdir(parents = True, exist_ok=True)
         else:
-            path = "Data files/"+ "Predictor-" + SET_PARAMS.SensorPredictor +"/KalmanFilter-"+SET_PARAMS.Kalman_filter_use+"/"+SET_PARAMS.Mode+"/"
+            path = "Data files/"+ "Predictor-" + SET_PARAMS.SensorPredictor + "/Isolator-" + SET_PARAMS.SensorIsolator + "/Recovery-" + SET_PARAMS.SensorRecoveror + "/KalmanFilter-"+SET_PARAMS.Kalman_filter_use+"/"+SET_PARAMS.Mode+"/"
             path_to_folder = Path(path)
             path_to_folder.mkdir(parents = True, exist_ok=True)
         save_as_csv(Data, filename = SET_PARAMS.Fault_names_values[index], index = index, path = path)
@@ -120,7 +120,7 @@ def main():
     SET_PARAMS.save_as = ".csv"
     SET_PARAMS.Kalman_filter_use = "EKF"
     SET_PARAMS.sensor_number = "ALL"
-    SET_PARAMS.Number_of_orbits = 2
+    SET_PARAMS.Number_of_orbits = 0.1
     SET_PARAMS.fixed_orbit_failure = 2
     SET_PARAMS.Number_of_multiple_orbits = len(SET_PARAMS.Fault_names)
     SET_PARAMS.skip = 20
@@ -134,12 +134,12 @@ def main():
 
     if SET_PARAMS.SensorFDIR:
         SET_PARAMS.FeatureExtraction = "DMD"
-        SET_PARAMS.SensorPredictor = "DecisionTrees"
-        SET_PARAMS.SensorIsolator = "DMD"
-        SET_PARAMS.SensorRecoveror = "EKF"
+        SET_PARAMS.SensorPredictor = "None"
+        SET_PARAMS.SensorIsolator = "None"
+        SET_PARAMS.SensorRecoveror = "None"
     else:
         SET_PARAMS.FeatureExtraction = "DMD"
-        SET_PARAMS.SensorPredictor = "None"
+        SET_PARAMS.SensorPredictor = "DecisionTrees"
         SET_PARAMS.SensorIsolator = "None"
         SET_PARAMS.SensorRecoveror = "None"
     
