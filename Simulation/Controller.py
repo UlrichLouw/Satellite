@@ -26,8 +26,8 @@ class Control:
         elif SET_PARAMS.Mode == "EARTH_SUN":
             if sun_in_view:
                 self.nadir_pointing = False
-                #self.q_ref = self.SunCommandQuaternion(sunVector)
-                self.q_ref = np.array(([0,1,0,0]))
+                self.q_ref = self.SunCommandQuaternion(sunVector)
+                # self.q_ref = np.array(([0,1,0,0]))
                 N_magnet = np.zeros(3)
             else:
                 if not self.nadir_pointing:
@@ -67,7 +67,7 @@ class Control:
 
         q13 = uc * np.sin(delta/2)
         q4 = np.cos(delta/2)
-        q_ref = np.array(([[q13[0]],[q13[1]],[q13[2]],[q4]]))
+        q_ref = np.array(([q13[0],q13[1],q13[2],q4]))
         return q_ref
 
     def Full_State_Quaternion(self, w_bi_est, w_est, q, Inertia, angular_momentum):

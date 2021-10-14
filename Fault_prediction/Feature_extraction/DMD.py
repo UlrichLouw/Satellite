@@ -41,7 +41,7 @@ def MatrixAB(path, fromTimeStep = 0, ToTimeStep = -1):
         # 6 is for the vector of the magnetorquer and the control wheels
         # The control torques are used as y in the DMD
         A = G[:,:-6]
-        B = np.roll(G,3)[:,:6]
+        B = np.roll(G,6)[:,:6]
     else:
         # 3 is used since it is the vector for a single sensor
         A = G[:,:3]

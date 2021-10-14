@@ -70,14 +70,12 @@ class orbit:
 class Earth:   
     def __init__(self):
         self.V = np.zeros((2))
-        self.first = 1      # This is required for the geomagnetic_field_strength_func to initiate correctly
         self.coeffs = f(2021) 
 
     def scalar_potential_function(self, latitude, longitude, altitude):
         rs = altitude[0,0]
         theta = 90 - latitude[0,0]
         lambda_ = longitude[0,0]
-        k = SET_PARAMS.k
         B = igrf_utils.synth_values(self.coeffs, rs, theta, lambda_, 10, 3)
         B = np.array((B[0],B[1],B[2]))
 

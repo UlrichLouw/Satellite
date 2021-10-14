@@ -4,7 +4,7 @@ from sgp4.api import jday
 from struct import *
 from scipy import special
 import pathlib
-import Simulation.utilities as utilities
+from Simulation.utilities import Reflection, Intersection, PointWithinParallelLines, lineEquation, line2Equation
 
 pi = math.pi
 
@@ -143,11 +143,11 @@ class SET_PARAMS:
     # SATELLITE INITIAL POSITION #
     ##############################
     
-    quaternion_initial = np.array(([0,0,1,0])) #Quaternion_functions.euler_to_quaternion(0,0,0) #roll, pitch, yaw
+    quaternion_initial = np.array(([0,0,1,0]), dtype = "float64") #Quaternion_functions.euler_to_quaternion(0,0,0) #roll, pitch, yaw
     A_ORC_to_SBC = Transformation_matrix(quaternion_initial)
     wbo = np.array(([0.0,0.0,0.0]))
-    wbi = wbo + A_ORC_to_SBC @ np.array(([0,-wo,0]))
-    initial_angular_wheels = np.zeros(3)
+    wbi = wbo + A_ORC_to_SBC @ np.array(([0,-wo,0]), dtype = "float64")
+    initial_angular_wheels = np.zeros(3, dtype = "float64")
     
     ###############################
     # MAX PARAMETERS OF ACTUATERS #
@@ -277,28 +277,48 @@ class SET_PARAMS:
     ####################################
     # FAULT TYPES AND FAULT PARAMETERS #
     ####################################
-    number_of_faults = 17
 
     global faultNames
 
-    faultNames = ["None", 
-    "Electronics_of_RW", 
-    "Overheated_RW", 
-    "Catastrophic_RW", 
-    "Angular_sensor_high_noise", 
-    "Earth_sensor_high_noise",
-    "Magnetometer_sensor_high_noise",
-    "Catastrophic_sun", 
-    "Erroneous_sun",
-    "Closed_shutter",
-    "Inverted_polarities_magnetorquers",
-    "Interference_magnetic",
-    "Stop_magnetometers",
-    "Increasing_angular_RW_momentum",
-    "Decreasing_angular_RW_momentum",
-    "Oscillating_angular_RW_momentum"]
+
+    faultNames = ["None",
+                "Reflection",
+                "Angular_sensor_high_noise", 
+                "Earth_sensor_high_noise",
+                "Magnetometer_sensor_high_noise", 
+                "Erroneous_sun",
+                "Closed_shutter",
+                "Interference_magnetic",
+                "Stop_magnetometers"]
+
+    SunFailures = [
+        "Catastrophic_sun",
+        "Erroneous_sun",
+        "Reflection"
+    ]
+
+    EarthFailures = ["Earth_sensor_high_noise"]
+
+    # faultNames = ["None", 
+    # "Electronics_of_RW", 
+    # "Overheated_RW", 
+    # "Catastrophic_RW", 
+    # "Angular_sensor_high_noise", 
+    # "Earth_sensor_high_noise",
+    # "Magnetometer_sensor_high_noise",
+    # "Catastrophic_sun", 
+    # "Erroneous_sun",
+    # "Closed_shutter",
+    # "Inverted_polarities_magnetorquers",
+    # "Interference_magnetic",
+    # "Stop_magnetometers",
+    # "Increasing_angular_RW_momentum",
+    # "Decreasing_angular_RW_momentum",
+    # "Oscillating_angular_RW_momentum"]
 
     Fault_names = {faultNames[i]: i+1 for i in range(len(faultNames))}
+
+    number_of_faults = len(faultNames)
 
     visualizeKalman = ["w_est","w_act","q_est","q","q_ref",
                     "w_ref","q_error","w_error"]
@@ -363,8 +383,8 @@ class SET_PARAMS:
     ###################
     # HARDWARE MODELS #
     ###################
-    SP_Length = Lx/2
-    SP_width = Ly/2
+    SP_Length = Lx
+    SP_width = Ly
     # Number of solar Panels = 4, only 2 accounted for with respect to reflection
     SolarPanelPosition = np.array(([0, 0, -Lz/2]))
     SPF_position = np.array(([Lx/2 + SP_Length/2, 0, -Lz/2]))    # Middle point, x, y en z
@@ -531,10 +551,11 @@ class Reaction_wheels(Fault_parameters):
 class Sun_sensor(Fault_parameters):
     def __init__(self, seed):
         self.Fault_rate_per_hour = 8.15e-9 * SET_PARAMS.likelyhood_multiplier
-        self.number_of_failures = 2
+        self.number_of_failures = 3
         self.failures = {
             0: "Catastrophic_sun",
-            1: "Erroneous_sun"
+            1: "Erroneous_sun",
+            2: "Reflection"
         }
         super().__init__(self.Fault_rate_per_hour, self.number_of_failures, self.failures, seed)
         self.sensors = {
@@ -543,14 +564,14 @@ class Sun_sensor(Fault_parameters):
         }
         self.Failed_sensor = self.sensors[self.np_random.randint(0,1)]
 
-    def Catastrophic_sun(self, sun_sensor, sun_in_view, sensor_type):
+    def Catastrophic_sun(self, sun_sensor, sensor_type):
         if sensor_type == self.Failed_sensor:
             if self.failure == "Catastrophic_sun":
-                return np.zeros(sun_sensor.shape), False
+                return np.zeros(sun_sensor.shape)
             else:
-                return sun_sensor, sun_in_view
+                return sun_sensor
         else:
-            return sun_sensor, sun_in_view
+            return sun_sensor
 
     def Erroneous_sun(self, sun_sensor, sensor_type):
         # Sun_sensor must be provided as a unit vector
@@ -558,6 +579,78 @@ class Sun_sensor(Fault_parameters):
             return self.np_random.uniform(-1,1,sun_sensor.shape) if self.failure == "Erroneous_sun" else sun_sensor
         else:
             return sun_sensor
+
+    def Reflection_sun(self, sun_sensor, S_ORC, sensor_type):
+        reflection = False
+        if self.failure == "Reflection":
+            S_sbc = sun_sensor
+            if sensor_type == "Fine":
+                reflectedSunVector = Reflection(S_sbc, SET_PARAMS.SPF_normal_vector)
+
+                IntersectionPointLeft = Intersection(SET_PARAMS.SSF_Plane, reflectedSunVector, SET_PARAMS.SPF_LeftTopCorner)
+
+                IntersectionPointRight = Intersection(SET_PARAMS.SSF_Plane, reflectedSunVector, SET_PARAMS.SPF_RightTopCorner)
+
+                Line1 = lineEquation(IntersectionPointLeft, SET_PARAMS.SPF_LeftBottomCorner)
+
+                Line2 = lineEquation(IntersectionPointRight, SET_PARAMS.SPF_RightBottomCorner)
+
+                Line3 = line2Equation(IntersectionPointLeft, SET_PARAMS.SPF_LeftBottomCorner)
+
+                Line4 = line2Equation(IntersectionPointRight, SET_PARAMS.SPF_RightBottomCorner)
+
+                reflection1 = PointWithinParallelLines(Line1, Line2, SET_PARAMS.SSF_LeftCorner)
+
+                reflection2 = PointWithinParallelLines(Line3, Line4, SET_PARAMS.SSF_LeftCorner)
+
+                reflection = reflection1 and reflection2
+
+                if not reflection:
+                    reflection1 = PointWithinParallelLines(Line1, Line2, SET_PARAMS.SSF_RightCorner)
+
+                    reflection2 = PointWithinParallelLines(Line3, Line4, SET_PARAMS.SSF_RightCorner)
+
+                    reflection = reflection1 and reflection2
+
+                    if reflection:
+                        S_ORC = reflectedSunVector
+                else:
+                    S_ORC = reflectedSunVector
+            
+            else:
+                reflectedSunVector = Reflection(S_sbc, SET_PARAMS.SPC_normal_vector)
+
+                IntersectionPointLeft = Intersection(SET_PARAMS.SSC_Plane, reflectedSunVector, SET_PARAMS.SPC_LeftTopCorner)
+
+                IntersectionPointRight = Intersection(SET_PARAMS.SSC_Plane, reflectedSunVector, SET_PARAMS.SPC_RightTopCorner)
+
+                Line1 = lineEquation(IntersectionPointLeft, SET_PARAMS.SPC_LeftBottomCorner)
+
+                Line2 = lineEquation(IntersectionPointRight, SET_PARAMS.SPC_RightBottomCorner)
+
+                Line3 = line2Equation(IntersectionPointLeft, SET_PARAMS.SPC_LeftBottomCorner)
+
+                Line4 = line2Equation(IntersectionPointRight, SET_PARAMS.SPC_RightBottomCorner)
+
+                reflection1 = PointWithinParallelLines(Line1, Line2, SET_PARAMS.SSC_LeftCorner)
+
+                reflection2 = PointWithinParallelLines(Line3, Line4, SET_PARAMS.SSC_LeftCorner)
+
+                reflection = reflection1 and reflection2
+
+                if not reflection:
+                    reflection1 = PointWithinParallelLines(Line1, Line2, SET_PARAMS.SSC_RightCorner)
+
+                    reflection2 = PointWithinParallelLines(Line3, Line4, SET_PARAMS.SSC_RightCorner)
+
+                    reflection = reflection1 and reflection2
+                    
+                    if reflection:
+                        S_ORC = reflectedSunVector
+                else:
+                    S_ORC = reflectedSunVector
+            
+        return S_ORC, reflection
 
 class Magnetorquers(Fault_parameters):
     def __init__(self, seed):

@@ -7,13 +7,16 @@ from Simulation.Parameters import SET_PARAMS
 from pathlib import Path
 import matplotlib.pyplot as plt
 
-def DecisionTreeAllAnomalies(path, depth):
+def DecisionTreeAllAnomalies(path, depth, multi_class = False):
     X_list = []
     Y_list = []
 
     for index in range(SET_PARAMS.Number_of_multiple_orbits):
         name = SET_PARAMS.Fault_names_values[index+1]
-        Y, _, X, _, _ = Dataset_order(name, binary_set = True, buffer = False, categorical_num = False)
+        if multi_class:
+            Y, _, X, _, _ = Dataset_order(name, binary_set = False, categorical_num = True, buffer = False)
+        else:
+            Y, _, X, _, _ = Dataset_order(name, binary_set = True, buffer = False, categorical_num = False)
         X_list.append(X)    
         Y_list.append(Y)
 
@@ -22,7 +25,7 @@ def DecisionTreeAllAnomalies(path, depth):
 
     # Beform a decision tree on the X and Y matrices
     # This must however include the moving average
-    clf = tree.DecisionTreeClassifier()
+    clf = tree.DecisionTreeClassifier(max_depth = depth)
 
     # Split data into training and testing data
     mask = np.random.rand(len(X)) <= 0.6
@@ -49,4 +52,7 @@ def DecisionTreeAllAnomalies(path, depth):
                         filled=True, max_depth = depth)
         fig.savefig(path + '/DecisionTree.png')
 
-    pickle.dump(clf, open(path + '/DecisionTreesPhysicsEnabledDMD.sav', 'wb'))
+    if multi_class:
+        pickle.dump(clf, open(path + '/DecisionTreesPhysicsEnabledDMDMultiClass.sav', 'wb'))
+    else:
+        pickle.dump(clf, open(path + '/DecisionTreesPhysicsEnabledDMDBinaryClass.sav', 'wb'))

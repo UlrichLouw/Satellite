@@ -41,17 +41,38 @@ def Dataset_order(index, binary_set, buffer, categorical_num, controlInputx = Tr
             Data = pd.read_pickle(pickle_file)
     Data = Data.loc[:, ~Data.columns.str.contains("^Unnamed")]
 
+    ReplaceDict = {'\n': '',
+                    '[': '',
+                    ']': '',
+                    '  ': ' '
+    }
+
+    try:
+        for replacement in ReplaceDict:
+            Data['Moving Average'] = Data['Moving Average'].str.replace(replacement,ReplaceDict[replacement])
+
+        Data['Moving Average'] = Data['Moving Average'].apply(lambda x: np.fromstring(x, sep=' '))
+
+        DataMA = pd.DataFrame(Data['Moving Average'].tolist()).add_prefix('Moving Average')
+
+        Data = pd.concat([Data, DataMA], axis = 1)
+    except:
+        pass
+
+
+    Data.drop(columns = ['Moving Average'], inplace = True)
+
     if binary_set and use_previously_saved_models == False:
         Orbit = Data.drop(columns = ["Predicted fault", 'Current fault', 'Current fault numeric'])
-    elif categorical_num == True:
+    elif categorical_num:
         Orbit = Data.drop(columns = ["Predicted fault", 'Current fault', 'Current fault binary'])
     else:
         Orbit = Binary_split(Data)
 
     if onlySensors and controlInputx:
-        Orbit = Orbit.drop(columns = ['Moving Average'])
+        Orbit = Orbit.loc[:, ~Orbit.columns.str.contains("^Moving Average")]
     elif onlySensors:
-        Orbit = Orbit.drop(columns = ['Moving Average', 'Wheel Control Torques_x',
+        Orbit = Orbit.drop(columns = ['Wheel Control Torques_x',
                             'Wheel Control Torques_y', 'Wheel Control Torques_z'])
 
     if columns_compare != None:
