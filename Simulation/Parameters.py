@@ -282,14 +282,14 @@ class SET_PARAMS:
 
 
     faultNames = ["None",
-                "Reflection",
-                "Angular_sensor_high_noise", 
-                "Earth_sensor_high_noise",
-                "Magnetometer_sensor_high_noise", 
-                "Erroneous_sun",
-                "Closed_shutter",
-                "Interference_magnetic",
-                "Stop_magnetometers"]
+                "Reflection"]
+                # ,
+                # "Earth_sensor_high_noise",
+                # "Magnetometer_sensor_high_noise", 
+                # "Erroneous_sun",
+                # "Closed_shutter",
+                # "Interference_magnetic",
+                # "Stop_magnetometers"]
 
     SunFailures = [
         "Catastrophic_sun",
@@ -298,6 +298,10 @@ class SET_PARAMS:
     ]
 
     EarthFailures = ["Earth_sensor_high_noise"]
+
+    starTrackerFailures = ["Closed_shutter"]
+
+    magnetometerFailures = ["Magnetometer_sensor_high_noise", "Interference_magnetic", "Stop_magnetometers"]
 
     # faultNames = ["None", 
     # "Electronics_of_RW", 
@@ -315,6 +319,7 @@ class SET_PARAMS:
     # "Increasing_angular_RW_momentum",
     # "Decreasing_angular_RW_momentum",
     # "Oscillating_angular_RW_momentum"]
+    faultnames = faultNames.copy()
 
     Fault_names = {faultNames[i]: i+1 for i in range(len(faultNames))}
 

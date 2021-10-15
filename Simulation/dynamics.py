@@ -212,8 +212,22 @@ class Dynamics:
         ######################################################
         # CONTROL TORQUES IMPLEMENTED DUE TO THE CONTROL LAW #
         ######################################################
+        if self.predictedFailedSensor == "Sun":
+            Sun_vector = self.sensor_vectors["Sun_Sensor"]["Model"]
+        else:
+            Sun_vector = self.S_sbc
 
-        N_control_magnetic, N_control_wheel = self.control.control(self.w_bi_est, self.w_bo_est, self.q_est, self.Inertia, self.B_sbc, self.angular_momentum_with_noise, self.r_sat_sbc, self.S_sbc, self.sun_in_view)
+        if self.predictedFailedSensor == "Magnetometer":
+            Magnetometer_vector = self.sensor_vectors["Magnetometer"]["Model"]
+        else:
+            Magnetometer_vector = self.B_sbc
+
+        if self.predictedFailedSensor == "Earth":
+            Earth_vector = self.sensor_vectors["Earth_Sensor"]["Model"]
+        else:    
+            Earth_vector = self.r_sat_sbc
+        
+        N_control_magnetic, N_control_wheel = self.control.control(self.w_bi_est, self.w_bo_est, self.q_est, self.Inertia, Magnetometer_vector, self.angular_momentum_with_noise, Earth_vector, Sun_vector, self.sun_in_view)
 
         N_gyro = np.cross(w,(self.Inertia @ w + self.angular_momentum))
 
@@ -348,7 +362,6 @@ class Dynamics:
     def SensorFeatureExtraction(self):
         Sensors_X = np.concatenate([self.Orbit_Data["Sun"], 
                                         self.Orbit_Data["Magnetometer"], self.Orbit_Data["Earth"], 
-                                        self.Orbit_Data["Angular momentum of wheels"],  
                                         self.Orbit_Data["Star"]])
         Sensors_Y = np.concatenate([self.Orbit_Data["Wheel Control Torques"], 
                                 self.Orbit_Data["Magnetic Control Torques"]])
@@ -401,9 +414,25 @@ class Dynamics:
             FailedSensor = max(zip(MovingAverageDict.values(), MovingAverageDict.keys()))[1]
         
         elif SET_PARAMS.SensorIsolator == "DecisionTrees":
-            FailedSensor = self.DecisionTreeDMDMulti.Predict(np.array([np.concatenate([Sensors_X, self.MovingAverage.flatten()])]))
+            arrayFault = self.DecisionTreeDMDMulti.Predict(np.array([np.concatenate([Sensors_X, self.MovingAverage.flatten()])]))
+            arrayFault = arrayFault.replace("]", "").replace("[", "").replace(" ", "")
+            arrayFault = arrayFault.split(",")
+            indexFault = arrayFault.index("1")
+            fault = SET_PARAMS.faultnames[indexFault]
+            if fault in SET_PARAMS.SunFailures:
+                FailedSensor = "Sun"
             
-        self.FailedSensor = FailedSensor
+            elif fault in SET_PARAMS.EarthFailures:
+                FailedSensor = "Earth"
+
+            elif fault in SET_PARAMS.starTrackerFailures:
+                FailedSensor = "Star"
+
+            elif fault in SET_PARAMS.magnetometerFailures:
+                FailedSensor = "Magnetometer"
+            
+            
+        self.predictedFailedSensor = FailedSensor
 
         return FailedSensor
 
@@ -413,9 +442,10 @@ class Dynamics:
     def SensorRecovery(self, failedSensor):
         if SET_PARAMS.SensorRecoveror == "EKF":
             sensors_kalman = ["Magnetometer", "Earth_Sensor", "Sun_Sensor", "Star_tracker"]
-            if SET_PARAMS.availableSensors[failedSensor] in sensors_kalman:
-                sensors_kalman.pop(sensors_kalman.index(SET_PARAMS.availableSensors[failedSensor]))
-            self.sensors_kalman = sensors_kalman
+            if failedSensor != "None":
+                if SET_PARAMS.availableSensors[failedSensor] in sensors_kalman:
+                    sensors_kalman.pop(sensors_kalman.index(SET_PARAMS.availableSensors[failedSensor]))
+                self.sensors_kalman = sensors_kalman
             
 
     ###########################################################
@@ -464,27 +494,25 @@ class Dynamics:
         self.determine_magnetometer()
         self.determine_star_tracker()
 
-        #* Create dictionary of all the sensors
-        self.sensor_vectors = {
-        "Magnetometer": {"SBC": self.B_sbc_meas, "ORC": self.B_ORC, "noise": SET_PARAMS.Magnetometer_noise},
-        "Sun_Sensor": {"SBC": self.S_sbc, "ORC": self.S_ORC, "noise": self.sun_noise}, 
-        "Earth_Sensor": {"SBC": self.r_sat_sbc, "ORC": self.r_sat_ORC, "noise": SET_PARAMS.Earth_noise}, 
-        "Star_tracker": {"SBC": self.star_tracker_sbc, "ORC": self.star_tracker_ORC, "noise": SET_PARAMS.star_tracker_noise}
-        }
 
-        self.q = self.rungeKutta_q(self.t, self.q, self.t+self.dt, self.dh)
 
-        ########################################################
-        # THE ERROR FOR W_BI IS WITHIN THE RUNGEKUTTA FUNCTION #
-        ######################################################## 
-        self.w_bi = self.rungeKutta_w(self.t, self.w_bi, self.t+self.dt, self.dh)
+        ###########################################
+        # DETERMINE THE ESTIMATED POSITION OF THE #
+        #   SATELLITE FROM THE EARTH AND THE SUN  #
+        ###########################################
+        self.sensor_vectors["Magnetometer"]["SBC"] = self.B_sbc_meas
+        self.sensor_vectors["Magnetometer"]["ORC"] = self.B_ORC
 
-        self.w_bo = self.w_bi - self.A_ORC_to_SBC @ np.array(([0,-self.wo,0]))
+        self.sensor_vectors["Sun_Sensor"]["SBC"] = self.S_sbc
+        self.sensor_vectors["Sun_Sensor"]["ORC"] = self.S_ORC
 
-        ########################################
-        # DETERMINE THE ACTUAL POSITION OF THE #
-        # SATELLITE FROM THE EARTH AND THE SUN #
-        ########################################
+        self.sensor_vectors["Earth_Sensor"]["SBC"] = self.r_sat_sbc
+        self.sensor_vectors["Earth_Sensor"]["ORC"] = self.r_sat_ORC
+
+        self.sensor_vectors["Star_tracker"]["SBC"] = self.star_tracker_sbc
+        self.sensor_vectors["Star_tracker"]["ORC"] = self.star_tracker_ORC
+
+
         mean = []
         covariance = []
 
@@ -505,13 +533,14 @@ class Dynamics:
 
                 if not (v_ORC_k == 0.0).all():
                     # If the measured vector is equal to 0 then the sensor is not able to view the desired measurement
-                    x, self.w_bo_est, P_k = self.EKF.Kalman_update(v_measured_k, v_ORC_k, self.Nm, self.Nw, self.t)
+                    v_model_k, x, self.w_bo_est, P_k = self.EKF.Kalman_update(v_measured_k, v_ORC_k, self.Nm, self.Nw, self.t)
                     self.q_est = x[3:]
                     self.w_bi_est = x[:3]
+                    self.sensor_vectors[sensor]["Model"] = v_model_k
                     mean.append(np.mean(x))
                     covariance.append(np.mean(P_k))
-
-
+                else:
+                    self.sensor_vectors[sensor]["Model"] = np.zeros(3)
 
         elif SET_PARAMS.Kalman_filter_use == "RKF":
             for sensor in self.sensors_kalman:
@@ -537,6 +566,15 @@ class Dynamics:
             self.w_bi_est = self.w_bi
             self.q_est = self.q
             self.w_bo_est = self.w_bo
+
+        self.q = self.rungeKutta_q(self.t, self.q, self.t+self.dt, self.dh)
+
+        ########################################################
+        # THE ERROR FOR W_BI IS WITHIN THE RUNGEKUTTA FUNCTION #
+        ######################################################## 
+        self.w_bi = self.rungeKutta_w(self.t, self.w_bi, self.t+self.dt, self.dh)
+
+        self.w_bo = self.w_bi - self.A_ORC_to_SBC @ np.array(([0,-self.wo,0]))
 
         self.update()
 
@@ -598,6 +636,7 @@ class Single_Satellite(Dynamics):
         self.availableData = SET_PARAMS.availableData
         self.predictedFailure = 0
         self.SensePredDMDDict = {}
+        self.Nm, self.Nw = np.zeros(3), np.zeros(3)
         ####################################################
         #  THE ORBIT_DATA DICTIONARY IS USED TO STORE ALL  #
         #     THE MEASUREMENTS FOR EACH TIMESTEP (TS)      #
@@ -621,12 +660,25 @@ class Single_Satellite(Dynamics):
             "Wheel disturbance torques": np.zeros(3),
             "Gravity Gradient toques": np.zeros(3),
             "Gyroscopic torques": np.zeros(3),
-            "Predicted fault": []
+            "Predicted fault": [],
+            "Isolation Accuracy": [],
+            "Prediction Accuracy": [],
+            "Quaternion magnetitude error": []
+        }
+
+        zero3 = np.zeros(3)
+        #* Create dictionary of all the sensors
+        self.sensor_vectors = {
+        "Magnetometer": {"SBC": zero3, "ORC": zero3, "Model": zero3},
+        "Sun_Sensor": {"SBC": zero3, "ORC": zero3, "Model": zero3}, 
+        "Earth_Sensor": {"SBC": zero3, "ORC": zero3, "Model": zero3}, 
+        "Star_tracker": {"SBC": zero3, "ORC": zero3, "Model": zero3}
         }
 
         self.zeros = np.zeros((SET_PARAMS.number_of_faults,), dtype = int)
 
         self.fault = "None"                      # Current fault of the system
+        self.predictedFailedSensor = "None"
 
         #! Just for testing kalman filter
         self.est_q_error = 0
@@ -645,6 +697,7 @@ class Single_Satellite(Dynamics):
         self.Orbit_Data["Gravity Gradient toques"] = self.Ngg
         self.Orbit_Data["Gyroscopic torques"] = self.Ngyro
         self.Orbit_Data["Magnetic Control Torques"] = self.Nm
+        self.Orbit_Data["Quaternion magnetitude error"] = np.sum(self.control.q_error)
         # Predict the sensor parameters and add them to the Orbit_Data
         self.SensorFailureHandling()
 
@@ -673,6 +726,28 @@ class Single_Satellite(Dynamics):
         temp[Fault_names_to_num[fault] - 1] = 1
         self.Orbit_Data["Current fault numeric"] = temp
         self.Orbit_Data["Current fault binary"] = 0 if fault == "None" else 1
+
+        if self.predictedFailure == self.Orbit_Data["Current fault binary"]:
+            self.Orbit_Data["Prediction Accuracy"] = 1
+        else:
+            self.Orbit_Data["Prediction Accuracy"] = 0
+
+        if fault == "None":
+            FailedSensor = "None"
+
+        elif fault in SET_PARAMS.SunFailures:
+            FailedSensor = "Sun"
+        
+        elif fault in SET_PARAMS.EarthFailures:
+            FailedSensor = "Earth"
+
+        elif fault in SET_PARAMS.starTrackerFailures:
+            FailedSensor = "Star"
+
+        elif fault in SET_PARAMS.magnetometerFailures:
+            FailedSensor = "Magnetometer"
+
+        self.Orbit_Data["Isolation Accuracy"] = 1 if FailedSensor == self.predictedFailedSensor else 0
 
 
 class Constellation_Satellites(Dynamics):

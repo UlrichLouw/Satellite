@@ -49,7 +49,7 @@ def Dataset_order(index, binary_set, buffer, categorical_num, controlInputx = Tr
 
     try:
         for replacement in ReplaceDict:
-            Data['Moving Average'] = Data['Moving Average'].str.replace(replacement,ReplaceDict[replacement])
+            Data['Moving Average'] = Data['Moving Average'].str.replace(replacement,ReplaceDict[replacement], regex = True)
 
         Data['Moving Average'] = Data['Moving Average'].apply(lambda x: np.fromstring(x, sep=' '))
 
@@ -84,13 +84,13 @@ def Dataset_order(index, binary_set, buffer, categorical_num, controlInputx = Tr
         Orbit.drop(columns = ['Sun in view'], inplace = True)
         if onlySensors:
             X = Orbit.loc[:,Orbit.columns.str.contains('Sun') | Orbit.columns.str.contains('Magnetometer') |
-                            Orbit.columns.str.contains('Earth') | Orbit.columns.str.contains('Angular momentum of wheels') | 
-                            Orbit.columns.str.contains('Star')].to_numpy()
+                            Orbit.columns.str.contains('Earth') | 
+                            Orbit.columns.str.contains('Star')].to_numpy() # Ignore the angular sensor
         else:
             X = Orbit.loc[:,Orbit.columns.str.contains('Sun') | Orbit.columns.str.contains('Magnetometer') |
-                            Orbit.columns.str.contains('Earth') | Orbit.columns.str.contains('Angular momentum of wheels') | 
+                            Orbit.columns.str.contains('Earth') | 
                             Orbit.columns.str.contains('Star') | 
-                            Orbit.columns.str.contains('Moving Average') ].to_numpy()
+                            Orbit.columns.str.contains('Moving Average') ].to_numpy()  # Ignore the angular sensor
         Y = Orbit.loc[:,Orbit.columns.str.contains('fault')].to_numpy()
 
     if ControlInput:

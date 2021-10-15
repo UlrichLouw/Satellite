@@ -71,8 +71,8 @@ class Control:
         return q_ref
 
     def Full_State_Quaternion(self, w_bi_est, w_est, q, Inertia, angular_momentum):
-        q_error = Quaternion_functions.quaternion_error(q, self.q_ref)
-        self.q_e = q_error[0:3]
+        self.q_error = Quaternion_functions.quaternion_error(q, self.q_ref)
+        self.q_e = self.q_error[0:3]
         w_error = w_est - self.w_ref
         self.w_e = w_error
         N = self.Kp * Inertia @ self.q_e + self.Kd * Inertia @ w_error - np.cross(w_bi_est,(Inertia @ w_bi_est + angular_momentum))

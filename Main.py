@@ -137,8 +137,8 @@ def main():
     SET_PARAMS.save_as = ".csv"
     SET_PARAMS.Kalman_filter_use = "EKF"
     SET_PARAMS.sensor_number = "ALL"
-    SET_PARAMS.Number_of_orbits = 2
-    SET_PARAMS.fixed_orbit_failure = 2
+    SET_PARAMS.Number_of_orbits = 10
+    SET_PARAMS.fixed_orbit_failure = 10
     SET_PARAMS.Number_of_multiple_orbits = len(SET_PARAMS.Fault_names)
     SET_PARAMS.skip = 20
     SET_PARAMS.Number_of_satellites = 1

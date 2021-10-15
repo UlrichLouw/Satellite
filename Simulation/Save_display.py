@@ -42,7 +42,7 @@ def save_as_pickle(Data, orbit):
 ##########################################
 def visualize_data(D, fault, path):
     doNotVisualize = ["Sun in view", "Current fault", "Current fault numeric"]
-    singleVisualize = ["Mean", "Covariance", "Predicted fault", "Current fault binary"]
+    singleVisualize = ["Mean", "Covariance", "Predicted fault", "Current fault binary", "Isolation Accuracy", "Prediction Accuracy", "Quaternion magnetitude error"]
 
     for data in D:
         if data in doNotVisualize:
