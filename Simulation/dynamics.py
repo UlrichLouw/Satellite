@@ -2,6 +2,7 @@ import numpy as np
 import Simulation.Controller as Controller
 from Simulation.Disturbances import Disturbances
 import Simulation.Parameters as Parameters
+from Simulation.Quaternion_to_euler import getEulerAngles
 SET_PARAMS = Parameters.SET_PARAMS 
 from Simulation.Sensors import Sensors
 import Simulation.Quaternion_functions as Quaternion_functions
@@ -168,6 +169,7 @@ class Dynamics:
             else:
                 self.S_sbc = np.zeros(self.S_sbc.shape)
                 self.S_ORC = np.zeros(self.S_ORC.shape)
+                self.sun_in_view = False
                 self.SunFault = False
                 reflection = False
 
@@ -212,10 +214,12 @@ class Dynamics:
         ######################################################
         # CONTROL TORQUES IMPLEMENTED DUE TO THE CONTROL LAW #
         ######################################################
+        #! Third change to implement correct control
+
         if self.predictedFailedSensor == "Sun":
             Sun_vector = self.sensor_vectors["Sun_Sensor"]["Model"]
         else:
-            Sun_vector = self.S_sbc
+            Sun_vector = self.S_ORC
 
         if self.predictedFailedSensor == "Magnetometer":
             Magnetometer_vector = self.sensor_vectors["Magnetometer"]["Model"]
@@ -341,13 +345,15 @@ class Dynamics:
             if True_faults:
                 self.fault = True_faults[self.np_random.randint(0,len(True_faults))]
                 print(self.fault)
-
+        
     ##############################################################################################
     # FUNCTION TO HANDLE THE PREDICTION, ISOLATION AND RECOVERY OF SENSORS FAILURES OR ANOMALIES #
     ############################################################################################## 
     def SensorFailureHandling(self):
         Sensors_X, Sensors_Y, MovingAverageDict = self.SensorFeatureExtraction()
         
+        self.DefineIfFault()
+
         if SET_PARAMS.SensorFDIR:
             self.predictedFailure = self.SensorPredicting(Sensors_X)
 
@@ -358,7 +364,7 @@ class Dynamics:
                 # After the specific sensor that has failed is identified 
                 # The system must recover
                 self.SensorRecovery(sensorFailed)
-    
+
     def SensorFeatureExtraction(self):
         Sensors_X = np.concatenate([self.Orbit_Data["Sun"], 
                                         self.Orbit_Data["Magnetometer"], self.Orbit_Data["Earth"], 
@@ -402,7 +408,41 @@ class Dynamics:
             Sensors_X = np.array([np.concatenate([Sensors_X, self.MovingAverage])])
             predictedFailure = self.DecisionTreeDMDBinary.Predict(Sensors_X)
 
+        elif SET_PARAMS.SensorPredictor == "PERFECT":
+            if self.implementedFault != "None":
+                predictedFailure = True
+
         return predictedFailure
+
+
+    def DefineIfFault(self):
+        if not self.reflection and self.fault == "Reflection":
+            fault = "None"
+        elif not self.SunFault and self.fault in SET_PARAMS.SunFailures:
+            fault = "None"
+        elif not self.EarthFault and self.fault in SET_PARAMS.EarthFailures:
+            fault = "None"
+        else:
+            fault = self.fault
+        
+        if fault == "None":
+            FailedSensor = "None"
+
+        elif fault in SET_PARAMS.SunFailures:
+            FailedSensor = "Sun"
+        
+        elif fault in SET_PARAMS.EarthFailures:
+            FailedSensor = "Earth"
+
+        elif fault in SET_PARAMS.starTrackerFailures:
+            FailedSensor = "Star"
+
+        elif fault in SET_PARAMS.magnetometerFailures:
+            FailedSensor = "Magnetometer"
+
+        self.implementedFault = fault
+        self.implementedFailedSensor = FailedSensor
+
 
     ###############################################################
     # FUNCTION TO ISOLATE (CLASSIFY) THE ANOMALY THAT HAS OCCURED #
@@ -430,7 +470,9 @@ class Dynamics:
 
             elif fault in SET_PARAMS.magnetometerFailures:
                 FailedSensor = "Magnetometer"
-            
+
+        elif SET_PARAMS.SensorIsolator == "PERFECT":
+            FailedSensor = self.implementedFailedSensor
             
         self.predictedFailedSensor = FailedSensor
 
@@ -494,8 +536,6 @@ class Dynamics:
         self.determine_magnetometer()
         self.determine_star_tracker()
 
-
-
         ###########################################
         # DETERMINE THE ESTIMATED POSITION OF THE #
         #   SATELLITE FROM THE EARTH AND THE SUN  #
@@ -512,6 +552,8 @@ class Dynamics:
         self.sensor_vectors["Star_tracker"]["SBC"] = self.star_tracker_sbc
         self.sensor_vectors["Star_tracker"]["ORC"] = self.star_tracker_ORC
 
+        # Predict whether sensors have failed
+        self.SensorFailureHandling()
 
         mean = []
         covariance = []
@@ -526,21 +568,20 @@ class Dynamics:
                 # the transformation Matrix is implemented on the vector
                 # Since the transformation matrix takes the modelled and measured into account
                 # Only noise is added to the measurement
-
                 v = self.sensor_vectors[sensor]
                 v_ORC_k = v["ORC"]
                 v_measured_k = v["SBC"]
 
                 if not (v_ORC_k == 0.0).all():
                     # If the measured vector is equal to 0 then the sensor is not able to view the desired measurement
-                    v_model_k, x, self.w_bo_est, P_k = self.EKF.Kalman_update(v_measured_k, v_ORC_k, self.Nm, self.Nw, self.t)
+                    self.A_ORC_to_SBC_est, x, self.w_bo_est, P_k = self.EKF.Kalman_update(v_measured_k, v_ORC_k, self.Nm, self.Nw, self.t)
                     self.q_est = x[3:]
                     self.w_bi_est = x[:3]
-                    self.sensor_vectors[sensor]["Model"] = v_model_k
+                    self.sensor_vectors[sensor]["Model"] = self.A_ORC_to_SBC_est @ v_ORC_k
                     mean.append(np.mean(x))
                     covariance.append(np.mean(P_k))
                 else:
-                    self.sensor_vectors[sensor]["Model"] = np.zeros(3)
+                    self.sensor_vectors[sensor]["Model"] = self.A_ORC_to_SBC_est @ v_ORC_k
 
         elif SET_PARAMS.Kalman_filter_use == "RKF":
             for sensor in self.sensors_kalman:
@@ -576,22 +617,24 @@ class Dynamics:
 
         self.w_bo = self.w_bi - self.A_ORC_to_SBC @ np.array(([0,-self.wo,0]))
 
-        self.update()
+        self.q_ref = self.control.q_ref
+        self.w_bo_ref = self.control.w_ref
 
-        self.t += self.dt
-
-        self.KalmanControl = {"w_est": self.w_bo_est,
-        "w_act": self.w_bo,
-        "quaternion_est": self.q_est,
-        "quaternion_actual": self.q,
-        "quaternion_ref": self.control.q_ref,
-        "w_ref": self.control.w_ref,
-        "quaternion_error": self.control.q_e,
-        "w_error": self.control.w_e
-        }
+        # self.KalmanControl = {"w_est": self.w_bo_est,
+        # "w_act": self.w_bo,
+        # "quaternion_est": self.q_est,
+        # "quaternion_actual": self.q,
+        # "w_ref": self.control.w_ref,
+        # "quaternion_error": self.control.q_e,
+        # "w_error": self.control.w_e
+        # }
 
         self.MeasurementUpdateDictionary = {"Mean": mean,
                             "Covariance": covariance}
+
+        self.update()
+
+        self.t += self.dt
 
         return self.w_bi, self.q, self.A_ORC_to_SBC, self.r_EIC, self.sun_in_view
 
@@ -649,7 +692,9 @@ class Single_Satellite(Dynamics):
             "Earth": np.zeros(3),           #Satellite position vector in ORC
             "Angular momentum of wheels": np.zeros(3),    #Wheel angular velocity of each reaction wheel
             "Star": np.zeros(3),
-            "Angular velocity of satellite": np.zeros(3),
+            "Angular velocity of satellite actual": np.zeros(3),
+            "Angular velocity of satellite estimated": np.zeros(3),
+            "Angular velocity of satellite reference": np.zeros(3),
             "Moving Average": [],
             "Wheel Control Torques": np.zeros(3),
             "Magnetic Control Torques": np.zeros(3), 
@@ -657,20 +702,32 @@ class Single_Satellite(Dynamics):
             "Current fault": [],                            #What the fault is that the system is currently experiencing
             "Current fault numeric": [],
             "Current fault binary": [],
-            "Wheel disturbance torques": np.zeros(3),
-            "Gravity Gradient toques": np.zeros(3),
-            "Gyroscopic torques": np.zeros(3),
+            "Wheel disturbance Torques": np.zeros(3),
+            "Gravity Gradient Torques": np.zeros(3),
+            "Gyroscopic Torques": np.zeros(3),
             "Predicted fault": [],
             "Isolation Accuracy": [],
             "Prediction Accuracy": [],
-            "Quaternion magnetitude error": []
+            "Quaternions Actual": np.zeros(3),
+            "Quaternions Estimated": np.zeros(3),
+            "Quaternions Reference": np.zeros(3),
+            "Euler Angles Actual": np.zeros(3),
+            "Euler Angles Estimated": np.zeros(3),
+            "Euler Angles Reference": np.zeros(3),
+            
         }
+
+        #! Fourht change, ignore Quaternion error
+        # ,
+        #             "Quaternion magnetitude error": []
 
         zero3 = np.zeros(3)
         #* Create dictionary of all the sensors
+
+        #! First change
         self.sensor_vectors = {
-        "Magnetometer": {"SBC": zero3, "ORC": zero3, "Model": zero3},
-        "Sun_Sensor": {"SBC": zero3, "ORC": zero3, "Model": zero3}, 
+        "Magnetometer": {"SBC": zero3, "ORC": zero3, "Model": zero3}, 
+        "Sun_Sensor": {"SBC": zero3, "ORC": zero3, "Model": zero3},
         "Earth_Sensor": {"SBC": zero3, "ORC": zero3, "Model": zero3}, 
         "Star_tracker": {"SBC": zero3, "ORC": zero3, "Model": zero3}
         }
@@ -690,16 +747,23 @@ class Single_Satellite(Dynamics):
         self.Orbit_Data["Earth"] = self.r_sat_sbc
         self.Orbit_Data["Star"] = self.star_tracker_sbc
         self.Orbit_Data["Angular momentum of wheels"] = self.angular_momentum_with_noise
-        self.Orbit_Data["Angular velocity of satellite"] = self.w_bi
+        self.Orbit_Data["Angular velocity of satellite actual"] = self.w_bo
+        self.Orbit_Data["Angular velocity of satellite estimated"] = self.w_bo_est
+        self.Orbit_Data["Angular velocity of satellite reference"] = self.w_bo_ref
         self.Orbit_Data["Sun in view"] = self.sun_in_view
         self.Orbit_Data["Wheel Control Torques"] = self.Nw
-        self.Orbit_Data["Wheel disturbance torques"] = self.Nrw
-        self.Orbit_Data["Gravity Gradient toques"] = self.Ngg
-        self.Orbit_Data["Gyroscopic torques"] = self.Ngyro
+        self.Orbit_Data["Wheel disturbance Torques"] = self.Nrw
+        self.Orbit_Data["Gravity Gradient Torques"] = self.Ngg
+        self.Orbit_Data["Gyroscopic Torques"] = self.Ngyro
         self.Orbit_Data["Magnetic Control Torques"] = self.Nm
-        self.Orbit_Data["Quaternion magnetitude error"] = np.sum(self.control.q_error)
+        #! self.Orbit_Data["Quaternion magnetitude error"] = np.sum(np.abs(self.control.q_error))
+        self.Orbit_Data["Euler Angles Actual"] = np.array(getEulerAngles(self.q))
+        self.Orbit_Data["Euler Angles Estimated"] = np.array(getEulerAngles(self.q_est))
+        self.Orbit_Data["Euler Angles Reference"] = np.array(getEulerAngles(self.q_ref))
+        self.Orbit_Data["Quaternions Actual"] = self.q[:3]
+        self.Orbit_Data["Quaternions Estimated"] = self.q_est[:3]
+        self.Orbit_Data["Quaternions Reference"] = self.q_ref[:3]
         # Predict the sensor parameters and add them to the Orbit_Data
-        self.SensorFailureHandling()
 
         self.Orbit_Data["Moving Average"] = self.MovingAverage
 

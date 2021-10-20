@@ -21,12 +21,14 @@ def save_as_excel(Data, sheetnames):
 
 def save_as_csv(Data, path, orbit = None, filename = SET_PARAMS.filename, index = False):
     if isinstance(Data, pd.DataFrame):
-        Data.to_csv(path + filename + ".csv", index = index)
+        Data.reset_index(drop = True, inplace = True)
+        Data.to_csv(path + filename + ".csv", index_label = "TimeStep", float_format="%.6f")
     else:
         # Convert array's to individual values in the dictionary
 
         df = pd.DataFrame(Data, columns = Data.keys())
-        df.to_csv(path + filename + str(orbit) + ".csv", index = index)
+        df.reset_index(drop = True, inplace = True)
+        df.to_csv(path + filename + str(orbit) + ".csv", index_label = "TimeStep", float_format="%.6f")
 
 #######################################################
 # FUNCTION TO SAVE A PICKLE FILE OF SIMULATION DATA   #

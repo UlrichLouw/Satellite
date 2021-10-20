@@ -84,14 +84,14 @@ class EKF():
             self.K_k = Jacobian_K(self.P_k_est, H_k_est, self.R_k)
         
         #* Measurement update
-        x_k_updated, w_bo, P_k, q_updated, w_bi_updated, vmodel_k_SBC = self.Measurement_update(self.P_k_est, self.x_k_est, self.K_k, self.A_ORC_to_SBC_est, vmeas_k, vmodel_k)
+        x_k_updated, w_bo, P_k, q_updated, w_bi_updated = self.Measurement_update(self.P_k_est, self.x_k_est, self.K_k, self.A_ORC_to_SBC_est, vmeas_k, vmodel_k)
 
         self.P_k = P_k
         
         # Updated self.q and self.w_bi with the measurement update
         self.q, self.w_bi, self.w_bo = q_updated, w_bi_updated, w_bo
 
-        return vmodel_k_SBC, x_k_updated, w_bo, self.P_k
+        return self.A_ORC_to_SBC_est, x_k_updated, w_bo, self.P_k
 
     def Model_update(self, q, w_bi, w_bo, angular_momentum, Nw, Nm):
         ########################################################################
@@ -177,7 +177,7 @@ class EKF():
         #####################################################################
         # CALCULATE THE DIFFERENCE BETWEEN THE MODELLED AND MEASURED VECTOR #
         #####################################################################
-        e_k, vmodel_k_SBC = e_k_function(vmeas_k, A_ORC_to_SBC_est, vmodel_k)
+        e_k = e_k_function(vmeas_k, A_ORC_to_SBC_est, vmodel_k)
 
 
         x_k_updated = state_measurement_update(x_k_est, K_k, e_k)
@@ -205,7 +205,7 @@ class EKF():
         A_ORC_to_SBC_updated = Transformation_matrix(q_updated)
         w_bo = w_bi_updated - A_ORC_to_SBC_updated @ np.array(([0,-self.wo,0]))
 
-        return x_k_updated, w_bo, P_k, q_updated, w_bi_updated, vmodel_k_SBC
+        return x_k_updated, w_bo, P_k, q_updated, w_bi_updated
 
 
 def error_message(variable):
@@ -330,7 +330,8 @@ def state_measurement_update(x_k, K_k, e_k):
 def e_k_function(vmeas_k, A, vmodel_k):
     vmodel_k_SBC = A @ vmodel_k
     e_k = vmeas_k - vmodel_k_SBC
-    return e_k, vmodel_k_SBC
+    #! print(e_k)
+    return e_k
 
 #@njit
 def sigma_k_function(F_t):

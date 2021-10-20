@@ -26,11 +26,10 @@ class SensorPredictionsDMD:
         for index in range(len(self.Buffer_act)):
             Actual_Sensor = self.Buffer_act[index]
             Estimated_Sensor = self.Buffer_est[index]
-            dif = (Actual_Sensor - Estimated_Sensor)
-            dif = np.clip(dif, -1e6, 1e6)
+            dif = np.reshape((Actual_Sensor - Estimated_Sensor), (len(Actual_Sensor), 1))
             summation += (dif) @ ((dif).T)
 
         #! This is not the same as the original article
-        V = 1/SET_PARAMS.MovingAverageSizeOfBuffer * summation # Alternatively summation (without np.sum or np.abs)
+        V = 1/SET_PARAMS.MovingAverageSizeOfBuffer * summation # Alternatively summation (with np.sum or np.abs)
 
         return V

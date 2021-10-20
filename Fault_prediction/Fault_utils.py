@@ -40,6 +40,9 @@ def Dataset_order(index, binary_set, buffer, categorical_num, controlInputx = Tr
             pickle_file = SET_PARAMS.path + index+ ".pkl"
             Data = pd.read_pickle(pickle_file)
     Data = Data.loc[:, ~Data.columns.str.contains("^Unnamed")]
+    Data = Data.loc[:, ~Data.columns.str.contains("^TimeStep")]
+    Data = Data.loc[:, ~Data.columns.str.contains("Euler Angles")]
+    Data = Data.loc[:, ~Data.columns.str.contains("Angular velocity of satellite")]
 
     ReplaceDict = {'\n': '',
                     '[': '',

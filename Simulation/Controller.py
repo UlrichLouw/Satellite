@@ -12,6 +12,7 @@ class Control:
         self.w_ref = SET_PARAMS.w_ref
         self.q_ref = SET_PARAMS.q_ref
         self.SolarPanelPosition = SET_PARAMS.SolarPanelPosition
+        self.Earth_sensor_position = SET_PARAMS.Earth_sensor_position
         self.N_max = SET_PARAMS.N_ws_max
         self.first = True
         self.angular_momentum_ref = np.zeros(3)
@@ -54,14 +55,34 @@ class Control:
         self.t += SET_PARAMS.Ts
 
         return N_magnet, N_wheel
+    ########################################################
+    # DETERMINE THE COMMAND QUATERNION FOR EARTH FOLLOWING #
+    ########################################################
+    def EarthCommandQuaternion(self, earthVector):
+        u1 = np.cross(self.Earth_sensor_position, earthVector)
+        normu1 = np.linalg.norm(u1)
+        if normu1 != 0:
+            uc = u1/np.linalg.norm(u1)
+        else:
+            uc = u1
 
+        delta = np.clip(np.dot(self.Earth_sensor_position, earthVector),-1,1)
+
+        q13 = uc * np.sin(delta/2)
+        q4 = np.cos(delta/2)
+        q_ref = np.array(([q13[0],q13[1],q13[2],q4]))
+        return q_ref
 
     ######################################################
     # DETERMINE THE COMMAND QUATERNION FOR SUN FOLLOWING #
     ######################################################
     def SunCommandQuaternion(self, sunVector):
-        u1 = self.SolarPanelPosition * sunVector
-        uc = u1/np.linalg.norm(u1)
+        u1 = np.cross(self.SolarPanelPosition, sunVector)
+        normu1 = np.linalg.norm(u1)
+        if normu1 != 0:
+            uc = u1/np.linalg.norm(u1)
+        else:
+            uc = u1
 
         delta = np.clip(np.dot(self.SolarPanelPosition, sunVector),-1,1)
 
@@ -71,8 +92,10 @@ class Control:
         return q_ref
 
     def Full_State_Quaternion(self, w_bi_est, w_est, q, Inertia, angular_momentum):
-        self.q_error = Quaternion_functions.quaternion_error(q, self.q_ref)
-        self.q_e = self.q_error[0:3]
+        #! self.q_error = Quaternion_functions.quaternion_error(q, self.q_ref)
+        #! self.q_e = self.q_error[0:3]
+        q_error = Quaternion_functions.quaternion_error(q, self.q_ref)
+        self.q_e = q_error[0:3]
         w_error = w_est - self.w_ref
         self.w_e = w_error
         N = self.Kp * Inertia @ self.q_e + self.Kd * Inertia @ w_error - np.cross(w_bi_est,(Inertia @ w_bi_est + angular_momentum))
