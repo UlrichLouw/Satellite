@@ -217,7 +217,7 @@ class Dynamics:
         #! Third change to implement correct control
 
         if self.predictedFailedSensor == "Sun":
-            Sun_vector = self.sensor_vectors["Sun_Sensor"]["Model"]
+            Sun_vector = self.sensor_vectors["Sun_Sensor"]["ORC"]
         else:
             Sun_vector = self.S_ORC
 

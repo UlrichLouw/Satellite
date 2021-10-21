@@ -184,6 +184,7 @@ def main():
     isolationMethods = ["DecisionTrees", "PERFECT"]
     recoveryMethods = ["EKF"]
 
+
     if SET_PARAMS.SensorFDIR:
         SET_PARAMS.FeatureExtraction = "DMD"
         SET_PARAMS.SensorPredictor = "PERFECT"
