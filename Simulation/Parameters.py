@@ -169,7 +169,7 @@ class SET_PARAMS:
     ######################
     
     w_ref = np.zeros(3) # desired angular velocity of satellite
-    q_ref = quaternion_initial # initial position of satellite
+    q_ref = quaternion_initial/np.linalg.norm(quaternion_initial) # initial position of satellite
     time = 1
     Ts = 1 # Time_step
     wn = 90

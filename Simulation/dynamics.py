@@ -63,6 +63,8 @@ class Dynamics:
         if norm_B_ORC != 0:
             self.B_ORC = self.B_ORC/norm_B_ORC
 
+        self.sensor_vectors["Magnetometer"]["Model ORC"] = self.B_ORC.copy()
+
         self.B_sbc = self.A_ORC_to_SBC @ self.B_ORC
         ######################################################
         # IMPLEMENT ERROR OR FAILURE OF SENSOR IF APPLICABLE #
@@ -91,6 +93,8 @@ class Dynamics:
         #             THIS IS DETERMINED WITH THE SBC FRAME             #
         #################################################################
         #* self.r_sat_ORC is already normalized
+        self.sensor_vectors["Earth_Sensor"]["Model ORC"] = self.r_sat_ORC.copy()
+
         self.r_sat_sbc = self.A_ORC_to_SBC @ self.r_sat_ORC
 
         angle_difference = Quaternion_functions.rad2deg(np.arccos(np.clip(np.dot(self.r_sat_sbc, SET_PARAMS.Earth_sensor_position),-1,1)))
@@ -120,6 +124,8 @@ class Dynamics:
 
         if norm_S_ORC != 0:
              self.S_ORC = self.S_ORC/norm_S_ORC
+
+        self.sensor_vectors["Sun_Sensor"]["Model ORC"] = self.S_ORC.copy()
 
         self.S_sbc = self.A_ORC_to_SBC @ self.S_ORC
 
@@ -217,17 +223,17 @@ class Dynamics:
         #! Third change to implement correct control
 
         if self.predictedFailedSensor == "Sun":
-            Sun_vector = self.sensor_vectors["Sun_Sensor"]["ORC"]
+            Sun_vector = self.sensor_vectors["Sun_Sensor"]["Model ORC"]
         else:
             Sun_vector = self.S_ORC
 
         if self.predictedFailedSensor == "Magnetometer":
-            Magnetometer_vector = self.sensor_vectors["Magnetometer"]["Model"]
+            Magnetometer_vector = self.sensor_vectors["Magnetometer"]["Model SBC"]
         else:
             Magnetometer_vector = self.B_sbc
 
         if self.predictedFailedSensor == "Earth":
-            Earth_vector = self.sensor_vectors["Earth_Sensor"]["Model"]
+            Earth_vector = self.sensor_vectors["Earth_Sensor"]["Model CBS"]
         else:    
             Earth_vector = self.r_sat_sbc
         
@@ -408,6 +414,10 @@ class Dynamics:
             Sensors_X = np.array([np.concatenate([Sensors_X, self.MovingAverage])])
             predictedFailure = self.DecisionTreeDMDBinary.Predict(Sensors_X)
 
+        elif SET_PARAMS.SensorPredictor == "RandomForest":
+            Sensors_X = np.array([np.concatenate([Sensors_X, self.MovingAverage])])
+            predictedFailure = self.RandomForestDMDBinary.Predict(Sensors_X)
+
         elif SET_PARAMS.SensorPredictor == "PERFECT":
             if self.implementedFault != "None":
                 predictedFailure = True
@@ -455,6 +465,25 @@ class Dynamics:
         
         elif SET_PARAMS.SensorIsolator == "DecisionTrees":
             arrayFault = self.DecisionTreeDMDMulti.Predict(np.array([np.concatenate([Sensors_X, self.MovingAverage.flatten()])]))
+            arrayFault = arrayFault.replace("]", "").replace("[", "").replace(" ", "")
+            arrayFault = arrayFault.split(",")
+            indexFault = arrayFault.index("1")
+            fault = SET_PARAMS.faultnames[indexFault]
+            if fault in SET_PARAMS.SunFailures:
+                FailedSensor = "Sun"
+            
+            elif fault in SET_PARAMS.EarthFailures:
+                FailedSensor = "Earth"
+
+            elif fault in SET_PARAMS.starTrackerFailures:
+                FailedSensor = "Star"
+
+            elif fault in SET_PARAMS.magnetometerFailures:
+                FailedSensor = "Magnetometer"
+
+        elif SET_PARAMS.SensorPredictor == "RandomForest":
+            Sensors_X = np.array([np.concatenate([Sensors_X, self.MovingAverage])])
+            predictedFailure = self.RandomForestDMDMulti.Predict(Sensors_X)
             arrayFault = arrayFault.replace("]", "").replace("[", "").replace(" ", "")
             arrayFault = arrayFault.split(",")
             indexFault = arrayFault.index("1")
@@ -523,6 +552,13 @@ class Dynamics:
 
         self.B_ORC = self.A_EIC_to_ORC @ self.Beta 
 
+        # Provide the modelled vectors of all 
+        # the sensors to the dictionary
+        
+
+        self.sensor_vectors["Star_tracker"]["Model ORC"] = self.star_tracker_vector
+
+
         ##################################################
         # DETERMINE WHETHER THE SUN AND THE EARTH SENSOR #
         #   IS IN VIEW OF THE VECTOR ON THE SATELLITE    #
@@ -569,19 +605,19 @@ class Dynamics:
                 # Since the transformation matrix takes the modelled and measured into account
                 # Only noise is added to the measurement
                 v = self.sensor_vectors[sensor]
-                v_ORC_k = v["ORC"]
+                v_ORC_k = v["Model ORC"]
                 v_measured_k = v["SBC"]
 
-                if not (v_ORC_k == 0.0).all():
+                if not (v_measured_k == 0.0).all():
                     # If the measured vector is equal to 0 then the sensor is not able to view the desired measurement
                     self.A_ORC_to_SBC_est, x, self.w_bo_est, P_k = self.EKF.Kalman_update(v_measured_k, v_ORC_k, self.Nm, self.Nw, self.t)
                     self.q_est = x[3:]
                     self.w_bi_est = x[:3]
-                    self.sensor_vectors[sensor]["Model"] = self.A_ORC_to_SBC_est @ v_ORC_k
+                    self.sensor_vectors[sensor]["Model SBC"] = self.A_ORC_to_SBC_est @ v_ORC_k
                     mean.append(np.mean(x))
                     covariance.append(np.mean(P_k))
                 else:
-                    self.sensor_vectors[sensor]["Model"] = self.A_ORC_to_SBC_est @ v_ORC_k
+                    self.sensor_vectors[sensor]["Model SBC"] = self.A_ORC_to_SBC_est @ v_ORC_k
 
         elif SET_PARAMS.Kalman_filter_use == "RKF":
             for sensor in self.sensors_kalman:
@@ -675,7 +711,10 @@ class Single_Satellite(Dynamics):
         self.sensors_kalman = ["Magnetometer", "Earth_Sensor", "Sun_Sensor", "Star_tracker"] #, "Star_tracker"] #Sun_Sensor, Earth_Sensor, Magnetometer
         self.DecisionTreeDMDBinary = FaultDetection.DecisionTreePredict(path = SET_PARAMS.pathHyperParameters + 'PhysicsEnabledDMDMethod/DecisionTreesPhysicsEnabledDMDBinaryClass.sav')
         self.DecisionTreeDMDMulti = FaultDetection.DecisionTreePredict(path = SET_PARAMS.pathHyperParameters + 'PhysicsEnabledDMDMethod/DecisionTreesPhysicsEnabledDMDMultiClass.sav')
+        self.RandomForestDMDBinary = FaultDetection.DecisionTreePredict(path = SET_PARAMS.pathHyperParameters + 'PhysicsEnabledDMDMethod/RandomForestPhysicsEnabledDMDBinaryClass.sav')
+        self.RandomForestDMDMulti = FaultDetection.DecisionTreePredict(path = SET_PARAMS.pathHyperParameters + 'PhysicsEnabledDMDMethod/RandomForestPhysicsEnabledDMDMultiClass.sav')
         super().initiate_fault_parameters()
+        self.star_tracker_ORC = self.star_tracker_vector
         self.availableData = SET_PARAMS.availableData
         self.predictedFailure = 0
         self.SensePredDMDDict = {}
@@ -726,10 +765,10 @@ class Single_Satellite(Dynamics):
 
         #! First change
         self.sensor_vectors = {
-        "Magnetometer": {"SBC": zero3, "ORC": zero3, "Model": zero3}, 
-        "Sun_Sensor": {"SBC": zero3, "ORC": zero3, "Model": zero3},
-        "Earth_Sensor": {"SBC": zero3, "ORC": zero3, "Model": zero3}, 
-        "Star_tracker": {"SBC": zero3, "ORC": zero3, "Model": zero3}
+        "Magnetometer": {"SBC": zero3, "ORC": zero3, "Model ORC": zero3, "Model SBC": zero3}, 
+        "Sun_Sensor": {"SBC": zero3, "ORC": zero3, "Model ORC": zero3, "Model SBC": zero3},
+        "Earth_Sensor": {"SBC": zero3, "ORC": zero3, "Model ORC": zero3, "Model SBC": zero3}, 
+        "Star_tracker": {"SBC": zero3, "ORC": zero3, "Model ORC": zero3, "Model SBC": zero3}
         }
 
         self.zeros = np.zeros((SET_PARAMS.number_of_faults,), dtype = int)

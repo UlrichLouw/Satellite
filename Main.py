@@ -168,7 +168,7 @@ def main():
     SET_PARAMS.save_as = ".csv"
     SET_PARAMS.Kalman_filter_use = "EKF"
     SET_PARAMS.sensor_number = "ALL"
-    SET_PARAMS.Number_of_orbits = 20
+    SET_PARAMS.Number_of_orbits = 40
     SET_PARAMS.fixed_orbit_failure = 10
     SET_PARAMS.Number_of_multiple_orbits = len(SET_PARAMS.Fault_names)
     SET_PARAMS.skip = 20
@@ -180,12 +180,15 @@ def main():
     #SET_PARAMS.Mode = "Nominal"
 
     featureExtractionMethods = ["DMD"]
-    predictionMethods = ["DecisionTrees", "PERFECT"]
-    isolationMethods = ["DecisionTrees", "PERFECT"]
-    recoveryMethods = ["EKF"]
-
+    predictionMethods = ["None"]
+    isolationMethods = ["None"]
+    recoveryMethods = ["None"]
 
     if SET_PARAMS.SensorFDIR:
+        featureExtractionMethods = ["DMD"]
+        predictionMethods = ["DecisionTrees", "PERFECT"]
+        isolationMethods = ["DecisionTrees", "PERFECT"]
+        recoveryMethods = ["EKF"]
         SET_PARAMS.FeatureExtraction = "DMD"
         SET_PARAMS.SensorPredictor = "PERFECT"
         SET_PARAMS.SensorIsolator = "PERFECT"
@@ -227,87 +230,89 @@ def main():
     # ON THE SATELLITES ID AND THE SATELLITES CLOSEST TO IT #
     #########################################################
 
-    for extraction in featureExtractionMethods:
-        for prediction in predictionMethods:
-            for isolation in isolationMethods:
-                for recovery in recoveryMethods:
+    if SET_PARAMS.Number_of_satellites > 1:
+        Stellar = Constellation.Constellation(SET_PARAMS.Number_of_satellites)
+        Overall_data = []
 
-                    if SET_PARAMS.SensorFDIR:
-                        SET_PARAMS.FeatureExtraction = extraction
-                        SET_PARAMS.SensorPredictor = prediction
-                        SET_PARAMS.SensorIsolator = isolation
-                        SET_PARAMS.SensorRecoveror = recovery
-                    else:
-                        SET_PARAMS.FeatureExtraction = extraction
-                        SET_PARAMS.SensorPredictor = "None"
-                        SET_PARAMS.SensorIsolator = "None"
-                        SET_PARAMS.SensorRecoveror = "None"
+        for sat_num in range(SET_PARAMS.Number_of_satellites):
+            Stellar.initiate_satellite(sat_num)
 
-                    if SET_PARAMS.Number_of_satellites > 1:
-                        Stellar = Constellation.Constellation(SET_PARAMS.Number_of_satellites)
-                        Overall_data = []
+        for j in range(int(SET_PARAMS.Number_of_orbits*SET_PARAMS.Period/(SET_PARAMS.faster_than_control*SET_PARAMS.Ts)+1)):
+            for sat_num in range(SET_PARAMS.Number_of_satellites):
+                Stellar.satellites[sat_num].run()
 
-                        for sat_num in range(SET_PARAMS.Number_of_satellites):
-                            Stellar.initiate_satellite(sat_num)
+            if Stellar.FD_strategy == "Centralised":
+                data = Stellar.data
+                predictions = Stellar.FD.Per_Timestep(data, Stellar.FD_strategy)
+                ###############################################################################
+                # USE THE VOTE OF EACH SATELLITE TO DETERMINE THE HEALTH OF ANOTHER SATELLITE #
+                ###############################################################################
+                Stellar.fault_vote = predictions
 
-                        for j in range(int(SET_PARAMS.Number_of_orbits*SET_PARAMS.Period/(SET_PARAMS.faster_than_control*SET_PARAMS.Ts)+1)):
-                            for sat_num in range(SET_PARAMS.Number_of_satellites):
-                                Stellar.satellites[sat_num].run()
+            elif Stellar.FD_strategy == "Distributed" or Stellar.FD_strategy == "Mixed":
+                for sat_num in range(SET_PARAMS.Number_of_satellites):
+                    data = [Stellar.data[item] for item in Stellar.nearest_neighbours_all[sat_num]]
+                    # Ensure that predictions is a dictionary
+                    predictions = Stellar.FD.Per_Timestep(data, Stellar.FD_strategy, Stellar.nearest_neighbours_all[sat_num])
+                    ###############################################################################
+                    # USE THE VOTE OF EACH SATELLITE TO DETERMINE THE HEALTH OF ANOTHER SATELLITE #
+                    ###############################################################################
+                    for sat in Stellar.nearest_neighbours_all[sat_num]:
+                        Stellar.fault_vote[sat] = predictions[sat]
+            
+            Overall_data.append(pd.DataFrame.from_dict(Stellar.data))
 
-                            if Stellar.FD_strategy == "Centralised":
-                                data = Stellar.data
-                                predictions = Stellar.FD.Per_Timestep(data, Stellar.FD_strategy)
-                                ###############################################################################
-                                # USE THE VOTE OF EACH SATELLITE TO DETERMINE THE HEALTH OF ANOTHER SATELLITE #
-                                ###############################################################################
-                                Stellar.fault_vote = predictions
+        Data = pd.concat(Overall_data)
+        save_as_csv(Data, filename = "Constellation", index = "Satellite_number")
 
-                            elif Stellar.FD_strategy == "Distributed" or Stellar.FD_strategy == "Mixed":
-                                for sat_num in range(SET_PARAMS.Number_of_satellites):
-                                    data = [Stellar.data[item] for item in Stellar.nearest_neighbours_all[sat_num]]
-                                    # Ensure that predictions is a dictionary
-                                    predictions = Stellar.FD.Per_Timestep(data, Stellar.FD_strategy, Stellar.nearest_neighbours_all[sat_num])
-                                    ###############################################################################
-                                    # USE THE VOTE OF EACH SATELLITE TO DETERMINE THE HEALTH OF ANOTHER SATELLITE #
-                                    ###############################################################################
-                                    for sat in Stellar.nearest_neighbours_all[sat_num]:
-                                        Stellar.fault_vote[sat] = predictions[sat]
-                            
-                            Overall_data.append(pd.DataFrame.from_dict(Stellar.data))
+    elif SET_PARAMS.Number_of_multiple_orbits == 1:
+        FD = Fault_detection.Basic_detection()
+        for i in range(1, SET_PARAMS.Number_of_multiple_orbits + 1):
+            D = Single_Satellite(i, s_list, t_list, J_t, fr)
 
-                        Data = pd.concat(Overall_data)
-                        save_as_csv(Data, filename = "Constellation", index = "Satellite_number")
+            print(SET_PARAMS.Fault_names_values[i])
 
-                    elif SET_PARAMS.Number_of_multiple_orbits == 1:
-                        FD = Fault_detection.Basic_detection()
-                        for i in range(1, SET_PARAMS.Number_of_multiple_orbits + 1):
-                            D = Single_Satellite(i, s_list, t_list, J_t, fr)
+            loop(i, D, SET_PARAMS)
 
-                            print(SET_PARAMS.Fault_names_values[i])
+    ######################################################
+    # IF THE SAVE AS IS NOT EQUAL TO XLSX, THE THREADING #
+    #           CAN BE USED TO SAVE CSV FILES            #
+    ######################################################
+    else:
+        numProcess = 0
+        threads = []
+        for extraction in featureExtractionMethods:
+            for prediction in predictionMethods:
+                for isolation in isolationMethods:
+                    for recovery in recoveryMethods:
 
-                            loop(i, D, SET_PARAMS)
+                        if SET_PARAMS.SensorFDIR:
+                            SET_PARAMS.FeatureExtraction = extraction
+                            SET_PARAMS.SensorPredictor = prediction
+                            SET_PARAMS.SensorIsolator = isolation
+                            SET_PARAMS.SensorRecoveror = recovery
+                        else:
+                            SET_PARAMS.FeatureExtraction = extraction
+                            SET_PARAMS.SensorPredictor = "None"
+                            SET_PARAMS.SensorIsolator = "None"
+                            SET_PARAMS.SensorRecoveror = "None"
 
-                    ######################################################
-                    # IF THE SAVE AS IS NOT EQUAL TO XLSX, THE THREADING #
-                    #           CAN BE USED TO SAVE CSV FILES            #
-                    ######################################################
-                    else:
-                        threads = []
-
+                        
                         #! 2nd change to only run on faults and not "NONE"
                         for i in range(2, SET_PARAMS.Number_of_multiple_orbits+1):
+                            numProcess += 1
                             D = Single_Satellite(i, s_list, t_list, J_t, fr)
 
                             t = multiprocessing.Process(target=loop, args=(i, D, SET_PARAMS))
                             threads.append(t)
                             t.start()
-                            print("Beginning of", i)
+                            print("Beginning of", extraction, prediction, isolation, recovery, i)
 
-                            if i == SET_PARAMS.Number_of_multiple_orbits or i%16 == 0:
-                                for process in threads:     
-                                    process.join()
 
-                                threads.clear()
+        for process in threads:     
+            process.join()
+
+        threads.clear()
 
 if __name__ == "__main__": 
     # import cProfile, pstats

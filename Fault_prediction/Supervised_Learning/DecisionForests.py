@@ -59,5 +59,5 @@ def DecisionTreeAllAnomalies(path, depth, multi_class = False):
         if SET_PARAMS.Visualize:
             fig = plt.figure(figsize=(25,20))
             tree.plot_tree(clf,
-                            filled=True, max_depth = 3)
+                            filled=True, max_depth = 2)
             fig.savefig(path + '/DecisionTreeBinaryClass.png')

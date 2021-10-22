@@ -231,6 +231,18 @@ class DecisionTreePredict():
         y_predict = self.clf.predict(X)[0]
         return y_predict
 
+#######################################
+# PREDICT WHETHER THERE IS AN ANOMALY #
+#######################################
+class RandomForestPredict():
+    def __init__(self, path):
+        self.RandomForest = pickle.load(open(path, 'rb'))
+    
+    def Predict(self, X):
+        y_predict = self.RandomForest.predict(X)[0]
+        return y_predict
+
+
 ###################################################
 # THIS CLASS IS THE MOST NOVEL DETECTION METHODS  #
 # THIS CLASS WILL HAVE MULTIPLE METHODS TO CHOOSE #

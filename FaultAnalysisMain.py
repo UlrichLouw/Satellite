@@ -3,6 +3,7 @@ from Simulation.Parameters import SET_PARAMS
 
 from Fault_prediction.Feature_extraction import DMD
 from Fault_prediction.Supervised_Learning import DecisionForests
+from Fault_prediction.Supervised_Learning import Random_Forest
 import sys
 
 if __name__ == '__main__':
@@ -24,4 +25,5 @@ if __name__ == '__main__':
     # Binary training
     # DecisionForests.DecisionTreeAllAnomalies(path = SET_PARAMS.pathHyperParameters + 'PhysicsEnabledDMDMethod', depth = 10)
     # Multi class prediction
-    DecisionForests.DecisionTreeAllAnomalies(path = SET_PARAMS.pathHyperParameters + 'PhysicsEnabledDMDMethod', depth = 10, multi_class = True)
+    # DecisionForests.DecisionTreeAllAnomalies(path = SET_PARAMS.pathHyperParameters + 'PhysicsEnabledDMDMethod', depth = 10, multi_class = True)
+    Random_Forest.Random_Forest(path = SET_PARAMS.pathHyperParameters + 'PhysicsEnabledDMDMethod', depth = 10, multi_class = False)
