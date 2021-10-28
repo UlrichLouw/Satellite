@@ -189,8 +189,8 @@ def main():
 
     if SET_PARAMS.SensorFDIR:
         featureExtractionMethods = ["DMD"]
-        predictionMethods = ["DecisionTrees", "RandomForest", "PERFECT"]
-        isolationMethods = ["DecisionTrees", "RandomForest", "PERFECT"]
+        predictionMethods = ["DecisionTrees", "PERFECT"]
+        isolationMethods = ["DecisionTrees", "PERFECT"] #! "RandomForest", 
         recoveryMethods = ["EKF"]
         SET_PARAMS.FeatureExtraction = "DMD"
         SET_PARAMS.SensorPredictor = "PERFECT"
