@@ -9,6 +9,10 @@ from Simulation.Save_display import visualize_data, save_as_csv, save_as_pickle,
 import Fault_prediction.Fault_detection as Fault_detection
 import Simulation.Constellation as Constellation
 from numba import njit, jit, vectorize
+import math
+from sgp4.api import jday
+
+pi = math.pi
 
 dimensions = ['x', 'y', 'z']
 
@@ -103,15 +107,14 @@ def loop(index, D, SET_PARAMS):
 
     DatapgfPrediction = Datapgf.loc[:,Datapgf.columns.str.contains('Accuracy') | Datapgf.columns.str.contains('fault')]
 
+    GenericPath = "Predictor-" + SET_PARAMS.SensorPredictor+ "/Isolator-" + SET_PARAMS.SensorIsolator + "/Recovery-" + SET_PARAMS.SensorRecoveror +"/"+SET_PARAMS.Mode+"/"+ \
+        "SunSensorSize-Length:" + str(SET_PARAMS.Sun_sensor_length) + "-Width:" + str(SET_PARAMS.Sun_sensor_width) + "/" + "SolarPanel-Length:" + str(SET_PARAMS.SP_Length) + "-Width:" + str(SET_PARAMS.SP_width) + \
+        "T-list:" + SET_PARAMS.t_list + "S-list:" + SET_PARAMS.s_list
+
     if SET_PARAMS.Visualize and SET_PARAMS.Display == False:
-        if SET_PARAMS.Reflection:
-            path = "Plots/"+ "Predictor-" + SET_PARAMS.SensorPredictor + "/Isolator-" + SET_PARAMS.SensorIsolator + "/Recovery-" + SET_PARAMS.SensorRecoveror + "/KalmanFilter-"+SET_PARAMS.Kalman_filter_use+"/"+SET_PARAMS.Mode+"_with_reflection/"+ str(D.fault) + "/"
-            path_to_folder = Path(path)
-            path_to_folder.mkdir(parents = True, exist_ok=True)
-        else:
-            path = "Plots/"+ "Predictor-" + SET_PARAMS.SensorPredictor+ "/Isolator-" + SET_PARAMS.SensorIsolator + "/Recovery-" + SET_PARAMS.SensorRecoveror +"/KalmanFilter-"+SET_PARAMS.Kalman_filter_use+"/"+SET_PARAMS.Mode+"/"+ str(D.fault) + "/"
-            path_to_folder = Path(path)
-            path_to_folder.mkdir(parents = True, exist_ok=True)
+        path = "Plots/"+ GenericPath + str(D.fault) + "/"
+        path_to_folder = Path(path)
+        path_to_folder.mkdir(parents = True, exist_ok=True)
         visualize_data(Visualize_data, D.fault, path = path)
         # visualize_data(KalmanControl, D.fault, path = path)
         visualize_data(MeasurementUpdates, D.fault, path = path)
@@ -121,7 +124,7 @@ def loop(index, D, SET_PARAMS):
 
     print("Number of multiple orbits", index)  
 
-    path = "Data files/"+ "Predictor-" + SET_PARAMS.SensorPredictor + "/Isolator-" + SET_PARAMS.SensorIsolator + "/Recovery-" + SET_PARAMS.SensorRecoveror + "/KalmanFilter-"+SET_PARAMS.Kalman_filter_use+"/"+SET_PARAMS.Mode+"/"
+    path = "Data files/"+ GenericPath
     path_to_folder = Path(path)
     path_to_folder.mkdir(parents = True, exist_ok=True)
 
@@ -130,7 +133,7 @@ def loop(index, D, SET_PARAMS):
     else:
         save_as_pickle(Data, index)
 
-    path = "Data files/pgfPlots/"+ "Predictor-" + SET_PARAMS.SensorPredictor + "/Isolator-" + SET_PARAMS.SensorIsolator + "/Recovery-" + SET_PARAMS.SensorRecoveror + "/KalmanFilter-"+SET_PARAMS.Kalman_filter_use+"/"+SET_PARAMS.Mode+"/"
+    path = "Data files/pgfPlots/" + GenericPath
     path_to_folder = Path(path)
     path_to_folder.mkdir(parents = True, exist_ok=True)
 
@@ -168,7 +171,7 @@ def main():
     SET_PARAMS.save_as = ".csv"
     SET_PARAMS.Kalman_filter_use = "EKF"
     SET_PARAMS.sensor_number = "ALL"
-    SET_PARAMS.Number_of_orbits = 40
+    SET_PARAMS.Number_of_orbits = 2
     SET_PARAMS.fixed_orbit_failure = 10
     SET_PARAMS.Number_of_multiple_orbits = len(SET_PARAMS.Fault_names)
     SET_PARAMS.skip = 20
@@ -186,8 +189,8 @@ def main():
 
     if SET_PARAMS.SensorFDIR:
         featureExtractionMethods = ["DMD"]
-        predictionMethods = ["DecisionTrees", "PERFECT"]
-        isolationMethods = ["DecisionTrees", "PERFECT"]
+        predictionMethods = ["DecisionTrees", "RandomForest", "PERFECT"]
+        isolationMethods = ["DecisionTrees", "RandomForest", "PERFECT"]
         recoveryMethods = ["EKF"]
         SET_PARAMS.FeatureExtraction = "DMD"
         SET_PARAMS.SensorPredictor = "PERFECT"
@@ -279,40 +282,107 @@ def main():
     #           CAN BE USED TO SAVE CSV FILES            #
     ######################################################
     else:
-        numProcess = 0
-        threads = []
-        for extraction in featureExtractionMethods:
-            for prediction in predictionMethods:
-                for isolation in isolationMethods:
-                    for recovery in recoveryMethods:
+        NumberOfRandom = 1
+        inclination_per_sat = 360/NumberOfRandom
+        RAAN_per_sat = 360/NumberOfRandom
 
-                        if SET_PARAMS.SensorFDIR:
-                            SET_PARAMS.FeatureExtraction = extraction
-                            SET_PARAMS.SensorPredictor = prediction
-                            SET_PARAMS.SensorIsolator = isolation
-                            SET_PARAMS.SensorRecoveror = recovery
-                        else:
-                            SET_PARAMS.FeatureExtraction = extraction
-                            SET_PARAMS.SensorPredictor = "None"
-                            SET_PARAMS.SensorIsolator = "None"
-                            SET_PARAMS.SensorRecoveror = "None"
+        for randomSizes in range(NumberOfRandom):
 
-                        
-                        #! 2nd change to only run on faults and not "NONE"
-                        for i in range(2, SET_PARAMS.Number_of_multiple_orbits+1):
-                            numProcess += 1
-                            D = Single_Satellite(i, s_list, t_list, J_t, fr)
+            SET_PARAMS.Sun_sensor_length 
+            SET_PARAMS.Sun_sensor_width
+            SET_PARAMS.SP_Length = SET_PARAMS.Lx + (np.random.rand() - 0.5) * SET_PARAMS.Lx 
+            SET_PARAMS.SP_width = SET_PARAMS.Ly + (np.random.rand() - 0.5) * SET_PARAMS.Ly 
 
-                            t = multiprocessing.Process(target=loop, args=(i, D, SET_PARAMS))
-                            threads.append(t)
-                            t.start()
-                            print("Beginning of", extraction, prediction, isolation, recovery, i)
+            for randomOrbits in range(NumberOfRandom):
+                ####################
+                # ORBIT PARAMETERS #
+                ####################
+                
+                eccentricity = 0.000092                                 # Update eccentricity list
+                inclination = inclination_per_sat*randomOrbits   # degrees
+                Semi_major_axis = 6879.55                               # km The distance from the satellite to the earth + the earth radius
+                Height_above_earth_surface = 500e3                      # distance above earth surface
+                Scale_height = 8500                                     # scale height of earth atmosphere
+                RAAN = RAAN_per_sat*randomOrbits    # Right ascension of the ascending node in radians
+                #RAAN = 275*pi/180                                       # Right ascension of the ascending node in radians
+                AP = 0                                                  # argument of perigee
+                Re = 6371.2                                             # km magnetic reference radius
+                Mean_motion = 15.2355000000                             # rev/day
+                Mean_motion_per_second = Mean_motion/(3600.0*24.0)
+                Mean_anomaly = 29.3                                     # degrees
+                Argument_of_perigee = 57.4                              # in degrees
+                omega = Argument_of_perigee
+                Period = 86400/Mean_motion                              # seconds
+                J_t,fr = jday(2020,2,16,15,30,0)                        # current julian date
+                epoch = J_t - 2433281.5 + fr
+                Drag_term = 0.000194                                    # Remember to update the list term
+                wo = Mean_motion_per_second*(2*pi)                      # rad/s
+
+                ############
+                # TLE DATA #
+                ############
+                # Create multiple random orbit parameters
+                # s list
+                satellite_number_list = '1 25544U'
+                international_list = ' 98067A   '
+                epoch_list = str("{:.8f}".format(epoch))
+                mean_motion_derivative_first_list = '  .00001764'
+                mean_motion_derivative_second_list = '  00000-0'
+                Drag_term_list = '  19400-4' # B-star
+                Ephereris_list = ' 0'
+                element_num_checksum_list = '  7030'
+                s_list = satellite_number_list + international_list + epoch_list + mean_motion_derivative_first_list + mean_motion_derivative_second_list + Drag_term_list + Ephereris_list + element_num_checksum_list
+                # t list
+                line_and_satellite_number_list = '2 27843  '
+                inclination_list = str("{:.4f}".format(inclination))
+                intermediate_list = ' '
+                RAAN_list = str("{:.4f}".format(RAAN*180/pi))
+                intermediate_list_2 = ' '
+                eccentricity_list = '0000920  '
+                perigree_list = str("{:.4f}".format(Argument_of_perigee))
+                intermediate_list_3 = intermediate_list_2 + ' '
+                mean_anomaly_list = str("{:.4f}".format(Mean_anomaly))
+                intermediate_list_4 = intermediate_list_2
+                mean_motion_list = str("{:8f}".format(Mean_motion)) + '00'
+                Epoch_rev_list = '000009'
+                t_list = line_and_satellite_number_list + inclination_list + intermediate_list + RAAN_list + intermediate_list_2 + eccentricity_list + perigree_list + intermediate_list_3 + mean_anomaly_list + intermediate_list_4 + mean_motion_list + Epoch_rev_list
+                
+                SET_PARAMS.t_list = t_list
+                SET_PARAMS.s_list = s_list
+                numProcess = 0
+                threads = []
+                for extraction in featureExtractionMethods:
+                    for prediction in predictionMethods:
+                        for isolation in isolationMethods:
+                            for recovery in recoveryMethods:
+
+                                if SET_PARAMS.SensorFDIR:
+                                    SET_PARAMS.FeatureExtraction = extraction
+                                    SET_PARAMS.SensorPredictor = prediction
+                                    SET_PARAMS.SensorIsolator = isolation
+                                    SET_PARAMS.SensorRecoveror = recovery
+                                else:
+                                    SET_PARAMS.FeatureExtraction = extraction
+                                    SET_PARAMS.SensorPredictor = "None"
+                                    SET_PARAMS.SensorIsolator = "None"
+                                    SET_PARAMS.SensorRecoveror = "None"
+
+                                
+                                #! 2nd change to only run on faults and not "NONE"
+                                for i in range(2, SET_PARAMS.Number_of_multiple_orbits+1):
+                                    numProcess += 1
+                                    D = Single_Satellite(i, s_list, t_list, J_t, fr)
+
+                                    t = multiprocessing.Process(target=loop, args=(i, D, SET_PARAMS))
+                                    threads.append(t)
+                                    t.start()
+                                    print("Beginning of", extraction, prediction, isolation, recovery, i)
 
 
-        for process in threads:     
-            process.join()
+                for process in threads:     
+                    process.join()
 
-        threads.clear()
+                threads.clear()
 
 if __name__ == "__main__": 
     # import cProfile, pstats

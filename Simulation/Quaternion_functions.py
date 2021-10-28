@@ -32,7 +32,7 @@ def vectorsToQuaternion(vectorRef, vectorCurrent):
     q = np.array(([qx, qy, qz, qw]))
     q = q/np.linalg.norm(q)
     return q
-    
+
 
 def quaternion_error(current_quaternion, command_quaternion):
     ####################################################################################################

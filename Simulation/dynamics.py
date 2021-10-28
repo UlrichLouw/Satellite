@@ -482,8 +482,7 @@ class Dynamics:
                 FailedSensor = "Magnetometer"
 
         elif SET_PARAMS.SensorPredictor == "RandomForest":
-            Sensors_X = np.array([np.concatenate([Sensors_X, self.MovingAverage])])
-            predictedFailure = self.RandomForestDMDMulti.Predict(Sensors_X)
+            arrayFault = self.RandomForestDMDMulti.Predict(np.array([np.concatenate([Sensors_X, self.MovingAverage.flatten()])]))
             arrayFault = arrayFault.replace("]", "").replace("[", "").replace(" ", "")
             arrayFault = arrayFault.split(",")
             indexFault = arrayFault.index("1")
@@ -753,7 +752,8 @@ class Single_Satellite(Dynamics):
             "Euler Angles Actual": np.zeros(3),
             "Euler Angles Estimated": np.zeros(3),
             "Euler Angles Reference": np.zeros(3),
-            
+            "Pointing Accuracy": [],
+            "Estimation Accuracy": []
         }
 
         #! Fourht change, ignore Quaternion error
@@ -796,9 +796,29 @@ class Single_Satellite(Dynamics):
         self.Orbit_Data["Gyroscopic Torques"] = self.Ngyro
         self.Orbit_Data["Magnetic Control Torques"] = self.Nm
         #! self.Orbit_Data["Quaternion magnetitude error"] = np.sum(np.abs(self.control.q_error))
-        self.Orbit_Data["Euler Angles Actual"] = np.array(getEulerAngles(self.q))
-        self.Orbit_Data["Euler Angles Estimated"] = np.array(getEulerAngles(self.q_est))
-        self.Orbit_Data["Euler Angles Reference"] = np.array(getEulerAngles(self.q_ref))
+
+        # Get the measurement difference between the actual quaternions, the reference and the estimated
+        A_ORC_to_SBC_ref = Transformation_matrix(self.q_ref)
+
+        VectorRef = A_ORC_to_SBC_ref @ self.star_tracker_vector
+
+        VectorActual = self.star_tracker_sbc
+
+        VectorEstimated = self.sensor_vectors["Star_tracker"]["Model SBC"]
+
+        referenceDifferenceAngle = Quaternion_functions.rad2deg(np.arccos(np.dot(VectorActual, VectorRef)))
+
+        estimatedDifferenceAngle = Quaternion_functions.rad2deg(np.arccos(np.dot(VectorActual, VectorEstimated)))
+
+        eulerAngleActual = np.array(getEulerAngles(self.q))
+        eulerAngleReference = np.array(getEulerAngles(self.q_ref))
+        eulerAngleEstimated = np.array(getEulerAngles(self.q_est))
+
+        self.Orbit_Data["Pointing Accuracy"] = referenceDifferenceAngle
+        self.Orbit_Data["Estimation Accuracy"] = estimatedDifferenceAngle
+        self.Orbit_Data["Euler Angles Actual"] = eulerAngleActual
+        self.Orbit_Data["Euler Angles Estimated"] = eulerAngleEstimated
+        self.Orbit_Data["Euler Angles Reference"] = eulerAngleReference
         self.Orbit_Data["Quaternions Actual"] = self.q[:3]
         self.Orbit_Data["Quaternions Estimated"] = self.q_est[:3]
         self.Orbit_Data["Quaternions Reference"] = self.q_ref[:3]
