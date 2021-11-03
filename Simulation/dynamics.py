@@ -357,19 +357,22 @@ class Dynamics:
     ############################################################################################## 
     def SensorFailureHandling(self):
         Sensors_X, Sensors_Y, MovingAverageDict = self.SensorFeatureExtraction()
-        
-        self.DefineIfFault()
 
         if SET_PARAMS.SensorFDIR:
+            self.DefineIfFault()
+            
             self.predictedFailure = self.SensorPredicting(Sensors_X)
 
             # If a failure is predicted the cause of the failure must be determined
             if self.predictedFailure:
                 sensorFailed = self.SensorIsolation(MovingAverageDict, Sensors_X)
-
+                self.predictedFailedSensor = sensorFailed
                 # After the specific sensor that has failed is identified 
                 # The system must recover
                 self.SensorRecovery(sensorFailed)
+            else:
+                self.predictedFailedSensor = "None"
+                self.sensors_kalman = ["Magnetometer", "Earth_Sensor", "Sun_Sensor", "Star_tracker"]
 
     def SensorFeatureExtraction(self):
         Sensors_X = np.concatenate([self.Orbit_Data["Sun"], 
@@ -501,8 +504,6 @@ class Dynamics:
 
         elif SET_PARAMS.SensorIsolator == "PERFECT":
             FailedSensor = self.implementedFailedSensor
-            
-        self.predictedFailedSensor = FailedSensor
 
         return FailedSensor
 
@@ -752,11 +753,11 @@ class Single_Satellite(Dynamics):
             "Euler Angles Actual": np.zeros(3),
             "Euler Angles Estimated": np.zeros(3),
             "Euler Angles Reference": np.zeros(3),
-            "Pointing Accuracy": [],
-            "Estimation Accuracy": []
+            "Pointing Metric": [],
+            "Estimation Metric": []
         }
 
-        #! Fourht change, ignore Quaternion error
+        #! Fourth change, ignore Quaternion error
         # ,
         #             "Quaternion magnetitude error": []
 
@@ -806,16 +807,17 @@ class Single_Satellite(Dynamics):
 
         VectorEstimated = self.sensor_vectors["Star_tracker"]["Model SBC"]
 
-        referenceDifferenceAngle = Quaternion_functions.rad2deg(np.arccos(np.dot(VectorActual, VectorRef)))
+        referenceDifferenceAngle = Quaternion_functions.rad2deg(np.arccos(np.clip(np.dot(VectorActual, VectorRef),-1,1)))
 
-        estimatedDifferenceAngle = Quaternion_functions.rad2deg(np.arccos(np.dot(VectorActual, VectorEstimated)))
+        estimatedDifferenceAngle = Quaternion_functions.rad2deg(np.arccos(np.clip(np.dot(VectorActual, VectorEstimated),-1,1)))
+
 
         eulerAngleActual = np.array(getEulerAngles(self.q))
         eulerAngleReference = np.array(getEulerAngles(self.q_ref))
         eulerAngleEstimated = np.array(getEulerAngles(self.q_est))
 
-        self.Orbit_Data["Pointing Accuracy"] = referenceDifferenceAngle
-        self.Orbit_Data["Estimation Accuracy"] = estimatedDifferenceAngle
+        self.Orbit_Data["Pointing Metric"] = referenceDifferenceAngle
+        self.Orbit_Data["Estimation Metric"] = estimatedDifferenceAngle
         self.Orbit_Data["Euler Angles Actual"] = eulerAngleActual
         self.Orbit_Data["Euler Angles Estimated"] = eulerAngleEstimated
         self.Orbit_Data["Euler Angles Reference"] = eulerAngleReference
@@ -828,13 +830,6 @@ class Single_Satellite(Dynamics):
 
         self.Orbit_Data["Predicted fault"] = self.predictedFailure
 
-        # if self.sun_in_view == False and (self.fault == "Catastrophic_sun" or self.fault == "Erroneous"):
-        #     self.Orbit_Data["Current fault"] = "None"
-        #     temp = list(self.zeros)
-        #     temp[Fault_names_to_num["None"] - 1] = 1
-        #     self.Orbit_Data["Current fault numeric"] = temp
-        #     self.Orbit_Data["Current fault binary"] = 0
-        # else:
         if not self.reflection and self.fault == "Reflection":
             fault = "None"
         elif not self.SunFault and self.fault in SET_PARAMS.SunFailures:

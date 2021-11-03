@@ -18,6 +18,7 @@ class Control:
         self.angular_momentum_ref = np.zeros(3)
         self.delay = 0
         self.t = SET_PARAMS.time
+        self.nadir_pointing = False
 
     def control(self, w_bi_est, w_est, q, Inertia, B, angular_momentum, earthVector, sunVector, sun_in_view):             
         if SET_PARAMS.Mode == "Nominal":   # Normal operation

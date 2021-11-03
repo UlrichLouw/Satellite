@@ -21,8 +21,11 @@ def save_as_excel(Data, sheetnames):
 
 def save_as_csv(Data, path, orbit = None, filename = SET_PARAMS.filename, index = False):
     if isinstance(Data, pd.DataFrame):
-        Data.reset_index(drop = True, inplace = True)
-        Data.to_csv(path + filename + ".csv", index_label = "TimeStep", float_format="%.6f")
+        if not index:
+            Data.reset_index(drop = True, inplace = True)
+            Data.to_csv(path + filename + ".csv", index_label = "TimeStep", float_format="%.6f")
+        else:
+            Data.to_csv(path + filename + ".csv", float_format="%.6f")
     else:
         # Convert array's to individual values in the dictionary
 
@@ -44,7 +47,7 @@ def save_as_pickle(Data, orbit):
 ##########################################
 def visualize_data(D, fault, path):
     doNotVisualize = ["Sun in view", "Current fault", "Current fault numeric"]
-    singleVisualize = ["Pointing Accuracy", "Estimation Accuracy", "Mean", "Covariance", "Predicted fault", "Current fault binary", "Isolation Accuracy", "Prediction Accuracy", "Quaternion magnetitude error"]
+    singleVisualize = ["Pointing Metric", "Estimation Metric", "Mean", "Covariance", "Predicted fault", "Current fault binary", "Isolation Accuracy", "Prediction Accuracy", "Quaternion magnetitude error"]
 
     for data in D:
         if data in doNotVisualize:

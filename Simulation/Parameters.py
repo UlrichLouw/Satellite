@@ -366,8 +366,8 @@ class SET_PARAMS:
     Fine_sun_sensor_angle = Fine_sun_sensor_FOV/2 # The angle use to check whether the dot product angle is within the field of view
     Fine_sun_noise = 1e-3                   #standard deviation away from where the actual sun is
     # Define sun sensor dimensions
-    Sun_sensor_length = 0.15
-    Sun_sensor_width = 0.075
+    Sun_sensor_length = 0.03
+    Sun_sensor_width = 0.02
     SSF_LeftCorner = np.array((Fine_sun_sensor_position[0], Fine_sun_sensor_position[1] - Sun_sensor_width/2, Fine_sun_sensor_position[2] - Sun_sensor_length/2))
     SSF_RightCorner = np.array((Fine_sun_sensor_position[0], Fine_sun_sensor_position[1] + Sun_sensor_width/2, Fine_sun_sensor_position[2] - Sun_sensor_length/2))
     
@@ -424,6 +424,9 @@ class SET_PARAMS:
     Constellation = False
     Number_of_satellites = 1
     k_nearest_satellites = 5
+
+
+    NumberOfRandom = 1
 
     #################################################################################################################
 

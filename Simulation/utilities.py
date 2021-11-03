@@ -10,12 +10,13 @@ def Reflection(V, N):
 # THIS FUNCTION IS SPECIFIC FOR THE SUN REFLECTION AND DETERMINING THE INTERSECTION BETWEEN THE VECTOR AND A PLANE #
 ####################################################################################################################
 def Intersection(Plane, vector, pointFrom):
-    d = np.sum(np.array(Plane[:3]) * np.array(vector))
+    vector = np.array(vector)
+    d = np.sum(np.array(Plane[:3]) * vector)
     t0 = np.sum(np.array(Plane[:3]) * np.array(pointFrom))
 
     t = (Plane[3] - d)/t0
 
-    vectorMoved = np.array(vector) * t
+    vectorMoved = vector * t
 
     position = pointFrom + vectorMoved
 
