@@ -16,6 +16,23 @@ class Disturbances:
         self.position_vector_of_wheely = np.array(([0,SET_PARAMS.Ly/2,0]))
         self.position_vector_of_wheelz = np.array(([0,0,SET_PARAMS.Lz/2]))
 
+        self.wo = SET_PARAMS.wo
+
+        self.surfaceI = SET_PARAMS.surfaceI
+
+        # {
+        #         'z_positive': {'Area': Lx * Ly, 'CoM-CoP': np.array([0,0,1]), 'NormalVector': np.array([0,0,1])},
+        #         'z-negative': {'Area': Lx * Ly, 'CoM-CoP': np.array([0,0,-1]), 'NormalVector': np.array([0,0,-1])},
+        #         'y-positive': {'Area': Lz * Lx, 'CoM-CoP': np.array([0,1,0]), 'NormalVector': np.array([0,1,0])},
+        #         'y-negative': {'Area': Lz * Lx, 'CoM-CoP': np.array([0,-1,0]), 'NormalVector': np.array([0,-1,0])},
+        #         'x-positive': {'Area': Lz * Ly, 'CoM-CoP': np.array([1,0,0]), 'NormalVector': np.array([1,0,0])},
+        #         'x-negative': {'Area': Lz * Ly, 'CoM-CoP': np.array([-1,0,0]), 'NormalVector': np.array([-1,0,0])},
+        #         'SolarPanelxpyp': {'Area': SP_Length * SP_width, 'CoM-CoP': np.array([Lx/2 + SP_Length/2, Ly/2 + SP_width/2, Lz/2]), 'NormalVector': np.array([0,0,1])},
+        #         'SolarPanelxpyn': {'Area': SP_Length * SP_width, 'CoM-CoP': np.array([Lx/2 + SP_Length/2, -(Ly/2 + SP_width/2), Lz/2]), 'NormalVector': np.array([0,0,1])},
+        #         'SolarPanelxnyp': {'Area': SP_Length * SP_width, 'CoM-CoP': np.array([-(Lx/2 + SP_Length/2), Ly/2 + SP_width/2, Lz/2]), 'NormalVector': np.array([0,0,1])},
+        #         'SolarPanelxnyn': {'Area': SP_Length * SP_width, 'CoM-CoP': np.array([-(Lx/2 + SP_Length/2), -(Ly/2 + SP_width/2), Lz/2]), 'NormalVector': np.array([0,0,1])}
+        #     }
+
         self.orbit = orbit()
         self.sense = sense
 
@@ -23,14 +40,62 @@ class Disturbances:
         zoB = A @ np.array(([0,0,1])).T
         Ngg = 3 * SET_PARAMS.wo**2 * (np.cross(zoB, SET_PARAMS.Inertia@zoB))
 
-        """
-        #? zoB = A * np.array(([[0],[0],[1]]))
-        kgx = SET_PARAMS.kgx
-        kgy = SET_PARAMS.kgy
-        kgz = SET_PARAMS.kgz
-        Ngg = np.array(([kgx*A[1,2]*A[2,2]],[kgy*A[0][2]*A[2][2]],[kgz*A[0,2]*A[1,2]]))
-        """
         return Ngg
+
+    def Aerodynamic2(self, A_ORC_to_SBC, A_EIC_to_ORC, sun_in_view):
+        
+        v_AB = A_ORC_to_SBC @ A_EIC_to_ORC @ (np.cross(np.array([0, 0, -self.wo]), self.sense.position) - self.sense.velocity)
+
+        normv_AB = np.linalg.norm(v_AB)
+
+        unit_v_AB = v_AB/normv_AB
+
+        h, h_o, H = self.sense.altitude[0,0], SET_PARAMS.Height_above_earth_surface, SET_PARAMS.Scale_height
+
+        p_o = SET_PARAMS.atmospheric_reference_density
+
+        hft = float(h) * 3.28084
+
+        #! if sun_in_view:
+        #!     p = 0.5 * (p_o * np.exp(-(h-h_o)/H))
+        #! else:
+        #!     p = p_o * np.exp(-(h-h_o)/H)
+
+        #* According to https://www.grc.nasa.gov/www/k-12/rocket/atmos.html the model for the density of the atmosphere
+        #* This is calculate with ft and then the pressure is converted back to kg/m3
+        if sun_in_view:
+            T = -205.05 + 0.00164 * hft
+            p = 0.5 * (51.97 * ((T + 459.7)/389.98)**(-11.388))/(0.00194032)
+        else:
+            T = -205.05 + 0.00164 * hft
+            p = (51.97 * ((T + 459.7)/389.98)**(-11.388))/(0.00194032)
+
+        sigma_t = 0.4 #! Changed from 0.2 to 0.4
+        sigma_n = 0.4
+
+        S = 0.05
+
+        N_aero = np.zeros(3)
+
+        for areaI in self.surfaceI:
+            Ai = self.surfaceI[areaI]["Area"]
+            ri = self.surfaceI[areaI]["CoM-CoP"]
+            ni = self.surfaceI[areaI]["NormalVector"] 
+
+            ni = ni/np.linalg.norm(ni)
+
+            cosa = np.dot(unit_v_AB, ni)
+
+            if cosa < 0:
+                heaviside = 0
+            else:
+                heaviside = 1
+
+            N_aero += p * normv_AB**2 * Ai * heaviside * cosa * (sigma_t * (np.cross(ri, unit_v_AB)) + (sigma_n * S + (2 - sigma_n - sigma_t)*cosa)*(np.cross(ri, ni)))
+            
+        return N_aero
+        
+
 
     def Aerodynamic(self, DCM, EIC_to_ORC, sun_in_view):
         r_sat = np.array(([self.sense.r_sat]))

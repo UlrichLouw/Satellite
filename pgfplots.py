@@ -4,13 +4,13 @@ from pathlib import Path
 from Simulation.Save_display import visualize_data, save_as_csv, save_as_pickle
 
 
-def GetData(path, index, all = False):
+def GetData(path, index, n, all = False):
     Dataframe = pd.read_csv(path)
 
     if all:
         Datapgf = Dataframe
     else:
-        Datapgf= Dataframe[int((SET_PARAMS.Number_of_orbits-1)*SET_PARAMS.Period/(SET_PARAMS.faster_than_control*SET_PARAMS.Ts)):]
+        Datapgf = Dataframe[int((SET_PARAMS.Number_of_orbits-n)*SET_PARAMS.Period/(SET_PARAMS.faster_than_control*SET_PARAMS.Ts)):]
 
     DatapgfSensors = Datapgf.loc[:,Datapgf.columns.str.contains('Sun') | Datapgf.columns.str.contains('Magnetometer') |
                             Datapgf.columns.str.contains('Earth') | Datapgf.columns.str.contains('Angular momentum of wheels') |
@@ -35,6 +35,8 @@ def GetData(path, index, all = False):
 
     if all:
         path = path + "/All_"
+    elif n > 1:
+        path = path + "/" + str(n)
 
     if SET_PARAMS.save_as == ".csv":
         path_to_folder = Path(path + "Sensors/")
@@ -77,9 +79,11 @@ if __name__ == "__main__":
     isolationMethods = ["DecisionTrees", "PERFECT"] #! "RandomForest", 
     recoveryMethods = ["EKF"]
     SET_PARAMS.Mode = "EARTH_SUN"
-    SET_PARAMS.Number_of_orbits = 20
+    SET_PARAMS.Number_of_orbits = 30
     SET_PARAMS.save_as = ".csv"
     index = 1
+    Number = 2
+    ALL = False
 
     includeNone = True
 
@@ -95,13 +99,13 @@ if __name__ == "__main__":
                         GenericPath = "Predictor-" + SET_PARAMS.SensorPredictor+ "/Isolator-" + SET_PARAMS.SensorIsolator + "/Recovery-" + SET_PARAMS.SensorRecoveror +"/"+SET_PARAMS.Mode+"/"+ "General CubeSat Model/"
                         path = "Data files/"+ GenericPath + SET_PARAMS.Fault_names_values[index] + ".csv"
                         path = Path(path)
-                        GetData(path, index, all = True)
+                        GetData(path, index, n = Number, all = ALL) 
 
-    SET_PARAMS.FeatureExtraction = extraction
+    SET_PARAMS.FeatureExtraction = "EKF"
     SET_PARAMS.SensorPredictor = "None"
     SET_PARAMS.SensorIsolator = "None"
     SET_PARAMS.SensorRecoveror = "None"
     GenericPath = "Predictor-" + SET_PARAMS.SensorPredictor+ "/Isolator-" + SET_PARAMS.SensorIsolator + "/Recovery-" + SET_PARAMS.SensorRecoveror +"/"+SET_PARAMS.Mode+"/"+ "General CubeSat Model/"
     path = "Data files/"+ GenericPath + SET_PARAMS.Fault_names_values[index] + ".csv"
     path = Path(path)
-    GetData(path, index, all = True)
+    GetData(path, index, n = Number, all = ALL)

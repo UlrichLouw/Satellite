@@ -91,7 +91,7 @@ class EKF():
         # Updated self.q and self.w_bi with the measurement update
         self.q, self.w_bi, self.w_bo = q_updated, w_bi_updated, w_bo
 
-        return self.A_ORC_to_SBC_est, x_k_updated, w_bo, self.P_k
+        return self.A_ORC_to_SBC_est, x_k_updated, w_bo, self.P_k, self.angular_momentum
 
     def Model_update(self, q, w_bi, w_bo, angular_momentum, Nw, Nm):
         ########################################################################
@@ -151,7 +151,7 @@ class EKF():
         #                THE NOISE OF THE ANGULAR VELOCITY (SELF.Q_WT)                 #
         ################################################################################
         #! if self.t == SET_PARAMS.time:
-        #!    self.Q_k = system_noise_covariance_matrix_discrete(T11, T12, T21, T22, self.Q_wt, SET_PARAMS.RW_sigma)
+        #!   self.Q_k = system_noise_covariance_matrix_discrete(T11, T12, T21, T22, self.Q_wt, SET_PARAMS.RW_sigma)
 
         ##########################################################
         # CALCULATE THE MEASUREMENT PERTURBATION MATRIX FROM THE #
@@ -223,7 +223,7 @@ def system_noise_covariance_matrix_discrete(T11, T12, T21, T22, Q_wt, RW_sigma):
     # B = np.concatenate((BL, BR), axis = 1)
 
     # Q_k = np.concatenate((T, B))
-    S1 = np.diag([RW_sigma**2, RW_sigma**2, RW_sigma**2, 0, 0, 0, 0], dtype = "float64")
+    S1 = np.diag([RW_sigma**2, RW_sigma**2, RW_sigma**2, 0, 0, 0, 0])
 
     TL = Q_wt @ T11.T + T11 @ Q_wt 
     TR = Q_wt @ T21.T
@@ -335,7 +335,7 @@ def e_k_function(vmeas_k, A, vmodel_k):
 
 #@njit
 def sigma_k_function(F_t):
-    sigma_k = np.eye(7) + Ts*F_t + (0.5 * Ts**2 * np.linalg.matrix_power(F_t, 2)) # + (1/3 * Ts**3 * np.linalg.matrix_power(F_t,3))
+    sigma_k = np.eye(7) + Ts*F_t + (0.5 * Ts**2 * np.linalg.matrix_power(F_t, 2)) + (1/3 * Ts**3 * np.linalg.matrix_power(F_t,3))
     return sigma_k
 
 #@njit

@@ -29,7 +29,7 @@ def GetData(path, nameList):
     return Dataframe
 
 def SaveSummary(path, method):
-    nameList = ["Pointing Accuracy", "Estimation Accuracy"]
+    nameList = ["Pointing Metric", "Estimation Metric"]
     DataFrames = GetData(path, nameList)
 
     meanList, stdList = [], []
@@ -42,8 +42,8 @@ def SaveSummary(path, method):
         for DataFrame in DataFrames:
             DF = DataFrame[int((orbit-1)*SET_PARAMS.Period/(SET_PARAMS.faster_than_control*SET_PARAMS.Ts)):int((orbit)*SET_PARAMS.Period/(SET_PARAMS.faster_than_control*SET_PARAMS.Ts))]
             
-            PA = DF["Pointing Accuracy"]
-            EA = DF["Estimation Accuracy"]
+            PA = DF["Pointing Metric"]
+            EA = DF["Estimation Metric"]
             meanList.append(PA.mean())
             stdList.append(PA.std())
 
@@ -59,7 +59,7 @@ if __name__ == "__main__":
     isolationMethods = ["DecisionTrees", "PERFECT"] #! "RandomForest", 
     recoveryMethods = ["EKF"]
     SET_PARAMS.Mode = "EARTH_SUN"
-    SET_PARAMS.Number_of_orbits = 20
+    SET_PARAMS.Number_of_orbits = 30
     index = 2
 
     dfList = []
@@ -68,26 +68,27 @@ if __name__ == "__main__":
         for prediction in predictionMethods:
             for isolation in isolationMethods:
                 for recovery in recoveryMethods:
-                    SET_PARAMS.FeatureExtraction = extraction
-                    SET_PARAMS.SensorPredictor = prediction
-                    SET_PARAMS.SensorIsolator = isolation
-                    SET_PARAMS.SensorRecoveror = recovery
-                    GenericPath = "Predictor-" + SET_PARAMS.SensorPredictor+ "/Isolator-" + SET_PARAMS.SensorIsolator + "/Recovery-" + SET_PARAMS.SensorRecoveror +"/"+SET_PARAMS.Mode+"/"+"SunSensorSize-Length:0.03-Width:0.02/"
-                    path = "Data files/"+ GenericPath
-                    method = extraction + prediction + isolation + recovery
-                    print("Begin: " + method)
-                    path = Path(path)
-                    dataFrame = SaveSummary(path, method)
-                    dfList.append(dataFrame.copy())
-                    print(method)
+                    if prediction == isolation:
+                        SET_PARAMS.FeatureExtraction = extraction
+                        SET_PARAMS.SensorPredictor = prediction
+                        SET_PARAMS.SensorIsolator = isolation
+                        SET_PARAMS.SensorRecoveror = recovery
+                        GenericPath = "Predictor-" + SET_PARAMS.SensorPredictor+ "/Isolator-" + SET_PARAMS.SensorIsolator + "/Recovery-" + SET_PARAMS.SensorRecoveror +"/"+SET_PARAMS.Mode+"/"+"SunSensorSize-Length:0.03-Width:0.02/"
+                        path = "Data files/"+ GenericPath + SET_PARAMS.Fault_names_values[index] 
+                        method = extraction + prediction + isolation + recovery
+                        print("Begin: " + method)
+                        path = Path(path)
+                        dataFrame = SaveSummary(path, method)
+                        dfList.append(dataFrame.copy())
+                        print(method)
 
     SET_PARAMS.FeatureExtraction = "None"
     SET_PARAMS.SensorPredictor = "None"
     SET_PARAMS.SensorIsolator = "None"
     SET_PARAMS.SensorRecoveror = "None"
     GenericPath = "Predictor-" + SET_PARAMS.SensorPredictor+ "/Isolator-" + SET_PARAMS.SensorIsolator + "/Recovery-" + SET_PARAMS.SensorRecoveror +"/"+SET_PARAMS.Mode+"/"+"SunSensorSize-Length:0.03-Width:0.02/"
-    path = "Data files/"+ GenericPath
-    method = extraction + prediction + isolation + recovery
+    path = "Data files/"+ GenericPath + SET_PARAMS.Fault_names_values[index]
+    method = "DMD" + "None" + "None" + "None"
     print("Begin: " + method)
     path = Path(path)
     dataFrame = SaveSummary(path, method)

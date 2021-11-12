@@ -51,6 +51,8 @@ class Sensors:
 
     def Earth(self, t):
         e, r_sat, v_sat = self.satellite.sgp4(SET_PARAMS.J_t, SET_PARAMS.fr + t/86400)
+        self.position = np.array(r_sat)
+        self.velocity = np.array(v_sat)
         self.r_sat_EIC = np.array((r_sat)) # convert r_sat to m
         self.v_sat_EIC = np.array((v_sat)) # v_sat to m/s
     

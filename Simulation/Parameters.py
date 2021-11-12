@@ -139,6 +139,7 @@ class SET_PARAMS:
     kgy = 3 * wo**2 * (Ix - Iz)
     kgz = 3 * wo**2 * (Iy - Ix)
 
+
     ##############################
     # SATELLITE INITIAL POSITION #
     ##############################
@@ -239,7 +240,7 @@ class SET_PARAMS:
     ##################################
     # STORAGE OF DATA FOR PREDICTION #
     ##################################
-        
+    stateBufferLength = 20
     data_mode = "_buffer"
     buffer_mode = True
     buffer_size = 20
@@ -366,8 +367,8 @@ class SET_PARAMS:
     Fine_sun_sensor_angle = Fine_sun_sensor_FOV/2 # The angle use to check whether the dot product angle is within the field of view
     Fine_sun_noise = 1e-3                   #standard deviation away from where the actual sun is
     # Define sun sensor dimensions
-    Sun_sensor_length = 0.03
-    Sun_sensor_width = 0.02
+    Sun_sensor_length = 0.028
+    Sun_sensor_width = 0.023
     SSF_LeftCorner = np.array((Fine_sun_sensor_position[0], Fine_sun_sensor_position[1] - Sun_sensor_width/2, Fine_sun_sensor_position[2] - Sun_sensor_length/2))
     SSF_RightCorner = np.array((Fine_sun_sensor_position[0], Fine_sun_sensor_position[1] + Sun_sensor_width/2, Fine_sun_sensor_position[2] - Sun_sensor_length/2))
     
@@ -427,6 +428,25 @@ class SET_PARAMS:
 
 
     NumberOfRandom = 1
+
+
+    #######
+    surfaceI = {
+        'z_positive': {'Area': Lx * Ly, 'CoM-CoP': np.array([0,0,Lz/2]), 'NormalVector': np.array([0,0,1])},
+        'z-negative': {'Area': Lx * Ly, 'CoM-CoP': np.array([0,0,-Lz/2]), 'NormalVector': np.array([0,0,-1])},
+        'y-positive': {'Area': Lz * Lx, 'CoM-CoP': np.array([0,Ly/2,0]), 'NormalVector': np.array([0,1,0])},
+        'y-negative': {'Area': Lz * Lx, 'CoM-CoP': np.array([0,-Ly/2,0]), 'NormalVector': np.array([0,-1,0])},
+        'x-positive': {'Area': Lz * Ly, 'CoM-CoP': np.array([Lx/2,0,0]), 'NormalVector': np.array([1,0,0])},
+        'x-negative': {'Area': Lz * Ly, 'CoM-CoP': np.array([-Lx/2,0,0]), 'NormalVector': np.array([-1,0,0])},
+        'SolarPanelxpyp': {'Area': SP_Length * SP_width, 'CoM-CoP': np.array([Lx/2 + SP_Length/2, Ly/2 + SP_width/2, Lz/2]), 'NormalVector': np.array([0,0,1])},
+        'SolarPanelxpyn': {'Area': SP_Length * SP_width, 'CoM-CoP': np.array([Lx/2 + SP_Length/2, -(Ly/2 + SP_width/2), Lz/2]), 'NormalVector': np.array([0,0,1])},
+        'SolarPanelxnyp': {'Area': SP_Length * SP_width, 'CoM-CoP': np.array([-(Lx/2 + SP_Length/2), Ly/2 + SP_width/2, Lz/2]), 'NormalVector': np.array([0,0,1])},
+        'SolarPanelxnyn': {'Area': SP_Length * SP_width, 'CoM-CoP': np.array([-(Lx/2 + SP_Length/2), -(Ly/2 + SP_width/2), Lz/2]), 'NormalVector': np.array([0,0,1])},
+        'SolarPanelxpyp2': {'Area': SP_Length * SP_width, 'CoM-CoP': np.array([Lx/2 + SP_Length/2, Ly/2 + SP_width/2, Lz/2]), 'NormalVector': np.array([0,0,-1])},
+        'SolarPanelxpyn2': {'Area': SP_Length * SP_width, 'CoM-CoP': np.array([Lx/2 + SP_Length/2, -(Ly/2 + SP_width/2), Lz/2]), 'NormalVector': np.array([0,0,-1])},
+        'SolarPanelxnyp2': {'Area': SP_Length * SP_width, 'CoM-CoP': np.array([-(Lx/2 + SP_Length/2), Ly/2 + SP_width/2, Lz/2]), 'NormalVector': np.array([0,0,-1])},
+        'SolarPanelxnyn2': {'Area': SP_Length * SP_width, 'CoM-CoP': np.array([-(Lx/2 + SP_Length/2), -(Ly/2 + SP_width/2), Lz/2]), 'NormalVector': np.array([0,0,-1])}
+    }
 
     #################################################################################################################
 

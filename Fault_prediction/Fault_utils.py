@@ -18,7 +18,8 @@ def Binary_split(classified_data):
     return classified_data
 
 def Dataset_order(index, binary_set, buffer, categorical_num, controlInputx = True, ControlInput = False, onlySensors = False, use_previously_saved_models = False, columns_compare = None, columns_compare_to = None):
-    
+    ColumnNames = []
+    ClassNames = []
     shapeSize = 1
 
     if isinstance(index, int):
@@ -86,15 +87,21 @@ def Dataset_order(index, binary_set, buffer, categorical_num, controlInputx = Tr
     else:
         Orbit.drop(columns = ['Sun in view'], inplace = True)
         if onlySensors:
-            X = Orbit.loc[:,Orbit.columns.str.contains('Sun') | Orbit.columns.str.contains('Magnetometer') |
+            Xdf = Orbit.loc[:,Orbit.columns.str.contains('Sun') | Orbit.columns.str.contains('Magnetometer') |
                             Orbit.columns.str.contains('Earth') | 
-                            Orbit.columns.str.contains('Star')].to_numpy() # Ignore the angular sensor
+                            Orbit.columns.str.contains('Star')]
+            X = Xdf.to_numpy() # Ignore the angular sensor
+            ColumnNames = Xdf.columns
         else:
-            X = Orbit.loc[:,Orbit.columns.str.contains('Sun') | Orbit.columns.str.contains('Magnetometer') |
+            Xdf = Orbit.loc[:,Orbit.columns.str.contains('Sun') | Orbit.columns.str.contains('Magnetometer') |
                             Orbit.columns.str.contains('Earth') | 
                             Orbit.columns.str.contains('Star') | 
-                            Orbit.columns.str.contains('Moving Average') ].to_numpy()  # Ignore the angular sensor
-        Y = Orbit.loc[:,Orbit.columns.str.contains('fault')].to_numpy()
+                            Orbit.columns.str.contains('Moving Average') ]
+            X = Xdf.to_numpy() # Ignore the angular sensor
+            ColumnNames = Xdf.columns
+        Ydf = Orbit.loc[:,Orbit.columns.str.contains('fault')]
+        Y = Ydf.to_numpy()
+        ClassNames = Ydf.columns
 
     if ControlInput:
         Y = Data.loc[:,Data.columns.str.contains('Control Torques')].to_numpy()
@@ -131,4 +138,4 @@ def Dataset_order(index, binary_set, buffer, categorical_num, controlInputx = Tr
         Y = np.asarray(Y).reshape(X.shape[0],shapeSize)
         Y_buffer.append(Y)
 
-    return Y, Y_buffer, X, X_buffer, Orbit
+    return Y, Y_buffer, X, X_buffer, Orbit, ColumnNames, ClassNames

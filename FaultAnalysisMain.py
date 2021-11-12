@@ -18,13 +18,13 @@ if __name__ == '__main__':
     SET_PARAMS.path = SET_PARAMS.path + GenericPath
     SET_PARAMS.numberOfSensors = 4
     # Compute the A and B matrix to estimate X
-    # for i in range(SET_PARAMS.numberOfSensors):
-    #     DMD.MatrixAB(path = SET_PARAMS.pathHyperParameters + 'PhysicsEnabledDMDMethod')
-    #     SET_PARAMS.sensor_number += 1
-    # SET_PARAMS.sensor_number = "ALL"
-    # DMD.MatrixAB(path = SET_PARAMS.pathHyperParameters + 'PhysicsEnabledDMDMethod')
+    for i in range(SET_PARAMS.numberOfSensors):
+        DMD.MatrixAB(path = SET_PARAMS.pathHyperParameters + 'PhysicsEnabledDMDMethod')
+        SET_PARAMS.sensor_number += 1
+    SET_PARAMS.sensor_number = "ALL"
+    DMD.MatrixAB(path = SET_PARAMS.pathHyperParameters + 'PhysicsEnabledDMDMethod')
     # Binary training
-    DecisionForests.DecisionTreeAllAnomalies(path = SET_PARAMS.pathHyperParameters + 'PhysicsEnabledDMDMethod', depth = 10)
+    # DecisionForests.DecisionTreeAllAnomalies(path = SET_PARAMS.pathHyperParameters + 'PhysicsEnabledDMDMethod', depth = 10)
     # Multi class prediction
     # DecisionForests.DecisionTreeAllAnomalies(path = SET_PARAMS.pathHyperParameters + 'PhysicsEnabledDMDMethod', depth = 10, multi_class = True)
     # Random_Forest.Random_Forest(path = SET_PARAMS.pathHyperParameters + 'PhysicsEnabledDMDMethod', depth = 10, multi_class = False)

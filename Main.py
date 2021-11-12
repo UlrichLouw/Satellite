@@ -59,7 +59,12 @@ def loop(index, D, SET_PARAMS):
         if j%(int(SET_PARAMS.Number_of_orbits*SET_PARAMS.Period/(SET_PARAMS.faster_than_control*SET_PARAMS.Ts)/10)) == 0:
             print("Number of time steps for orbit loop number", index, " = ", "%.2f" % float(j/int(SET_PARAMS.Number_of_orbits*SET_PARAMS.Period/(SET_PARAMS.faster_than_control*SET_PARAMS.Ts))))
 
-        if SET_PARAMS.Fault_simulation_mode == 2 and j%(int(SET_PARAMS.Number_of_orbits*SET_PARAMS.Period/(SET_PARAMS.faster_than_control*SET_PARAMS.Ts)/SET_PARAMS.fixed_orbit_failure)) == 0:
+        if SET_PARAMS.fixed_orbit_failure == 0:
+            D.initiate_purposed_fault(SET_PARAMS.Fault_names_values[index])
+            if SET_PARAMS.Display:
+                pv.fault = D.fault
+
+        elif SET_PARAMS.Fault_simulation_mode == 2 and j%(int(SET_PARAMS.Number_of_orbits*SET_PARAMS.Period/(SET_PARAMS.faster_than_control*SET_PARAMS.Ts)/SET_PARAMS.fixed_orbit_failure)) == 0:
             D.initiate_purposed_fault(SET_PARAMS.Fault_names_values[index])
             print(SET_PARAMS.Fault_names_values[index], "is initiated")
             if SET_PARAMS.Display:
@@ -134,8 +139,6 @@ def loop(index, D, SET_PARAMS):
     elif SET_PARAMS.Display == True:
         pv.save_plot(D.fault)
 
-    print("Number of multiple orbits", index)  
-
     if SET_PARAMS.save_as == ".csv":
         save_as_csv(Data, filename = SET_PARAMS.Fault_names_values[index], index = index, path = path)
     else:
@@ -179,6 +182,8 @@ def loop(index, D, SET_PARAMS):
         else:
             save_as_pickle(DatapgfMetric, index)
 
+    print("Number of multiple orbits", index)  
+
 ################################################################
 # FOR ALL OF THE FAULTS RUN A NUMBER OF ORBITS TO COLLECT DATA #
 ################################################################
@@ -189,21 +194,22 @@ def main():
     #           BE USED TO SAVE SHEETS                      #     
     #########################################################
     SET_PARAMS.Display = False
-    SET_PARAMS.Visualize = False
+    SET_PARAMS.Visualize = True
     SET_PARAMS.save_as = ".csv"
     SET_PARAMS.Kalman_filter_use = "EKF"
     SET_PARAMS.sensor_number = "ALL"
-    SET_PARAMS.Number_of_orbits = 30
-    SET_PARAMS.fixed_orbit_failure = 10
+    SET_PARAMS.Number_of_orbits = 15
+    SET_PARAMS.fixed_orbit_failure = 0
     SET_PARAMS.Number_of_multiple_orbits = len(SET_PARAMS.Fault_names)
     SET_PARAMS.skip = 20
     SET_PARAMS.Number_of_satellites = 1
     SET_PARAMS.k_nearest_satellites = 5
     SET_PARAMS.FD_strategy = "Distributed"
-    SET_PARAMS.SensorFDIR = False
+    SET_PARAMS.SensorFDIR = True
     SET_PARAMS.Mode = "EARTH_SUN" # Nominal or EARTH_SUN
+    SET_PARAMS.stateBufferLength = 100
     #SET_PARAMS.Mode = "Nominal"
-
+    numFaultStart = 2
     SET_PARAMS.NumberOfRandom = 1
 
     includeNone = False
@@ -215,14 +221,15 @@ def main():
 
     if SET_PARAMS.SensorFDIR:
         featureExtractionMethods = ["DMD"]
-        predictionMethods = ["DecisionTrees", "PERFECT"]
-        isolationMethods = ["DecisionTrees", "PERFECT"] #! "RandomForest", 
-        recoveryMethods = ["EKF"]
+        predictionMethods = ["PERFECT"] #! "DecisionTrees", 
+        isolationMethods = ["PERFECT"] #! "RandomForest", 
+        recoveryMethods = ["EKF-reset", "EKF-ignore", "EKF-replacement"]
         SET_PARAMS.FeatureExtraction = "DMD"
         SET_PARAMS.SensorPredictor = "PERFECT"
         SET_PARAMS.SensorIsolator = "PERFECT"
         SET_PARAMS.SensorRecoveror = "EKF"
     else:
+        includeNone = False
         SET_PARAMS.FeatureExtraction = "DMD"
         SET_PARAMS.SensorPredictor = "None"
         SET_PARAMS.SensorIsolator = "None"
@@ -234,13 +241,16 @@ def main():
 
     SET_PARAMS.measurementUpdateVars = ["Mean", "Covariance"]
 
-    settling_time = 300
+    #! I'm changing the settling time
+    settling_time = 200 #! I just changed the settling time from 50 to 100 (then 100 to 150 and changed the aerodynamic disturbance model)
     damping_coefficient = 0.707
-    wn = 3/(settling_time*damping_coefficient)
+    wn = 1/(settling_time*damping_coefficient)
 
+
+    #? Try to change SET_PARAMS.Q_k to 2e-1 with the settling time of 100
     SET_PARAMS.P_k = np.eye(7)
     SET_PARAMS.R_k = np.eye(3)*1e-4
-    SET_PARAMS.Q_k = np.eye(7)*0.01
+    SET_PARAMS.Q_k = np.eye(7)*2.2e-1 #! I just changed this and the settling time (was 2.5e-1)
 
     SET_PARAMS.Kp = 2 * wn**2
     SET_PARAMS.Kd = 2 * damping_coefficient * wn
@@ -399,7 +409,7 @@ def main():
 
                                         
                                         #! 2nd change to only run on faults and not "NONE"
-                                        for i in range(2, SET_PARAMS.Number_of_multiple_orbits+1):
+                                        for i in range(numFaultStart, SET_PARAMS.Number_of_multiple_orbits+1):
                                             numProcess += 1
                                             D = Single_Satellite(i, s_list, t_list, J_t, fr)
 
@@ -417,7 +427,7 @@ def main():
 
                         
                         #! 2nd change to only run on faults and not "NONE"
-                        for i in range(2, SET_PARAMS.Number_of_multiple_orbits+1):
+                        for i in range(numFaultStart, SET_PARAMS.Number_of_multiple_orbits+1):
                             numProcess += 1
                             D = Single_Satellite(i, s_list, t_list, J_t, fr)
 
@@ -455,7 +465,7 @@ def main():
 
                                 
                                 #! 2nd change to only run on faults and not "NONE"
-                                for i in range(1, SET_PARAMS.Number_of_multiple_orbits+1):
+                                for i in range(numFaultStart, SET_PARAMS.Number_of_multiple_orbits+1):
                                     numProcess += 1
                                     D = Single_Satellite(i, s_list, t_list, J_t, fr)
 
@@ -474,7 +484,7 @@ def main():
 
             
             #! 2nd change to only run on faults and not "NONE"
-            for i in range(2, SET_PARAMS.Number_of_multiple_orbits+1):
+            for i in range(numFaultStart, SET_PARAMS.Number_of_multiple_orbits+1):
                 numProcess += 1
                 D = Single_Satellite(i, s_list, t_list, J_t, fr)
 

@@ -12,14 +12,14 @@ def MatrixAB(path, fromTimeStep = 0, ToTimeStep = -1):
     sensor_number = SET_PARAMS.sensor_number
 
     if sensor_number == "ALL":
-        Y, _, X, _, _ = Dataset_order("None", binary_set = True, buffer = False, categorical_num = False, onlySensors = True, ControlInput = True, controlInputx = False)
+        Y, _, X, _, _, _, _ = Dataset_order("None", binary_set = True, buffer = False, categorical_num = False, onlySensors = True, ControlInput = True, controlInputx = False)
 
         x1 = X[fromTimeStep:ToTimeStep-1,:].T
         x2 = X[fromTimeStep + 1:ToTimeStep,:].T
         y1 = Y[fromTimeStep:ToTimeStep-1,:].T
         
     else:
-        Y, _, X, _, _ = Dataset_order("None", binary_set = True, buffer = False, categorical_num = False, onlySensors = True, controlInputx = True)
+        Y, _, X, _, _, _, _ = Dataset_order("None", binary_set = True, buffer = False, categorical_num = False, onlySensors = True, controlInputx = True)
 
         # Select the data for the sensor of interest
         x1 = X[fromTimeStep:ToTimeStep-1,3*sensor_number:3*sensor_number + 3].T
