@@ -265,23 +265,22 @@ class Dynamics:
         y = w
 
         N_control = N_control_magnetic - N_control_wheel
+        #############################################
+        # DISTURBANCE OF A REACTION WHEEL IMBALANCE #
+        #############################################
+
+        N_rw = self.dist.Wheel_Imbalance(self.angular_momentum/self.Iw, x - x0)
+
+        ######################################################
+        # ALL THE DISTURBANCE TORQUES ADDED TO THE SATELLITE #
+        ######################################################
+
+        N_disturbance = Ngg + N_aero + N_rw - N_gyro   
+
+        
+        N = N_control + N_disturbance
 
         for _ in range(n):
-            #############################################
-            # DISTURBANCE OF A REACTION WHEEL IMBALANCE #
-            #############################################
-
-            N_rw = self.dist.Wheel_Imbalance(self.angular_momentum/self.Iw, x - x0)
-
-            ######################################################
-            # ALL THE DISTURBANCE TORQUES ADDED TO THE SATELLITE #
-            ######################################################
-
-            N_disturbance = Ngg + N_aero + N_rw - N_gyro   
-
-            
-            N = N_control + N_disturbance
-
             k1 = h*((self.Inertia_Inverse @ N)) 
             k2 = h*((self.Inertia_Inverse @ N) + 0.5*k1) 
             k3 = h*((self.Inertia_Inverse @ N) + 0.5*k2) 

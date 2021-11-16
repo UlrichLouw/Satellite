@@ -56,26 +56,26 @@ class satellite:
         ####################
         # ORBIT PARAMETERS #
         ####################
-        
-        eccentricity = 0.000092                                 # Update eccentricity list
-        inclination = 60 #self.constellation.inclination_per_sat*self.sat_num     # degrees
-        Semi_major_axis = 6879.55                               # km The distance from the satellite to the earth + the earth radius
-        Height_above_earth_surface = 500e3                      # distance above earth surface
-        Scale_height = 8500                                     # scale height of earth atmosphere
+
         RAAN = self.constellation.RAAN_per_sat*self.sat_num     # Right ascension of the ascending node in radians
-        #RAAN = 275*pi/180                                       # Right ascension of the ascending node in radians
-        AP = 0                                                  # argument of perigee
-        Re = 6371.2                                             # km magnetic reference radius
-        Mean_motion = 15.2355000000                             # rev/day
+        eccentricity = 0.000092             # Update eccentricity list
+        inclination = 97.4                  # degrees
+        Semi_major_axis = 6879.55           # km The distance from the satellite to the earth + the earth radius
+        Height_above_earth_surface = 500e3  # distance above earth surface
+        Scale_height = 8500                 # scale height of earth atmosphere
+        RAAN = 275*pi/180                   # Right ascension of the ascending node in radians
+        AP = 0                              # argument of perigee
+        Re = 6371.2                         # km magnetic reference radius
+        Mean_motion = 15.2355000000         # rev/day
         Mean_motion_per_second = Mean_motion/(3600.0*24.0)
-        Mean_anomaly = 29.3                                     # degrees
-        Argument_of_perigee = 57.4                              # in degrees
+        Mean_anomaly = 29.3                 # degrees
+        Argument_of_perigee = 57.4          # in degrees
         omega = Argument_of_perigee
-        Period = 86400/Mean_motion                              # seconds
-        self.J_t,self.fr = jday(2020,2,16,15,30,0)                        # current julian date
+        Period = 86400/Mean_motion          # seconds
+        self.J_t,self.fr = jday(2020,3,16,15,30,0)    # current julian date
         epoch = self.J_t - 2433281.5 + self.fr
-        Drag_term = 0.000194                                    # Remember to update the list term
-        wo = Mean_motion_per_second*(2*pi)                      # rad/s
+        Drag_term = 0.000194                # Remember to update the list term
+        wo = Mean_motion_per_second*(2*pi)  # rad/s
 
         ############
         # TLE DATA #
@@ -124,32 +124,26 @@ class satellite:
     ############################################
     def step(self):
         w, q, A, r, sun_in_view = self.Dynamics.rotation()
-        data_unfiltered = self.Dynamics.Orbit_Data
+        self.data_unfiltered = self.Dynamics.Orbit_Data
+        self.constellation.data[self.sat_num] = self.data_unfiltered
+        # # Convert array's to individual values in the dictionary
+        # data = {col + "_" + dimensions[i]: data_unfiltered[col][i] for col in data_unfiltered if isinstance(data_unfiltered[col], np.ndarray) for i in range(len(data_unfiltered[col]))}
 
-        # Convert array's to individual values in the dictionary
-        data = {col + "_" + dimensions[i]: data_unfiltered[col][i] for col in data_unfiltered if isinstance(data_unfiltered[col], np.ndarray) for i in range(len(data_unfiltered[col]))}
-
-        # Add all the values to the dictionary that is not numpy arrays
-        for col in data_unfiltered:
-            if not isinstance(data_unfiltered[col], np.ndarray):
-                data[col] = data_unfiltered[col]
+        # # Add all the values to the dictionary that is not numpy arrays
+        # for col in data_unfiltered:
+        #     if not isinstance(data_unfiltered[col], np.ndarray):
+        #         data[col] = data_unfiltered[col]
 
         self.constellation.positions[self.sat_num] = self.Dynamics.sense.position/np.linalg.norm(self.Dynamics.sense.position)
 
         if SET_PARAMS.Display and self.steps%SET_PARAMS.skip == 0:
             self.constellation.pv.run(w, q, A, r, sun_in_view = True, only_positions = True, sat_num = self.sat_num)
 
-        if self.constellation.FD_strategy == "Individual":
-            predictions = self.constellation.FD.Per_Timestep(data, self.FD_strategy)
-            ###############################################################################
-            # USE THE VOTE OF EACH SATELLITE TO DETERMINE THE HEALTH OF ANOTHER SATELLITE #
-            ###############################################################################
-            self.constellation.fault_vote[self.sat_num] = predictions
-        else:
+        if self.constellation.FD_strategy != "Individual":
             self.nearest_neighbours_func()
-            data["Satellite number"] = self.sat_num
-            data["Nearest Neighbours"] = self.nearest_neighbours
-            self.constellation.data[self.sat_num] = data
+            #data["Satellite number"] = self.sat_num
+            #data["Nearest Neighbours"] = self.nearest_neighbours
+            self.constellation.data[self.sat_num] = self.data_unfiltered
             self.constellation.nearest_neighbours_all[self.sat_num] = self.nearest_neighbours
 
 
@@ -161,12 +155,16 @@ class satellite:
     def nearest_neighbours_func(self):
         for sats in range(self.constellation.number_of_satellites):
             if sats != self.sat_num:
-                self.satellite_angles[sats] = abs(np.arccos(np.dot(self.constellation.positions[self.sat_num],self.constellation.positions[sats])))
+                self.satellite_angles[sats] = abs(np.arccos(np.clip(np.dot(self.constellation.positions[self.sat_num],self.constellation.positions[sats]),-1,1)))
             else:
                 self.satellite_angles[sats] = 0
 
         self.nearest_neighbours = np.argpartition(self.satellite_angles, self.constellation.k_nearest_satellites + 1)[:self.constellation.k_nearest_satellites + 1]
+        
         self.nearest_neighbours = [item for item in self.nearest_neighbours if item != self.sat_num]
+
+        if len(self.nearest_neighbours) == self.constellation.k_nearest_satellites + 1:
+            self.nearest_neighbours = self.nearest_neighbours[:self.constellation.k_nearest_satellites]
 
         
         
