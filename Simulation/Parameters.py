@@ -428,7 +428,7 @@ class SET_PARAMS:
 
 
     NumberOfRandom = 1
-
+    NumberOfFailuresReset = 10
 
     #######
     surfaceI = {

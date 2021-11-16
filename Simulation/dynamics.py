@@ -225,9 +225,9 @@ class Dynamics:
         #! Third change to implement correct control
 
         if self.predictedFailedSensor == "Sun":
-            Sun_vector = self.S_ORC
+            Sun_vector = self.S_ORC #self.sensor_vectors["Sun_Sensor"]["Model ORC"]
         else:
-            Sun_vector = self.S_ORC
+            Sun_vector = self.S_ORC #self.sensor_vectors["Sun_Sensor"]["Model ORC"]
 
         if self.predictedFailedSensor == "Magnetometer":
             Magnetometer_vector = self.sensor_vectors["Magnetometer"]["Estimated SBC"]
@@ -526,7 +526,22 @@ class Dynamics:
         sensors_kalman = ["Magnetometer", "Earth_Sensor", "Sun_Sensor", "Star_tracker"]
         # The EKF method of recovery resets the kalman filter 
         # if the predictedFailed sensor changes
-        if SET_PARAMS.SensorRecoveror == "EKF-ignore":
+        if SET_PARAMS.SensorRecoveror == "EKF-combination":
+            if failedSensor != "None":
+                if SET_PARAMS.availableSensors[failedSensor] in sensors_kalman:
+                    sensors_kalman.pop(sensors_kalman.index(SET_PARAMS.availableSensors[failedSensor]))
+                
+                if SET_PARAMS.availableSensors[failedSensor] == "Sun_Sensor":
+                    self.R_k = np.eye(3)*1e-2 # Changed from 1e-3 which was good
+
+            if failedSensor != self.prevFailedSensor:
+                self.failedNumber += 1
+                if self.failedNumber % SET_PARAMS.NumberOfFailuresReset == 0:
+                    reset = True
+            
+            self.sensors_kalman = sensors_kalman
+
+        elif SET_PARAMS.SensorRecoveror == "EKF-ignore":
             if failedSensor != "None":
                 if SET_PARAMS.availableSensors[failedSensor] in sensors_kalman:
                     sensors_kalman.pop(sensors_kalman.index(SET_PARAMS.availableSensors[failedSensor]))
@@ -540,7 +555,7 @@ class Dynamics:
                     sensors_kalman.pop(sensors_kalman.index(SET_PARAMS.availableSensors[failedSensor]))
                 
                 if SET_PARAMS.availableSensors[failedSensor] == "Sun_Sensor":
-                    self.R_k = np.eye(3)*1e-3
+                    self.R_k = np.eye(3)*1e-2 # Changed from 1e-3 which was good
 
             if failedSensor != self.prevFailedSensor:
                 reset = True
@@ -751,8 +766,8 @@ def resetEKF(EKF, stateBuffer, sensorsKalman):
     EKF.w_bi = lastState["w_bi_est"]
     EKF.w_bo = lastState["w_bo_est"]
     EKF.angular_momentum = lastState["angular_momentum_est"]
-    EKF.t = lastState["time"]
-    EKF.P_k = lastState["P_k_est"]
+    EKF.t = lastState["time"] - 1
+    # EKF.P_k = lastState["P_k_est"]
     for state in stateBuffer:
         t = state["time"]
         Nw = state["Nm"]
@@ -792,6 +807,7 @@ class Single_Satellite(Dynamics):
         self.Iy = SET_PARAMS.Iy                     # Iyy inertia
         self.Iz = SET_PARAMS.Iz                     # Izz inertia
         self.R_k = SET_PARAMS.R_k 
+        self.failedNumber = 0                       # Number of time normal behaviour change to anomalous behaviour
         self.Inertia = np.diag([self.Ix, self.Iy, self.Iz])
         self.Inertia_Inverse = np.linalg.inv(self.Inertia)
         self.Iw = SET_PARAMS.Iw                     # Inertia of a reaction wheel
@@ -844,6 +860,7 @@ class Single_Satellite(Dynamics):
             "Wheel disturbance Torques": np.zeros(3),
             "Gravity Gradient Torques": np.zeros(3),
             "Gyroscopic Torques": np.zeros(3),
+            "Aerodynamic Torques": np.zeros(3),
             "Predicted fault": [],
             "Isolation Accuracy": [],
             "Prediction Accuracy": [],
@@ -896,6 +913,7 @@ class Single_Satellite(Dynamics):
         self.Orbit_Data["Gravity Gradient Torques"] = self.Ngg
         self.Orbit_Data["Gyroscopic Torques"] = self.Ngyro
         self.Orbit_Data["Magnetic Control Torques"] = self.Nm
+        self.Orbit_Data["Aerodynamic Torques"] = self.Naero
         #! self.Orbit_Data["Quaternion magnetitude error"] = np.sum(np.abs(self.control.q_error))
 
         # Get the measurement difference between the actual quaternions, the reference and the estimated

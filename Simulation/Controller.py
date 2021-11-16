@@ -41,7 +41,7 @@ class Control:
                 self.nadir_pointing = True
                 
                 self.q_ref = SET_PARAMS.q_ref
-                if self.delay >= 200:
+                if self.delay >= 200: #! value was 200
                     N_magnet = self.Momentum_dumping(B, angular_momentum)
                 else:
                     N_magnet = np.zeros(3)

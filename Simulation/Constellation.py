@@ -4,7 +4,7 @@ import numpy as np
 import Simulation.Quaternion_functions
 from Simulation.Parameters import SET_PARAMS
 from sgp4.api import jday
-from Simulation.dynamics import Constellation_Satellites
+from Simulation.dynamics import Single_Satellite
 from Fault_prediction.Fault_detection import Encompassing_detection
 import multiprocessing
 if SET_PARAMS.Display:
@@ -46,7 +46,7 @@ class satellite:
         self.constellation = constellation
         self.sat_num = sat_num
         self.Orbit_parameters()
-        self.Dynamics = Constellation_Satellites(sat_num, self.s_list, self.t_list, self.J_t, self.fr)
+        self.Dynamics = Single_Satellite(sat_num, self.s_list, self.t_list, self.J_t, self.fr)
         self.satellite_angles = np.zeros((self.constellation.number_of_satellites,))
 
     ###############################################

@@ -70,8 +70,8 @@ class Disturbances:
             T = -205.05 + 0.00164 * hft
             p = (51.97 * ((T + 459.7)/389.98)**(-11.388))/(0.00194032)
 
-        sigma_t = 0.4 #! Changed from 0.2 to 0.4
-        sigma_n = 0.4
+        sigma_t = 0.2 #! Changed from 0.2 to 0.4
+        sigma_n = 0.2
 
         S = 0.05
 

@@ -198,19 +198,20 @@ def main():
     SET_PARAMS.save_as = ".csv"
     SET_PARAMS.Kalman_filter_use = "EKF"
     SET_PARAMS.sensor_number = "ALL"
-    SET_PARAMS.Number_of_orbits = 15
+    SET_PARAMS.Number_of_orbits = 25
     SET_PARAMS.fixed_orbit_failure = 0
-    SET_PARAMS.Number_of_multiple_orbits = len(SET_PARAMS.Fault_names)
+    SET_PARAMS.Number_of_multiple_orbits = 1 #len(SET_PARAMS.Fault_names)
     SET_PARAMS.skip = 20
-    SET_PARAMS.Number_of_satellites = 1
+    SET_PARAMS.Number_of_satellites = 10
     SET_PARAMS.k_nearest_satellites = 5
     SET_PARAMS.FD_strategy = "Distributed"
-    SET_PARAMS.SensorFDIR = True
+    SET_PARAMS.SensorFDIR = False
     SET_PARAMS.Mode = "EARTH_SUN" # Nominal or EARTH_SUN
-    SET_PARAMS.stateBufferLength = 100
+    SET_PARAMS.stateBufferLength = 1 #! The reset value was 1 and worked quite well (100 was terrible)
     #SET_PARAMS.Mode = "Nominal"
     numFaultStart = 2
     SET_PARAMS.NumberOfRandom = 1
+    SET_PARAMS.NumberOfFailuresReset = 50
 
     includeNone = False
 
@@ -223,7 +224,7 @@ def main():
         featureExtractionMethods = ["DMD"]
         predictionMethods = ["PERFECT"] #! "DecisionTrees", 
         isolationMethods = ["PERFECT"] #! "RandomForest", 
-        recoveryMethods = ["EKF-reset", "EKF-ignore", "EKF-replacement"]
+        recoveryMethods = ["EKF-combination", "EKF-reset", "EKF-ignore", "EKF-replacement"] #!  
         SET_PARAMS.FeatureExtraction = "DMD"
         SET_PARAMS.SensorPredictor = "PERFECT"
         SET_PARAMS.SensorIsolator = "PERFECT"
@@ -242,19 +243,17 @@ def main():
     SET_PARAMS.measurementUpdateVars = ["Mean", "Covariance"]
 
     #! I'm changing the settling time
-    settling_time = 200 #! I just changed the settling time from 50 to 100 (then 100 to 150 and changed the aerodynamic disturbance model)
+    settling_time = 200
     damping_coefficient = 0.707
     wn = 1/(settling_time*damping_coefficient)
 
-
-    #? Try to change SET_PARAMS.Q_k to 2e-1 with the settling time of 100
     SET_PARAMS.P_k = np.eye(7)
     SET_PARAMS.R_k = np.eye(3)*1e-4
-    SET_PARAMS.Q_k = np.eye(7)*2.2e-1 #! I just changed this and the settling time (was 2.5e-1)
+    SET_PARAMS.Q_k = np.eye(7)*2.2e-1
 
     SET_PARAMS.Kp = 2 * wn**2
     SET_PARAMS.Kd = 2 * damping_coefficient * wn
-    SET_PARAMS.Kw = SET_PARAMS.Kp*1e-3 #! I just changed this from e-6 to e-5 to e-4
+    SET_PARAMS.Kw = SET_PARAMS.Kp*1e-3 #! I just changed this from e-6 to e-5 to e-4 to e-3
 
     #####################################
     # PARAMETERS FOR SATELLITE DYNAMICS #
