@@ -11,6 +11,7 @@ import Simulation.Constellation as Constellation
 from numba import njit, jit, vectorize
 import math
 from sgp4.api import jday
+from datetime import datetime
 
 pi = math.pi
 
@@ -49,7 +50,7 @@ def loop(index, D, SET_PARAMS):
         else:
             Columns.append(col)
 
-    Data = pd.DataFrame(columns=Columns, index = [0])
+    Data = pd.DataFrame(columns=Columns, index = [*range(1, int(SET_PARAMS.Number_of_orbits*SET_PARAMS.Period/(SET_PARAMS.faster_than_control*SET_PARAMS.Ts)+1))])
     
     for j in range(1, int(SET_PARAMS.Number_of_orbits*SET_PARAMS.Period/(SET_PARAMS.faster_than_control*SET_PARAMS.Ts)+1)):
         w, q, A, r, sun_in_view = D.rotation()
@@ -84,12 +85,12 @@ def loop(index, D, SET_PARAMS):
         for col in data_unfiltered:
             if isinstance(D.Orbit_Data[col], np.ndarray) and col != "Moving Average":
                 for i in range(len(dimensions)):
-                    Data[col + "_" + dimensions[i]][0] = data_unfiltered[col][i]
+                    Data[col + "_" + dimensions[i]][j] = data_unfiltered[col][i]
             else:
-                Data[col][0] = data_unfiltered[col]
+                Data[col][j] = data_unfiltered[col]
 
         
-        Overall_data.append(Data.copy())
+        # Overall_data.append(Data.copy())
         # for col in D.KalmanControl:
         #     KalmanControl[col].append(D.KalmanControl[col])
 
@@ -98,7 +99,7 @@ def loop(index, D, SET_PARAMS):
             for var in perTimestep:
                 MeasurementUpdates[col].append(var)
 
-    Data = pd.concat(Overall_data)
+    # Data = pd.concat(Overall_data)
 
     Datapgf= Data[int((SET_PARAMS.Number_of_orbits-1)*SET_PARAMS.Period/(SET_PARAMS.faster_than_control*SET_PARAMS.Ts)):]
 
@@ -184,6 +185,84 @@ def loop(index, D, SET_PARAMS):
 
     print("Number of multiple orbits", index)  
 
+def constellationMultiProcessing(fault, SET_PARAMS):
+    Stellar = Constellation.Constellation(SET_PARAMS.Number_of_satellites, fault = fault)
+    allSatData = {}
+    Columns = []
+
+    for sat_num in range(SET_PARAMS.Number_of_satellites):
+        Stellar.initiate_satellite(sat_num)
+        allSatData[sat_num] = []
+
+    for col in Stellar.data[0]:
+        for k in range(SET_PARAMS.k_nearest_satellites + 1):
+            if isinstance(Stellar.data[0][col], np.ndarray) and col != "Moving Average":
+                for i in range(len(dimensions)):
+                    Columns.append(str(k) + "_" + col + "_" + dimensions[i])
+            else:
+                Columns.append(str(k) + "_" + col)
+
+    Data = pd.DataFrame(columns=Columns, index = [*range(int(SET_PARAMS.Number_of_orbits*SET_PARAMS.Period/(SET_PARAMS.faster_than_control*SET_PARAMS.Ts)+1))])
+
+
+    for j in range(int(SET_PARAMS.Number_of_orbits*SET_PARAMS.Period/(SET_PARAMS.faster_than_control*SET_PARAMS.Ts)+1)):
+        for sat_num in range(SET_PARAMS.Number_of_satellites):
+            Stellar.satellites[sat_num].run()
+
+        if Stellar.FD_strategy == "Centralised":
+            data = Stellar.data
+            predictions = Stellar.FD.Per_Timestep(data, Stellar.FD_strategy)
+            ###############################################################################
+            # USE THE VOTE OF EACH SATELLITE TO DETERMINE THE HEALTH OF ANOTHER SATELLITE #
+            ###############################################################################
+            Stellar.fault_vote = predictions
+
+        
+
+        elif Stellar.FD_strategy == "Distributed" or Stellar.FD_strategy == "Mixed":
+            for sat_num in range(SET_PARAMS.Number_of_satellites):
+
+                
+                dataKNearest = [Stellar.data[item] for item in Stellar.nearest_neighbours_all[sat_num]]
+                dataKNearest.insert(0, Stellar.data[sat_num])
+                
+                # Ensure that predictions is a dictionary
+                #! predictions = Stellar.FD.Per_Timestep(dataKNearest, Stellar.FD_strategy, Stellar.nearest_neighbours_all[sat_num])
+                ###############################################################################
+                # USE THE VOTE OF EACH SATELLITE TO DETERMINE THE HEALTH OF ANOTHER SATELLITE #
+                ###############################################################################
+                #! for sat in Stellar.nearest_neighbours_all[sat_num]:
+                #!    Stellar.fault_vote[sat] = predictions[sat]
+
+                k = 0
+                dataList = []
+
+                
+                for data in dataKNearest:
+                    
+                    for col in data:
+                        if isinstance(data[col], np.ndarray) and col != "Moving Average":
+                            for i in range(len(dimensions)):
+                                Data[str(k) + "_" + col + "_" + dimensions[i]][j] = data[col][i]
+                        else:
+                            Data[str(k) + "_" + col][j] = data[col]
+                            
+
+                    k += 1
+
+        if j%(int(SET_PARAMS.Number_of_orbits*SET_PARAMS.Period/(SET_PARAMS.faster_than_control*SET_PARAMS.Ts)/10)) == 0:
+            print("Number of time steps for orbit loop number", fault, " = ", "%.2f" % float(j/int(SET_PARAMS.Number_of_orbits*SET_PARAMS.Period/(SET_PARAMS.faster_than_control*SET_PARAMS.Ts))))
+
+
+    GenericPath = "Constellation/Predictor-" + SET_PARAMS.SensorPredictor+ "/Isolator-" + SET_PARAMS.SensorIsolator + "/Recovery-" + SET_PARAMS.SensorRecoveror +"/"+SET_PARAMS.Mode+"/"+ "General CubeSat Model/"
+
+
+    for sat_num in range(SET_PARAMS.Number_of_satellites):
+        path = "Data files/"+ GenericPath + "/" + str(sat_num) + "/"
+        path_to_folder = Path(path) 
+        path_to_folder.mkdir(parents = True, exist_ok=True)
+        save_as_csv(Data, filename = SET_PARAMS.Fault_names_values[fault], index = fault, path = path)
+
 ################################################################
 # FOR ALL OF THE FAULTS RUN A NUMBER OF ORBITS TO COLLECT DATA #
 ################################################################
@@ -198,18 +277,18 @@ def main():
     SET_PARAMS.save_as = ".csv"
     SET_PARAMS.Kalman_filter_use = "EKF"
     SET_PARAMS.sensor_number = "ALL"
-    SET_PARAMS.Number_of_orbits = 0.001
+    SET_PARAMS.Number_of_orbits = 2
     SET_PARAMS.fixed_orbit_failure = 0
-    SET_PARAMS.Number_of_multiple_orbits = 1 #len(SET_PARAMS.Fault_names)
+    SET_PARAMS.Number_of_multiple_orbits = len(SET_PARAMS.Fault_names)
     SET_PARAMS.skip = 20
-    SET_PARAMS.Number_of_satellites = 20
+    SET_PARAMS.Number_of_satellites = 100
     SET_PARAMS.k_nearest_satellites = 5
     SET_PARAMS.FD_strategy = "Distributed"
     SET_PARAMS.SensorFDIR = False
     SET_PARAMS.Mode = "EARTH_SUN" # Nominal or EARTH_SUN
     SET_PARAMS.stateBufferLength = 1 #! The reset value was 1 and worked quite well (100 was terrible)
     #SET_PARAMS.Mode = "Nominal"
-    numFaultStart = 2
+    numFaultStart = 1
     SET_PARAMS.NumberOfRandom = 1
     SET_PARAMS.NumberOfFailuresReset = 50
 
@@ -269,74 +348,35 @@ def main():
     #########################################################
 
     if SET_PARAMS.Number_of_satellites > 1:
-        Stellar = Constellation.Constellation(SET_PARAMS.Number_of_satellites)
-        allSatData = {}
-        Columns = []
+        numProcess = 0
+        threads = []
+        for extraction in featureExtractionMethods:
+            for prediction in predictionMethods:
+                for isolation in isolationMethods:
+                    for recovery in recoveryMethods:
 
-        for sat_num in range(SET_PARAMS.Number_of_satellites):
-            Stellar.initiate_satellite(sat_num)
-            allSatData[sat_num] = []
+                        if prediction == isolation:
 
-        for col in Stellar.data[0]:
-            if isinstance(Stellar.data[0][col], np.ndarray) and col != "Moving Average":
-                for i in range(len(dimensions)):
-                    Columns.append(col + "_" + dimensions[i])
-            else:
-                Columns.append(col)
-
-        Data = pd.DataFrame(columns=Columns, index = [0])
-
-
-        for j in range(int(SET_PARAMS.Number_of_orbits*SET_PARAMS.Period/(SET_PARAMS.faster_than_control*SET_PARAMS.Ts)+1)):
-            for sat_num in range(SET_PARAMS.Number_of_satellites):
-                Stellar.satellites[sat_num].run()
-
-            if Stellar.FD_strategy == "Centralised":
-                data = Stellar.data
-                predictions = Stellar.FD.Per_Timestep(data, Stellar.FD_strategy)
-                ###############################################################################
-                # USE THE VOTE OF EACH SATELLITE TO DETERMINE THE HEALTH OF ANOTHER SATELLITE #
-                ###############################################################################
-                Stellar.fault_vote = predictions
-
-            elif Stellar.FD_strategy == "Distributed" or Stellar.FD_strategy == "Mixed":
-                for sat_num in range(SET_PARAMS.Number_of_satellites):
-                    dataKNearest = [Stellar.data[item] for item in Stellar.nearest_neighbours_all[sat_num]]
-                    # Ensure that predictions is a dictionary
-                    predictions = Stellar.FD.Per_Timestep(dataKNearest, Stellar.FD_strategy, Stellar.nearest_neighbours_all[sat_num])
-                    ###############################################################################
-                    # USE THE VOTE OF EACH SATELLITE TO DETERMINE THE HEALTH OF ANOTHER SATELLITE #
-                    ###############################################################################
-                    for sat in Stellar.nearest_neighbours_all[sat_num]:
-                        Stellar.fault_vote[sat] = predictions[sat]
-
-                    k = 0
-                    dataList = []
-                    for data in dataKNearest:
-                        k += 1
-                        for col in data:
-                            if isinstance(data[col], np.ndarray) and col != "Moving Average":
-                                for i in range(len(dimensions)):
-                                    Data[col + "_" + dimensions[i]][0] = data[col][i]
+                            if SET_PARAMS.SensorFDIR:
+                                SET_PARAMS.FeatureExtraction = extraction
+                                SET_PARAMS.SensorPredictor = prediction
+                                SET_PARAMS.SensorIsolator = isolation
+                                SET_PARAMS.SensorRecoveror = recovery
                             else:
-                                Data[col][0] = data[col]
-                        
-                        Data_copy = Data.copy()
-                        for col in Data_copy:
-                            Data_copy.rename(columns = {col: str(k) + "_" + col}, inplace = True)
-                        dataList.append(Data_copy.copy())
-                    
-                    allSatData[sat_num].append(pd.concat(dataList, axis = 1))
+                                SET_PARAMS.FeatureExtraction = extraction
+                                SET_PARAMS.SensorPredictor = "None"
+                                SET_PARAMS.SensorIsolator = "None"
+                                SET_PARAMS.SensorRecoveror = "None"
 
-        GenericPath = "Constellation/Predictor-" + SET_PARAMS.SensorPredictor+ "/Isolator-" + SET_PARAMS.SensorIsolator + "/Recovery-" + SET_PARAMS.SensorRecoveror +"/"+SET_PARAMS.Mode+"/"+ "General CubeSat Model/"
+                            
+                            #! 2nd change to only run on faults and not "NONE"
+                            for i in range(numFaultStart, SET_PARAMS.Number_of_multiple_orbits+1):
+                                numProcess += 1
+                                print("Beginning of", extraction, prediction, isolation, recovery, i)
+                                t = multiprocessing.Process(target=constellationMultiProcessing, args=(i, SET_PARAMS))
+                                threads.append(t)
+                                t.start()
 
-
-        for sat_num in range(SET_PARAMS.Number_of_satellites):
-            path = "Data files/"+ GenericPath + "/" + str(sat_num) + "/"
-            path_to_folder = Path(path) 
-            path_to_folder.mkdir(parents = True, exist_ok=True)
-            Data = pd.concat(allSatData[sat_num])
-            save_as_csv(Data, filename = SET_PARAMS.Fault_names_values[1], index = 1, path = path)
 
     elif SET_PARAMS.Number_of_multiple_orbits == 1:
         FD = Fault_detection.Basic_detection()

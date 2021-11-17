@@ -17,7 +17,7 @@ def Binary_split(classified_data):
 
     return classified_data
 
-def Dataset_order(index, binary_set, buffer, categorical_num, controlInputx = True, ControlInput = False, onlySensors = False, use_previously_saved_models = False, columns_compare = None, columns_compare_to = None):
+def Dataset_order(index, binary_set, buffer, categorical_num, controlInputx = True, ControlInput = False, onlySensors = False, use_previously_saved_models = False, columns_compare = None, columns_compare_to = None, constellation = False, onlyCurrentSatellite = True):
     ColumnNames = []
     ClassNames = []
     shapeSize = 1
@@ -51,33 +51,67 @@ def Dataset_order(index, binary_set, buffer, categorical_num, controlInputx = Tr
                     '  ': ' '
     }
 
+
     try:
-        for replacement in ReplaceDict:
-            Data['Moving Average'] = Data['Moving Average'].str.replace(replacement,ReplaceDict[replacement], regex = True)
+        if constellation:
+            for replacement in ReplaceDict:
+                for k in range(SET_PARAMS.k_nearest_satellites + 1):
+                    Data[str(k) + '_Moving Average'] = Data[str(k) + '_Moving Average'].str.replace(replacement,ReplaceDict[replacement], regex = True)
+            
+            Data[str(k) + '_Moving Average'] = Data[str(k) + '_Moving Average'].apply(lambda x: np.fromstring(x, sep=' '))
 
-        Data['Moving Average'] = Data['Moving Average'].apply(lambda x: np.fromstring(x, sep=' '))
+            DataMA = pd.DataFrame(Data[str(k) + '_Moving Average'].tolist()).add_prefix('Moving Average')
+        else:
+            for replacement in ReplaceDict:
+                Data['Moving Average'] = Data['Moving Average'].str.replace(replacement,ReplaceDict[replacement], regex = True)
 
-        DataMA = pd.DataFrame(Data['Moving Average'].tolist()).add_prefix('Moving Average')
 
+            Data['Moving Average'] = Data['Moving Average'].apply(lambda x: np.fromstring(x, sep=' '))
+
+            
+            DataMA = pd.DataFrame(Data['Moving Average'].tolist()).add_prefix('Moving Average')
+        
         Data = pd.concat([Data, DataMA], axis = 1)
     except:
         pass
-
-
-    Data.drop(columns = ['Moving Average'], inplace = True)
-
-    if binary_set and use_previously_saved_models == False:
-        Orbit = Data.drop(columns = ["Predicted fault", 'Current fault', 'Current fault numeric'])
-    elif categorical_num:
-        Orbit = Data.drop(columns = ["Predicted fault", 'Current fault', 'Current fault binary'])
+    
+    if constellation:
+        for k in range(SET_PARAMS.k_nearest_satellites + 1):
+            Data.drop(columns = [str(k) + '_Moving Average'], inplace = True)
     else:
-        Orbit = Binary_split(Data)
+        Data.drop(columns = ['Moving Average'], inplace = True)
+
+    if constellation and onlyCurrentSatellite:
+
+        Orbit = Data.copy()
+
+        for k in range(SET_PARAMS.k_nearest_satellites + 1):
+            if k > 0:
+                Orbit = Orbit.loc[:, ~(Orbit.columns.str.contains(str(k)) & Orbit.columns.str.contains("fault"))]
+
+        k = 0
+        if binary_set and use_previously_saved_models == False:
+            Orbit.drop(columns = [str(k) + "_Current fault"], inplace = True)
+            Orbit = Orbit.loc[:, ~(Orbit.columns.str.contains(str(k) + "_Predicted fault") | Orbit.columns.str.contains(str(k) + "_Current fault numeric"))]
+        elif categorical_num:
+            Orbit = Orbit.loc[:, ~(Orbit.columns.str.contains(str(k) + "_Predicted fault") | Orbit.columns.str.contains(str(k) + "_Current fault binary"))]
+        else:
+            Orbit = Binary_split(Orbit)
+        
+    else:
+        if binary_set and use_previously_saved_models == False:
+            Orbit = Data.loc[:, ~(Data.columns.str.contains("^Predicted fault") | Data.columns.str.contains("^Current fault") | Data.columns.str.contains("^Current fault numeric"))]
+        elif categorical_num:
+            Orbit = Data.loc[:, ~(Data.columns.str.contains("^Predicted fault") | Data.columns.str.contains("^Current fault") | Data.columns.str.contains("^Current fault binary"))]
+        else:
+            Orbit = Binary_split(Data)
 
     if onlySensors and controlInputx:
         Orbit = Orbit.loc[:, ~Orbit.columns.str.contains("^Moving Average")]
     elif onlySensors:
-        Orbit = Orbit.drop(columns = ['Wheel Control Torques_x',
-                            'Wheel Control Torques_y', 'Wheel Control Torques_z'])
+        Orbit = Orbit.loc[:, ~Orbit.columns.str.contains('Wheel Control Torques_x') |
+                                ~Orbit.columns.str.contains('Wheel Control Torques_y') |
+                                ~Orbit.columns.str.contains('Wheel Control Torques_z')]
 
     if columns_compare != None:
         columns_to_keep = columns_compare + columns_compare_to
@@ -85,7 +119,7 @@ def Dataset_order(index, binary_set, buffer, categorical_num, controlInputx = Tr
         X = Orbit[columns_compare].to_numpy()
         Y = Orbit[columns_compare_to].to_numpy()
     else:
-        Orbit.drop(columns = ['Sun in view'], inplace = True)
+        Orbit.loc[:, Orbit.columns.str.contains('Sun in view')]
         if onlySensors:
             Xdf = Orbit.loc[:,Orbit.columns.str.contains('Sun') | Orbit.columns.str.contains('Magnetometer') |
                             Orbit.columns.str.contains('Earth') | 
@@ -127,6 +161,7 @@ def Dataset_order(index, binary_set, buffer, categorical_num, controlInputx = Tr
             #X_buffer_replaced.append(np.asarray(X_buffer).flatten())
 
         X = np.asarray(X_buffer)
+   
     if use_previously_saved_models == True:
         Y = np.asarray(buffer_y)
         Y = Y.reshape(X.shape[0], Y.shape[1])

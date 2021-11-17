@@ -15,7 +15,8 @@ pi = math.pi
 dimensions = ['x', 'y', 'z','g','h']
 
 class Constellation:
-    def __init__(self, number_of_satellites):
+    def __init__(self, number_of_satellites, fault):
+        self.fault = fault
         self.number_of_satellites = number_of_satellites
         self.positions = [None] * number_of_satellites
         self.data = [None] * number_of_satellites
@@ -37,7 +38,7 @@ class Constellation:
     
     def initiate_satellite(self, sat_num):
         sat_init = satellite(self, sat_num)
-        sat_init.initialize()
+        sat_init.initialize(self.fault)
         sat = multiprocessing.Process(target = sat_init.step)
         self.satellites.append(sat)
 
@@ -111,18 +112,24 @@ class satellite:
     #####################################
     # INITIATE THE SATELLITE SIMULATION #
     #####################################
-    def initialize(self):
+    def initialize(self, fault):
         w, q, A, r, sun_in_view = self.Dynamics.rotation()
         self.constellation.data[self.sat_num] = self.Dynamics.Orbit_Data
         self.constellation.positions[self.sat_num] = self.Dynamics.sense.position/np.linalg.norm(self.Dynamics.sense.position)
         if SET_PARAMS.Display:
             self.constellation.pv.run(w, q, A, r, sun_in_view = True, only_positions = True, sat_num = self.sat_num)
+        self.Dynamics.initiate_purposed_fault(SET_PARAMS.Fault_names_values[fault])
 
 
     ############################################
     # PERFORM THE SIMULATION FOR EACH TIMESTEP #
     ############################################
-    def step(self):
+    def step(self, constellationData = None):
+
+        #* Cnonstellation data is used to perform predictions based on data from k-nearest satellites
+        if constellationData != None:
+            self.Dynamics.constellationData = constellationData
+        
         w, q, A, r, sun_in_view = self.Dynamics.rotation()
         self.data_unfiltered = self.Dynamics.Orbit_Data
         self.constellation.data[self.sat_num] = self.data_unfiltered

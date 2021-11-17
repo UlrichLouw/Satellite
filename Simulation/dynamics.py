@@ -398,18 +398,7 @@ class Dynamics:
 
             self.MovingAverage = self.SensePredDMDALL.MovingAverage(Sensors_X, Sensors_Y)
 
-            self.MovingAverage = self.MovingAverage.flatten()
-
-            # for sensorData in self.availableData:
-            #     Sensors_X_temp = self.Orbit_Data[sensorData]
-
-            #     if self.t == SET_PARAMS.time:
-            #         self.SensePredDMDDict[sensorData] = SensorPredictionsDMD(Sensors_X_temp, self.availableData.index(sensorData))   
-                
-            #     Y = [self.Orbit_Data[data] for data in self.availableData if data != sensorData]
-            #     Sensors_Y_temp = np.concatenate(Y)
-
-            #     MovingAverageDict[sensorData] = self.SensePredDMDDict[sensorData].MovingAverage(Sensors_X_temp, Sensors_Y_temp)                
+            self.MovingAverage = self.MovingAverage.flatten()              
 
         return Sensors_X, Sensors_Y, MovingAverageDict
 
@@ -419,6 +408,9 @@ class Dynamics:
     def SensorPredicting(self, Sensors_X):
         predictedFailure = False
         
+        if SET_PARAMS.SensorPredictor == "Constellation-DecisionTrees":
+            predictedFailure = self.DecisionTreeDMDBinary.Predict(self.constellationData)
+
         if SET_PARAMS.SensorPredictor == "DecisionTrees":
             Sensors_X = np.array([np.concatenate([Sensors_X, self.MovingAverage])])
             predictedFailure = self.DecisionTreeDMDBinary.Predict(Sensors_X)
@@ -833,6 +825,7 @@ class Single_Satellite(Dynamics):
         self.SensePredDMDDict = {}
         self.prevFailedSensor = "None"
         self.P_k_est = SET_PARAMS.P_k
+        self.constellationData = []
         self.Nm, self.Nw = np.zeros(3), np.zeros(3)
         ####################################################
         #  THE ORBIT_DATA DICTIONARY IS USED TO STORE ALL  #
