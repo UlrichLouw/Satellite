@@ -204,6 +204,7 @@ def constellationMultiProcessing(fault, SET_PARAMS):
 
     Data = pd.DataFrame(columns=Columns, index = [*range(int(SET_PARAMS.Number_of_orbits*SET_PARAMS.Period/(SET_PARAMS.faster_than_control*SET_PARAMS.Ts)+1))])
 
+    DataList = {x: Data.copy() for x in range(SET_PARAMS.Number_of_satellites)}
 
     for j in range(int(SET_PARAMS.Number_of_orbits*SET_PARAMS.Period/(SET_PARAMS.faster_than_control*SET_PARAMS.Ts)+1)):
         for sat_num in range(SET_PARAMS.Number_of_satellites):
@@ -235,23 +236,21 @@ def constellationMultiProcessing(fault, SET_PARAMS):
                 #!    Stellar.fault_vote[sat] = predictions[sat]
 
                 k = 0
-                dataList = []
-
                 
                 for data in dataKNearest:
                     
                     for col in data:
                         if isinstance(data[col], np.ndarray) and col != "Moving Average":
                             for i in range(len(dimensions)):
-                                Data[str(k) + "_" + col + "_" + dimensions[i]][j] = data[col][i]
+                                DataList[sat_num][str(k) + "_" + col + "_" + dimensions[i]][j] = data[col][i]
                         else:
-                            Data[str(k) + "_" + col][j] = data[col]
+                            DataList[sat_num][str(k) + "_" + col][j] = data[col]
                             
 
                     k += 1
 
-        if j%(int(SET_PARAMS.Number_of_orbits*SET_PARAMS.Period/(SET_PARAMS.faster_than_control*SET_PARAMS.Ts)/10)) == 0:
-            print("Number of time steps for orbit loop number", fault, " = ", "%.2f" % float(j/int(SET_PARAMS.Number_of_orbits*SET_PARAMS.Period/(SET_PARAMS.faster_than_control*SET_PARAMS.Ts))))
+        if j%(int(SET_PARAMS.Number_of_orbits*SET_PARAMS.Period/(SET_PARAMS.faster_than_control*SET_PARAMS.Ts)/100)) == 0:
+            print("Number of time steps for orbit loop number", fault, " = ", "%.3f" % float(j/int(SET_PARAMS.Number_of_orbits*SET_PARAMS.Period/(SET_PARAMS.faster_than_control*SET_PARAMS.Ts))))
 
 
     GenericPath = "Constellation/Predictor-" + SET_PARAMS.SensorPredictor+ "/Isolator-" + SET_PARAMS.SensorIsolator + "/Recovery-" + SET_PARAMS.SensorRecoveror +"/"+SET_PARAMS.Mode+"/"+ "General CubeSat Model/"
@@ -261,7 +260,7 @@ def constellationMultiProcessing(fault, SET_PARAMS):
         path = "Data files/"+ GenericPath + "/" + str(sat_num) + "/"
         path_to_folder = Path(path) 
         path_to_folder.mkdir(parents = True, exist_ok=True)
-        save_as_csv(Data, filename = SET_PARAMS.Fault_names_values[fault], index = fault, path = path)
+        save_as_csv(DataList[sat_num], filename = SET_PARAMS.Fault_names_values[fault], index = fault, path = path)
 
 ################################################################
 # FOR ALL OF THE FAULTS RUN A NUMBER OF ORBITS TO COLLECT DATA #
