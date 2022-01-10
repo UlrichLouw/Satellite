@@ -250,12 +250,14 @@ class SET_PARAMS:
     ###############################
     SensorFDIR = False
     Reflection = True
+    Model_or_Measured = "Model"
     SensorPredictor = "DMD"
     FeatureExtraction = "DMD"
     SensorIsolator = "DMD"
     SensorRecoveror = "EKF"
     FeatureExtractionMethods = ["PCA", "DMD"]
     FaultPredictionMethods = ["PhysicsEnabledDMDDecisionTree", "ANN", "RandomForest"]
+    Low_Aerodynamic_Disturbance = False
     
     # DMD fault parameters for moving average
     MovingAverageSizeOfBuffer = 20

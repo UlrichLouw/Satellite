@@ -32,4 +32,6 @@ class SensorPredictionsDMD:
         #! This is not the same as the original article
         V = 1/SET_PARAMS.MovingAverageSizeOfBuffer * summation # Alternatively summation (with np.sum or np.abs)
 
+        V = np.clip(V, -1e9, 1e9)
+
         return V

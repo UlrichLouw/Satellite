@@ -19,19 +19,19 @@ def save_as_excel(Data, sheetnames):
 # SAVE AS CSV FILE #
 ####################
 
-def save_as_csv(Data, path, orbit = None, filename = SET_PARAMS.filename, index = False):
+def save_as_csv(Data, path, orbit = None, filename = SET_PARAMS.filename, index = False, mode = 'w'):
     if isinstance(Data, pd.DataFrame):
         if not index:
             Data.reset_index(drop = True, inplace = True)
-            Data.to_csv(path + filename + ".csv", index_label = "TimeStep", float_format="%.6f")
+            Data.to_csv(path + filename + ".csv", index_label = "TimeStep", float_format="%.6f", mode = mode)
         else:
-            Data.to_csv(path + filename + ".csv", float_format="%.6f")
+            Data.to_csv(path + filename + ".csv", float_format="%.6f", mode = mode)
     else:
         # Convert array's to individual values in the dictionary
 
         df = pd.DataFrame(Data, columns = Data.keys())
         df.reset_index(drop = True, inplace = True)
-        df.to_csv(path + filename + str(orbit) + ".csv", index_label = "TimeStep", float_format="%.6f")
+        df.to_csv(path + filename + str(orbit) + ".csv", index_label = "TimeStep", float_format="%.6f", mode = mode)
 
 #######################################################
 # FUNCTION TO SAVE A PICKLE FILE OF SIMULATION DATA   #

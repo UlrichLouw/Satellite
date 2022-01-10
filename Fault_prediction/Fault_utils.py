@@ -17,7 +17,9 @@ def Binary_split(classified_data):
 
     return classified_data
 
-def Dataset_order(index, binary_set, buffer, categorical_num, controlInputx = True, ControlInput = False, onlySensors = False, use_previously_saved_models = False, columns_compare = None, columns_compare_to = None, constellation = False, onlyCurrentSatellite = True):
+def Dataset_order(index, binary_set, buffer, categorical_num, controlInputx = True, ControlInput = False, onlySensors = False, use_previously_saved_models = False, columns_compare = None, columns_compare_to = None, constellation = False, onlyCurrentSatellite = True, multi_class = False):
+    # If multi-class and constellation, then the output should be a list of which satellite has failed
+    
     ColumnNames = []
     ClassNames = []
     shapeSize = 1
@@ -44,6 +46,7 @@ def Dataset_order(index, binary_set, buffer, categorical_num, controlInputx = Tr
     Data = Data.loc[:, ~Data.columns.str.contains("^TimeStep")]
     Data = Data.loc[:, ~Data.columns.str.contains("Euler Angles")]
     Data = Data.loc[:, ~Data.columns.str.contains("Angular velocity of satellite")]
+    Data = Data.loc[:, ~Data.columns.str.contains("Sun in view")]
 
     ReplaceDict = {'\n': '',
                     '[': '',
@@ -81,7 +84,26 @@ def Dataset_order(index, binary_set, buffer, categorical_num, controlInputx = Tr
     else:
         Data.drop(columns = ['Moving Average'], inplace = True)
 
-    if constellation and onlyCurrentSatellite:
+    if constellation and multi_class:
+        Orbit = Data.copy()
+
+        Orbit["Multi-Agent-Fault"] = "["
+        for k in range(SET_PARAMS.k_nearest_satellites + 1):
+            if k != SET_PARAMS.k_nearest_satellites:
+                Orbit["Multi-Agent-Fault"] = Orbit["Multi-Agent-Fault"] + Orbit[str(k) + "_Current fault binary"].astype(str) + ","
+            else:
+                Orbit["Multi-Agent-Fault"] = Orbit["Multi-Agent-Fault"] + Orbit[str(k) + "_Current fault binary"].astype(str) + ["]"]*len(Orbit["Multi-Agent-Fault"])
+        
+        k = 0
+        if binary_set and use_previously_saved_models == False:
+            Orbit.drop(columns = [str(k) + "_Current fault"], inplace = True)
+            Orbit = Orbit.loc[:, ~(Orbit.columns.str.contains(str(k) + "_Predicted fault") | Orbit.columns.str.contains(str(k) + "_Current fault numeric"))]
+        elif categorical_num:
+            Orbit = Orbit.loc[:, ~(Orbit.columns.str.contains(str(k) + "_Predicted fault") | Orbit.columns.str.contains(str(k) + "_Current fault binary"))]
+        else:
+            Orbit = Binary_split(Orbit)
+
+    elif constellation and onlyCurrentSatellite:
 
         Orbit = Data.copy()
 
@@ -100,9 +122,9 @@ def Dataset_order(index, binary_set, buffer, categorical_num, controlInputx = Tr
         
     else:
         if binary_set and use_previously_saved_models == False:
-            Orbit = Data.loc[:, ~(Data.columns.str.contains("^Predicted fault") | Data.columns.str.contains("^Current fault") | Data.columns.str.contains("^Current fault numeric"))]
+            Orbit = Data.drop(columns = ["Predicted fault", "Current fault", "Current fault numeric"])
         elif categorical_num:
-            Orbit = Data.loc[:, ~(Data.columns.str.contains("^Predicted fault") | Data.columns.str.contains("^Current fault") | Data.columns.str.contains("^Current fault binary"))]
+            Orbit = Data.drop(columns = ["Predicted fault", "Current fault", "Current fault binary"])
         else:
             Orbit = Binary_split(Data)
 
@@ -119,7 +141,6 @@ def Dataset_order(index, binary_set, buffer, categorical_num, controlInputx = Tr
         X = Orbit[columns_compare].to_numpy()
         Y = Orbit[columns_compare_to].to_numpy()
     else:
-        Orbit.loc[:, Orbit.columns.str.contains('Sun in view')]
         if onlySensors:
             Xdf = Orbit.loc[:,Orbit.columns.str.contains('Sun') | Orbit.columns.str.contains('Magnetometer') |
                             Orbit.columns.str.contains('Earth') | 
@@ -133,9 +154,15 @@ def Dataset_order(index, binary_set, buffer, categorical_num, controlInputx = Tr
                             Orbit.columns.str.contains('Moving Average') ]
             X = Xdf.to_numpy() # Ignore the angular sensor
             ColumnNames = Xdf.columns
-        Ydf = Orbit.loc[:,Orbit.columns.str.contains('fault')]
+        
+        if constellation and multi_class:
+            Ydf = Orbit["Multi-Agent-Fault"]
+            ClassNames = ["Multi-Agent-Fault"]
+        else:
+            Ydf = Orbit.loc[:,Orbit.columns.str.contains('fault')]
+            ClassNames = Ydf.columns
         Y = Ydf.to_numpy()
-        ClassNames = Ydf.columns
+        
 
     if ControlInput:
         Y = Data.loc[:,Data.columns.str.contains('Control Torques')].to_numpy()

@@ -151,7 +151,8 @@ class EKF():
         #                THE NOISE OF THE ANGULAR VELOCITY (SELF.Q_WT)                 #
         ################################################################################
         #! if self.t == SET_PARAMS.time:
-        #!   self.Q_k = system_noise_covariance_matrix_discrete(T11, T12, T21, T22, self.Q_wt, SET_PARAMS.RW_sigma)
+        #!     self.Q_k = system_noise_covariance_matrix_discrete(T11, T12, T21, T22, self.Q_wt, SET_PARAMS.RW_sigma)
+        #!     print(self.Q_k)
 
         ##########################################################
         # CALCULATE THE MEASUREMENT PERTURBATION MATRIX FROM THE #

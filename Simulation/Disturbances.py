@@ -70,8 +70,12 @@ class Disturbances:
             T = -205.05 + 0.00164 * hft
             p = (51.97 * ((T + 459.7)/389.98)**(-11.388))/(0.00194032)
 
-        sigma_t = 0.2 #! Changed from 0.2 to 0.4
-        sigma_n = 0.2
+        if SET_PARAMS.Low_Aerodynamic_Disturbance:
+            sigma_t = 0.05
+            sigma_n = 0.05
+        else:
+            sigma_t = 0.2
+            sigma_n = 0.2
 
         S = 0.05
 
@@ -122,6 +126,9 @@ class Disturbances:
             N_aero.append(p * np.linalg.norm(va)**2 * Ai[i] * np.heaviside(np.cos(alpha_i))*np.cos(alpha_i)*sigma_t*(r_pi) + (sigma_n * S + (2-sigma_n - sigma_t)*np.cos(alpha_i)*(r_pi)))
         
         N_aero = np.array((N_aero))    
+
+        #! Make a constant aerodynamic disturbance
+        N_aero = np.array([1e-8, 1e-8, 1e-8])
 
         return N_aero
 

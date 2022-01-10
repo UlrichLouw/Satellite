@@ -11,15 +11,16 @@ def DecisionTreeAllAnomalies(path, depth, multi_class = False, constellation = F
     X_list = []
     Y_list = []
 
-    path = SET_PARAMS.path
+    pathFiles = SET_PARAMS.path
 
     if constellation:
         for satNum in range(SET_PARAMS.Number_of_satellites):
-            SET_PARAMS.path = path + str(satNum) + "/"
+            print(satNum)
+            SET_PARAMS.path = pathFiles + str(satNum) + "/"
             for index in range(SET_PARAMS.number_of_faults):
                 name = SET_PARAMS.Fault_names_values[index+1]
                 if multi_class:
-                    Y, _, X, _, _, ColumnNames, ClassNames = Dataset_order(name, binary_set = False, categorical_num = True, buffer = False, constellation = constellation)
+                    Y, _, X, _, _, ColumnNames, ClassNames = Dataset_order(name, binary_set = False, categorical_num = True, buffer = False, constellation = constellation, multi_class = True)
                 else:
                     Y, _, X, _, _, ColumnNames, ClassNames = Dataset_order(name, binary_set = True, buffer = False, categorical_num = False, constellation = constellation)
                 X_list.append(X)    
@@ -37,9 +38,6 @@ def DecisionTreeAllAnomalies(path, depth, multi_class = False, constellation = F
 
     X = np.concatenate(X_list)
     Y = np.concatenate(Y_list)
-
-    print(X)
-    print(Y)
 
     # Beform a decision tree on the X and Y matrices
     # This must however include the moving average
@@ -59,43 +57,44 @@ def DecisionTreeAllAnomalies(path, depth, multi_class = False, constellation = F
 
     cm = confusion_matrix(testing_Y, predict_y)
 
+    print(cm.size)
+
+    ColumnNames = ColumnNames.to_list()
+
+    print(len(ColumnNames))
+
+    ClassNames = ["Anomaly", "Normal"]
+
     print(cm)
 
     path_to_folder = Path(path)
     path_to_folder.mkdir(exist_ok=True)
 
     if multi_class and constellation:
+        #! ClassNames = ["First", "Second", "Third", "Fourth", "Fifth"]
         pickle.dump(clf, open(path + '/ConstellationDecisionTreesPhysicsEnabledDMDMultiClass.sav', 'wb'))
         if SET_PARAMS.Visualize:
             fig = plt.figure(figsize=(25,20))
-            tree.plot_tree(clf, class_names = ClassNames,
-                            feature_names = ColumnNames,
-                            filled=True, max_depth = 2)
+            tree.plot_tree(clf, feature_names = ColumnNames, filled=True, max_depth = 2)
             fig.savefig(path + '/ConstellationDecisionTreeMultiClass.png')
     elif constellation:
         pickle.dump(clf, open(path + '/ConstellationDecisionTreesPhysicsEnabledDMDBinaryClass.sav', 'wb'))
 
         if SET_PARAMS.Visualize:
             fig = plt.figure(figsize=(25,20))
-            tree.plot_tree(clf, class_names = ClassNames,
-                            feature_names = ColumnNames,
-                            filled=True, max_depth = 2)
+            tree.plot_tree(clf, class_names = ClassNames, feature_names = ColumnNames, filled=True, max_depth = 2)
             fig.savefig(path + '/ConstellationDecisionTreeBinaryClass.png')
 
     elif multi_class:
         pickle.dump(clf, open(path + '/DecisionTreesPhysicsEnabledDMDMultiClass.sav', 'wb'))
         if SET_PARAMS.Visualize:
             fig = plt.figure(figsize=(25,20))
-            tree.plot_tree(clf, class_names = ClassNames,
-                            feature_names = ColumnNames,
-                            filled=True, max_depth = 2)
+            tree.plot_tree(clf, class_names = ClassNames, feature_names = ColumnNames, filled=True, max_depth = 2)
             fig.savefig(path + '/DecisionTreeMultiClass.png')
     else:
         pickle.dump(clf, open(path + '/DecisionTreesPhysicsEnabledDMDBinaryClass.sav', 'wb'))
 
         if SET_PARAMS.Visualize:
             fig = plt.figure(figsize=(25,20))
-            tree.plot_tree(clf, class_names = ClassNames,
-                            feature_names = ColumnNames,
-                            filled=True, max_depth = 2)
+            tree.plot_tree(clf, class_names = ClassNames, feature_names = ColumnNames, filled=True, max_depth = 2)
             fig.savefig(path + '/DecisionTreeBinaryClass.png')

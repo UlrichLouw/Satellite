@@ -5,6 +5,7 @@ from Fault_prediction.Feature_extraction import DMD
 from Fault_prediction.Supervised_Learning import DecisionForests
 from Fault_prediction.Supervised_Learning import Random_Forest
 import sys
+np.set_printoptions(threshold=500)
 
 if __name__ == '__main__':
     SET_PARAMS.Visualize = True
@@ -14,8 +15,16 @@ if __name__ == '__main__':
     SET_PARAMS.SensorPredictor = "None"
     SET_PARAMS.SensorRecoveror = "None" 
     SET_PARAMS.SensorIsolator = "None"
+    SET_PARAMS.number_of_faults = 2
     SET_PARAMS.Number_of_satellites = 100
-    GenericPath = "Constellation/Predictor-" + SET_PARAMS.SensorPredictor+ "/Isolator-" + SET_PARAMS.SensorIsolator + "/Recovery-" + SET_PARAMS.SensorRecoveror +"/"+SET_PARAMS.Mode+"/"+ "General CubeSat Model/"
+    constellation = False
+    multi_class = False
+
+    GenericPath = "Predictor-" + SET_PARAMS.SensorPredictor+ "/Isolator-" + SET_PARAMS.SensorIsolator + "/Recovery-" + SET_PARAMS.SensorRecoveror +"/"+SET_PARAMS.Mode+"/"+ "General CubeSat Model/"
+    
+    if constellation:
+        GenericPath = "Constellation/Predictor-" + SET_PARAMS.SensorPredictor+ "/Isolator-" + SET_PARAMS.SensorIsolator + "/Recovery-" + SET_PARAMS.SensorRecoveror +"/"+SET_PARAMS.Mode+"/"+ "General CubeSat Model/"
+    
     SET_PARAMS.path = SET_PARAMS.path + GenericPath
     SET_PARAMS.numberOfSensors = 4
     # Compute the A and B matrix to estimate X
@@ -24,8 +33,6 @@ if __name__ == '__main__':
     #     SET_PARAMS.sensor_number += 1
     # SET_PARAMS.sensor_number = "ALL"
     # DMD.MatrixAB(path = SET_PARAMS.pathHyperParameters + 'PhysicsEnabledDMDMethod')
-    # Binary training
-    DecisionForests.DecisionTreeAllAnomalies(path = SET_PARAMS.pathHyperParameters + 'PhysicsEnabledDMDMethod', depth = 10, constellation = True)
-    # Multi class prediction
-    # DecisionForests.DecisionTreeAllAnomalies(path = SET_PARAMS.pathHyperParameters + 'PhysicsEnabledDMDMethod', depth = 10, multi_class = True)
-    # Random_Forest.Random_Forest(path = SET_PARAMS.pathHyperParameters + 'PhysicsEnabledDMDMethod', depth = 10, multi_class = False)
+    # DecisionTree training
+    # DecisionForests.DecisionTreeAllAnomalies(path = SET_PARAMS.pathHyperParameters + 'PhysicsEnabledDMDMethod', depth = 10, constellation = constellation, multi_class = multi_class)
+    Random_Forest.Random_Forest(path = SET_PARAMS.pathHyperParameters + 'PhysicsEnabledDMDMethod', depth = 10, constellation = constellation, multi_class = False)

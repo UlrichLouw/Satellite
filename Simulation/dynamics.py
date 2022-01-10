@@ -224,10 +224,15 @@ class Dynamics:
         ######################################################
         #! Third change to implement correct control
 
-        if self.predictedFailedSensor == "Sun":
-            Sun_vector = self.S_ORC #self.sensor_vectors["Sun_Sensor"]["Model ORC"]
+        # if self.predictedFailedSensor == "Sun":
+        #     Sun_vector = self.S_ORC #self.sensor_vectors["Sun_Sensor"]["Model ORC"]
+        # else:
+        #     Sun_vector = self.S_ORC #self.sensor_vectors["Sun_Sensor"]["Model ORC"]
+
+        if SET_PARAMS.Model_or_Measured == "Model":
+            Sun_vector = self.sensor_vectors["Sun_Sensor"]["Model ORC"]
         else:
-            Sun_vector = self.S_ORC #self.sensor_vectors["Sun_Sensor"]["Model ORC"]
+            Sun_vector = self.S_ORC
 
         if self.predictedFailedSensor == "Magnetometer":
             Magnetometer_vector = self.sensor_vectors["Magnetometer"]["Estimated SBC"]
@@ -411,7 +416,7 @@ class Dynamics:
         if SET_PARAMS.SensorPredictor == "Constellation-DecisionTrees":
             predictedFailure = self.DecisionTreeDMDBinary.Predict(self.constellationData)
 
-        if SET_PARAMS.SensorPredictor == "DecisionTrees":
+        elif SET_PARAMS.SensorPredictor == "DecisionTrees":
             Sensors_X = np.array([np.concatenate([Sensors_X, self.MovingAverage])])
             predictedFailure = self.DecisionTreeDMDBinary.Predict(Sensors_X)
 
@@ -459,6 +464,8 @@ class Dynamics:
     # FUNCTION TO ISOLATE (CLASSIFY) THE ANOMALY THAT HAS OCCURED #
     ###############################################################
     def SensorIsolation(self, MovingAverageDict, Sensors_X, predictedFailure):
+        FailedSensor = "None"
+
         if predictedFailure:
             #! This should account for multiple predictions of failures
             if SET_PARAMS.SensorIsolator == "DMD":
@@ -517,7 +524,44 @@ class Dynamics:
         sensors_kalman = ["Magnetometer", "Earth_Sensor", "Sun_Sensor", "Star_tracker"]
         # The EKF method of recovery resets the kalman filter 
         # if the predictedFailed sensor changes
-        if SET_PARAMS.SensorRecoveror == "EKF-combination":
+
+        # Always use the top3 sensors (the sensors with the smalles error between the previous estimated SBC and the measured SBC)
+        if SET_PARAMS.SensorRecoveror == "EKF-top3":
+            Error = 0
+
+            for sensor in sensors_kalman:
+                v = self.sensor_vectors[sensor]
+                v_ORC_k = v["Estimated SBC"]
+                v_measured_k = v["SBC"]
+                e = np.square((v_ORC_k - v_measured_k)**2).mean()
+
+                if e > Error:
+                    Error = e
+                    failedSensor = sensor
+
+            sensors_kalman.pop(sensors_kalman.index(failedSensor))
+            
+            self.sensors_kalman = sensors_kalman
+        
+        elif SET_PARAMS.SensorRecoveror == "EKF-top2":
+            
+            for _ in range(2):
+                Error = 0
+                for sensor in sensors_kalman:
+                    v = self.sensor_vectors[sensor]
+                    v_ORC_k = v["Estimated SBC"]
+                    v_measured_k = v["SBC"]
+                    e = np.square((v_ORC_k - v_measured_k)**2).mean()
+
+                    if e > Error:
+                        Error = e
+                        failedSensor = sensor
+
+                sensors_kalman.pop(sensors_kalman.index(failedSensor))
+            
+            self.sensors_kalman = sensors_kalman
+
+        elif SET_PARAMS.SensorRecoveror == "EKF-combination":
             if failedSensor != "None":
                 if SET_PARAMS.availableSensors[failedSensor] in sensors_kalman:
                     sensors_kalman.pop(sensors_kalman.index(SET_PARAMS.availableSensors[failedSensor]))

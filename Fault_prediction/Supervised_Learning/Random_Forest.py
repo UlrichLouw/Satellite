@@ -11,22 +11,38 @@ import matplotlib.pyplot as plt
 from sklearn.ensemble import RandomForestClassifier
 
 
-def Random_Forest(path, depth, multi_class = False):
+def Random_Forest(path, depth, constellation = False, multi_class = False):
     X_list = []
     Y_list = []
 
-    for index in range(SET_PARAMS.number_of_faults):
-        name = SET_PARAMS.Fault_names_values[index+1]
-        if multi_class:
-            Y, _, X, _, _ = Dataset_order(name, binary_set = False, categorical_num = True, buffer = False)
-        else:
-            Y, _, X, _, _ = Dataset_order(name, binary_set = True, buffer = False, categorical_num = False)
-        X_list.append(X)    
-        Y_list.append(Y)
+    pathFiles = SET_PARAMS.path
+
+    if constellation:
+        for satNum in range(SET_PARAMS.Number_of_satellites):
+            print(satNum)
+            SET_PARAMS.path = pathFiles + str(satNum) + "/"
+            for index in range(SET_PARAMS.number_of_faults):
+                name = SET_PARAMS.Fault_names_values[index+1]
+                if multi_class:
+                    Y, _, X, _, _, _, _ = Dataset_order(name, binary_set = False, categorical_num = True, buffer = False, constellation = constellation, multi_class = True)
+                else:
+                    Y, _, X, _, _, _, _ = Dataset_order(name, binary_set = True, categorical_num = False, buffer = False, constellation = constellation, multi_class = False)
+                X_list.append(X)    
+                Y_list.append(Y)
+
+    else:
+        for index in range(SET_PARAMS.number_of_faults):
+            name = SET_PARAMS.Fault_names_values[index+1]
+            if multi_class:
+                Y, _, X, _, _, _, _ = Dataset_order(name, binary_set = False, categorical_num = True, buffer = False)
+            else:
+                Y, _, X, _, _, _, _ = Dataset_order(name, binary_set = True, buffer = False, categorical_num = False)
+
+            X_list.append(X)    
+            Y_list.append(Y)
 
     X = np.concatenate(X_list)
     Y = np.concatenate(Y_list)
-
 
     X_train, X_test, y_train, y_test = train_test_split(X, Y)
 

@@ -30,9 +30,6 @@ if SET_PARAMS.Display:
 #####################################
 def loop(index, D, SET_PARAMS):
     #! print(SET_PARAMS.Fault_names_values[index])
-
-    Overall_data = []
-
     if SET_PARAMS.Display:
         satellite = view.initializeCube(SET_PARAMS.Dimensions)
         pv = view.ProjectionViewer(1920, 1080, satellite)
@@ -50,15 +47,18 @@ def loop(index, D, SET_PARAMS):
         else:
             Columns.append(col)
 
-    Data = pd.DataFrame(columns=Columns, index = [*range(1, int(SET_PARAMS.Number_of_orbits*SET_PARAMS.Period/(SET_PARAMS.faster_than_control*SET_PARAMS.Ts)+1))])
+    Data = pd.DataFrame(columns=Columns, index = [*range(1, int(SET_PARAMS.Period/(SET_PARAMS.faster_than_control*SET_PARAMS.Ts)+1))])
     
     for j in range(1, int(SET_PARAMS.Number_of_orbits*SET_PARAMS.Period/(SET_PARAMS.faster_than_control*SET_PARAMS.Ts)+1)):
         w, q, A, r, sun_in_view = D.rotation()
         if SET_PARAMS.Display and j%SET_PARAMS.skip == 0:
             pv.run(w, q, A, r, sun_in_view)
 
-        if j%(int(SET_PARAMS.Number_of_orbits*SET_PARAMS.Period/(SET_PARAMS.faster_than_control*SET_PARAMS.Ts)/10)) == 0:
+        if j%(int(SET_PARAMS.Number_of_orbits*SET_PARAMS.Period/(SET_PARAMS.faster_than_control*SET_PARAMS.Ts)/100)) == 0:
             print("Number of time steps for orbit loop number", index, " = ", "%.2f" % float(j/int(SET_PARAMS.Number_of_orbits*SET_PARAMS.Period/(SET_PARAMS.faster_than_control*SET_PARAMS.Ts))))
+
+        # if j%int(SET_PARAMS.Period/(SET_PARAMS.faster_than_control*SET_PARAMS.Ts)) == 0:
+        #     Data = pd.DataFrame(columns=Columns, index = [*range(1, int(SET_PARAMS.Period/(SET_PARAMS.faster_than_control*SET_PARAMS.Ts)+1))])
 
         if SET_PARAMS.fixed_orbit_failure == 0:
             D.initiate_purposed_fault(SET_PARAMS.Fault_names_values[index])
@@ -116,18 +116,22 @@ def loop(index, D, SET_PARAMS):
     DatapgfMetric = Datapgf.loc[:,Datapgf.columns.str.contains('Metric')]
 
     if SET_PARAMS.NumberOfRandom > 1:
-        GenericPath = "Predictor-" + SET_PARAMS.SensorPredictor+ "/Isolator-" + SET_PARAMS.SensorIsolator + "/Recovery-" + SET_PARAMS.SensorRecoveror +"/"+SET_PARAMS.Mode+"/"+ \
+        GenericPath = "Predictor-" + SET_PARAMS.SensorPredictor+ "/Isolator-" + SET_PARAMS.SensorIsolator + "/Recovery-" + SET_PARAMS.SensorRecoveror +"/"+SET_PARAMS.Mode+"/" + SET_PARAMS.Model_or_Measured +"/" + \
                     "SunSensorSize-Length:" + str(SET_PARAMS.Sun_sensor_length) + "-Width:" + str(SET_PARAMS.Sun_sensor_width) + "/" + str(SET_PARAMS.Fault_names_values[index]) 
         path = "Data files/"+ GenericPath
-        path_to_folder = Path(path)
-        path_to_folder.mkdir(parents = True, exist_ok=True)
         path = path + "/" + "SolarPanel-Length: " + str(SET_PARAMS.SP_Length) + "SolarPanel-Width: " + str(SET_PARAMS.SP_width) + \
                     "Raan: " + str(SET_PARAMS.RAAN) + " inclinination: " +str(SET_PARAMS.inclination)
+        
     else:
-        GenericPath = "Predictor-" + SET_PARAMS.SensorPredictor+ "/Isolator-" + SET_PARAMS.SensorIsolator + "/Recovery-" + SET_PARAMS.SensorRecoveror +"/"+SET_PARAMS.Mode+"/"+ "General CubeSat Model/"
+        GenericPath = "Predictor-" + SET_PARAMS.SensorPredictor+ "/Isolator-" + SET_PARAMS.SensorIsolator + "/Recovery-" + SET_PARAMS.SensorRecoveror +"/"+SET_PARAMS.Mode+"/" + SET_PARAMS.Model_or_Measured +"/" + "General CubeSat Model/"
         path = "Data files/"+ GenericPath
-        path_to_folder = Path(path)
-        path_to_folder.mkdir(parents = True, exist_ok=True)
+
+    if SET_PARAMS.Low_Aerodynamic_Disturbance:
+        GenericPath = "Low_Disturbance/" + GenericPath
+        path = "Data files/"+ GenericPath
+
+    path_to_folder = Path(path)
+    path_to_folder.mkdir(parents = True, exist_ok=True)
 
     if SET_PARAMS.Visualize and SET_PARAMS.Display == False:
         pathPlots = "Plots/"+ GenericPath + str(D.fault) + "/"
@@ -141,7 +145,7 @@ def loop(index, D, SET_PARAMS):
         pv.save_plot(D.fault)
 
     if SET_PARAMS.save_as == ".csv":
-        save_as_csv(Data, filename = SET_PARAMS.Fault_names_values[index], index = index, path = path)
+        save_as_csv(Data, filename = SET_PARAMS.Fault_names_values[index], index = index, path = path, mode = 'a')
     else:
         save_as_pickle(Data, index)
 
@@ -253,7 +257,7 @@ def constellationMultiProcessing(fault, SET_PARAMS):
             print("Number of time steps for orbit loop number", fault, " = ", "%.3f" % float(j/int(SET_PARAMS.Number_of_orbits*SET_PARAMS.Period/(SET_PARAMS.faster_than_control*SET_PARAMS.Ts))))
 
 
-    GenericPath = "Constellation/Predictor-" + SET_PARAMS.SensorPredictor+ "/Isolator-" + SET_PARAMS.SensorIsolator + "/Recovery-" + SET_PARAMS.SensorRecoveror +"/"+SET_PARAMS.Mode+"/"+ "General CubeSat Model/"
+    GenericPath = "Constellation/Predictor-" + SET_PARAMS.SensorPredictor+ "/Isolator-" + SET_PARAMS.SensorIsolator + "/Recovery-" + SET_PARAMS.SensorRecoveror +"/"+SET_PARAMS.Mode+"/" + SET_PARAMS.Model_or_Measured +"/" + "General CubeSat Model/"
 
 
     for sat_num in range(SET_PARAMS.Number_of_satellites):
@@ -278,9 +282,9 @@ def main():
     SET_PARAMS.sensor_number = "ALL"
     SET_PARAMS.Number_of_orbits = 2
     SET_PARAMS.fixed_orbit_failure = 0
-    SET_PARAMS.Number_of_multiple_orbits = len(SET_PARAMS.Fault_names)
+    SET_PARAMS.Number_of_multiple_orbits = 1 #len(SET_PARAMS.Fault_names)
     SET_PARAMS.skip = 20
-    SET_PARAMS.Number_of_satellites = 100
+    SET_PARAMS.Number_of_satellites = 1
     SET_PARAMS.k_nearest_satellites = 5
     SET_PARAMS.FD_strategy = "Distributed"
     SET_PARAMS.SensorFDIR = False
@@ -289,7 +293,9 @@ def main():
     #SET_PARAMS.Mode = "Nominal"
     numFaultStart = 1
     SET_PARAMS.NumberOfRandom = 1
-    SET_PARAMS.NumberOfFailuresReset = 50
+    SET_PARAMS.NumberOfFailuresReset = 10
+    SET_PARAMS.Model_or_Measured = "Model"
+    SET_PARAMS.Low_Aerodynamic_Disturbance = False
 
     includeNone = False
 
@@ -297,12 +303,14 @@ def main():
     predictionMethods = ["None"]
     isolationMethods = ["None"]
     recoveryMethods = ["None"]
+    recoverMethodsWithoutPrediction = ["None", "EKF-top3", "EKF-top2"]
 
     if SET_PARAMS.SensorFDIR:
         featureExtractionMethods = ["DMD"]
-        predictionMethods = ["PERFECT"] #! "DecisionTrees", 
-        isolationMethods = ["PERFECT"] #! "RandomForest", 
-        recoveryMethods = ["EKF-combination", "EKF-reset", "EKF-ignore", "EKF-replacement"] #!  
+        predictionMethods = ["None", "DecisionTrees", "PERFECT"] #! "DecisionTrees","RandomForest", "PERFECT"
+        isolationMethods = ["None", "DecisionTrees", "PERFECT"] #! "RandomForest", 
+        recoveryMethods = ["EKF-combination", "EKF-reset", "EKF-ignore"] #! "EKF-combination", "EKF-reset", "EKF-ignore", "EKF-replacement",, "EKF-top3", "EKF-top2" 
+        
         SET_PARAMS.FeatureExtraction = "DMD"
         SET_PARAMS.SensorPredictor = "PERFECT"
         SET_PARAMS.SensorIsolator = "PERFECT"
@@ -320,14 +328,16 @@ def main():
 
     SET_PARAMS.measurementUpdateVars = ["Mean", "Covariance"]
 
-    #! I'm changing the settling time
-    settling_time = 200
+    settling_time = 200 #! Was 200 3 Dec 10:36
     damping_coefficient = 0.707
     wn = 1/(settling_time*damping_coefficient)
 
+    #! If the current settings do not work, then the Kw parameter should change (the Kw parameter should decrease
+    #! since the oscillations increase)
+
     SET_PARAMS.P_k = np.eye(7)
-    SET_PARAMS.R_k = np.eye(3)*1e-4
-    SET_PARAMS.Q_k = np.eye(7)*2.2e-1
+    SET_PARAMS.R_k = np.eye(3)*1e-3 #! This was 1e-4 (1e-3) is working perfectly
+    SET_PARAMS.Q_k = np.eye(7)*0.8e1 #! This was 2.2e-1, 2e1, 1e2 (the best so far), 2e2 was bad, 1.15e2 (also bad)
 
     SET_PARAMS.Kp = 2 * wn**2
     SET_PARAMS.Kd = 2 * damping_coefficient * wn
@@ -350,12 +360,10 @@ def main():
         numProcess = 0
         threads = []
         for extraction in featureExtractionMethods:
-            for prediction in predictionMethods:
-                for isolation in isolationMethods:
-                    for recovery in recoveryMethods:
-
-                        if prediction == isolation:
-
+            for recovery in recoveryMethods:
+                for prediction in predictionMethods:
+                    for isolation in isolationMethods:
+                        if (recovery in recoverMethodsWithoutPrediction and prediction == "None" and isolation == "None") or (prediction == isolation and prediction != "None" and recovery not in recoverMethodsWithoutPrediction):
                             if SET_PARAMS.SensorFDIR:
                                 SET_PARAMS.FeatureExtraction = extraction
                                 SET_PARAMS.SensorPredictor = prediction
@@ -375,6 +383,11 @@ def main():
                                 t = multiprocessing.Process(target=constellationMultiProcessing, args=(i, SET_PARAMS))
                                 threads.append(t)
                                 t.start()
+        
+        for process in threads:     
+            process.join()
+
+        threads.clear()
 
 
     elif SET_PARAMS.Number_of_multiple_orbits == 1:
@@ -463,12 +476,10 @@ def main():
                     numProcess = 0
                     threads = []
                     for extraction in featureExtractionMethods:
-                        for prediction in predictionMethods:
-                            for isolation in isolationMethods:
-                                for recovery in recoveryMethods:
-
-                                    if prediction == isolation:
-
+                        for recovery in recoveryMethods:
+                            for prediction in predictionMethods:
+                                for isolation in isolationMethods:
+                                    if (recovery in recoverMethodsWithoutPrediction and prediction == "None" and isolation == "None") or (prediction == isolation and prediction != "None" and recovery not in recoverMethodsWithoutPrediction):
                                         if SET_PARAMS.SensorFDIR:
                                             SET_PARAMS.FeatureExtraction = extraction
                                             SET_PARAMS.SensorPredictor = prediction
@@ -519,12 +530,10 @@ def main():
             numProcess = 0
             threads = []
             for extraction in featureExtractionMethods:
-                for prediction in predictionMethods:
-                    for isolation in isolationMethods:
-                        for recovery in recoveryMethods:
-
-                            if prediction == isolation:
-
+                for recovery in recoveryMethods:
+                    for prediction in predictionMethods:
+                        for isolation in isolationMethods:
+                            if (recovery in recoverMethodsWithoutPrediction and prediction == "None" and isolation == "None") or (prediction == isolation and prediction != "None" and recovery not in recoverMethodsWithoutPrediction):
                                 if SET_PARAMS.SensorFDIR:
                                     SET_PARAMS.FeatureExtraction = extraction
                                     SET_PARAMS.SensorPredictor = prediction
@@ -575,10 +584,10 @@ def main():
 
 
 if __name__ == "__main__": 
-    # import cProfile, pstats
-    # profiler = cProfile.Profile()
-    # profiler.enable()
+    import cProfile, pstats
+    profiler = cProfile.Profile()
+    profiler.enable()
     main()
-    # profiler.disable()
-    # stats = pstats.Stats(profiler).sort_stats('cumtime')
-    # stats.print_stats()
+    profiler.disable()
+    stats = pstats.Stats(profiler).sort_stats('cumtime')
+    stats.print_stats()

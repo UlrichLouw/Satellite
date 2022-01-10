@@ -4,11 +4,13 @@ from pathlib import Path
 from Simulation.Save_display import visualize_data, save_as_csv, save_as_pickle
 
 
-def GetData(path, index, n, all = False):
-    Dataframe = pd.read_csv(path)
+def GetData(path, index, n, all = False, first = False):
+    Dataframe = pd.read_csv(path, low_memory=False)
 
     if all:
         Datapgf = Dataframe
+    elif first:
+        Datapgf = Dataframe[:int((n)*SET_PARAMS.Period/(SET_PARAMS.faster_than_control*SET_PARAMS.Ts))]
     else:
         Datapgf = Dataframe[int((SET_PARAMS.Number_of_orbits-n)*SET_PARAMS.Period/(SET_PARAMS.faster_than_control*SET_PARAMS.Ts)):]
 
@@ -25,11 +27,11 @@ def GetData(path, index, n, all = False):
     DatapgfMetric = Datapgf.loc[:,Datapgf.columns.str.contains('Metric')]
 
     if SET_PARAMS.NumberOfRandom > 1:
-        GenericPath = "Predictor-" + SET_PARAMS.SensorPredictor+ "/Isolator-" + SET_PARAMS.SensorIsolator + "/Recovery-" + SET_PARAMS.SensorRecoveror +"/"+SET_PARAMS.Mode+"/"+ \
+        GenericPath = "Predictor-" + SET_PARAMS.SensorPredictor+ "/Isolator-" + SET_PARAMS.SensorIsolator + "/Recovery-" + SET_PARAMS.SensorRecoveror +"/"+SET_PARAMS.Mode+"/"+ SET_PARAMS.Model_or_Measured +"/" +\
             "SunSensorSize-Length:" + str(SET_PARAMS.Sun_sensor_length) + "-Width:" + str(SET_PARAMS.Sun_sensor_width) + "/" + "SolarPanel-Length:" + str(SET_PARAMS.SP_Length) + "-Width:" + str(SET_PARAMS.SP_width) + \
             "T-list:" + SET_PARAMS.t_list + "S-list:" + SET_PARAMS.s_list
     else:
-        GenericPath = "Predictor-" + SET_PARAMS.SensorPredictor+ "/Isolator-" + SET_PARAMS.SensorIsolator + "/Recovery-" + SET_PARAMS.SensorRecoveror +"/"+SET_PARAMS.Mode+"/"+ "General CubeSat Model"
+        GenericPath = "Predictor-" + SET_PARAMS.SensorPredictor+ "/Isolator-" + SET_PARAMS.SensorIsolator + "/Recovery-" + SET_PARAMS.SensorRecoveror +"/"+SET_PARAMS.Mode+"/" + SET_PARAMS.Model_or_Measured +"/" + "General CubeSat Model/"
 
     path = "Data files/pgfPlots/" + GenericPath
 
@@ -75,15 +77,23 @@ def GetData(path, index, n, all = False):
 
 if __name__ == "__main__":
     featureExtractionMethods = ["DMD"]
-    predictionMethods = ["DecisionTrees", "PERFECT"]
-    isolationMethods = ["DecisionTrees", "PERFECT"] #! "RandomForest", 
-    recoveryMethods = ["EKF"]
+    # predictionMethods = ["RandomForest"]
+    # isolationMethods = ["RandomForest"] #! "RandomForest", 
+    # recoveryMethods = ["EKF-combination", "EKF-reset", "EKF-ignore"]
+    # recoverMethodsWithoutPrediction = ["None", "EKF-top3"]
+    predictionMethods = ["None"]
+    isolationMethods = ["None"] #! "RandomForest", 
+    recoveryMethods = ["None"]
+    recoverMethodsWithoutPrediction = ["None"]
     SET_PARAMS.Mode = "EARTH_SUN"
-    SET_PARAMS.Number_of_orbits = 30
+    SET_PARAMS.Model_or_Measured = "Model"
+    SET_PARAMS.Number_of_orbits = 25
     SET_PARAMS.save_as = ".csv"
+    SET_PARAMS.Low_Aerodynamic_Disturbance = True
     index = 1
-    Number = 2
+    Number = 15
     ALL = False
+    first = True
 
     includeNone = True
 
@@ -91,21 +101,25 @@ if __name__ == "__main__":
         for prediction in predictionMethods:
             for isolation in isolationMethods:
                 for recovery in recoveryMethods:
-                    if prediction == isolation:
+                    if (recovery in recoverMethodsWithoutPrediction and prediction == "None" and isolation == "None") or (prediction == isolation and prediction != "None" and recovery not in recoverMethodsWithoutPrediction):
                         SET_PARAMS.FeatureExtraction = extraction
                         SET_PARAMS.SensorPredictor = prediction
                         SET_PARAMS.SensorIsolator = isolation
                         SET_PARAMS.SensorRecoveror = recovery
-                        GenericPath = "Predictor-" + SET_PARAMS.SensorPredictor+ "/Isolator-" + SET_PARAMS.SensorIsolator + "/Recovery-" + SET_PARAMS.SensorRecoveror +"/"+SET_PARAMS.Mode+"/"+ "General CubeSat Model/"
+                        GenericPath = "Predictor-" + SET_PARAMS.SensorPredictor+ "/Isolator-" + SET_PARAMS.SensorIsolator + "/Recovery-" + SET_PARAMS.SensorRecoveror +"/"+SET_PARAMS.Mode+"/" + SET_PARAMS.Model_or_Measured +"/"+ "General CubeSat Model/"
+                        
+                        if SET_PARAMS.Low_Aerodynamic_Disturbance:
+                            GenericPath = "Low_Disturbance/" + GenericPath
+                        
                         path = "Data files/"+ GenericPath + SET_PARAMS.Fault_names_values[index] + ".csv"
                         path = Path(path)
-                        GetData(path, index, n = Number, all = ALL) 
+                        GetData(path, index, n = Number, all = ALL, first = first) 
 
     SET_PARAMS.FeatureExtraction = "EKF"
     SET_PARAMS.SensorPredictor = "None"
     SET_PARAMS.SensorIsolator = "None"
     SET_PARAMS.SensorRecoveror = "None"
-    GenericPath = "Predictor-" + SET_PARAMS.SensorPredictor+ "/Isolator-" + SET_PARAMS.SensorIsolator + "/Recovery-" + SET_PARAMS.SensorRecoveror +"/"+SET_PARAMS.Mode+"/"+ "General CubeSat Model/"
+    GenericPath = "Predictor-" + SET_PARAMS.SensorPredictor+ "/Isolator-" + SET_PARAMS.SensorIsolator + "/Recovery-" + SET_PARAMS.SensorRecoveror +"/"+SET_PARAMS.Mode+"/" + SET_PARAMS.Model_or_Measured +"/"+ "General CubeSat Model/"
     path = "Data files/"+ GenericPath + SET_PARAMS.Fault_names_values[index] + ".csv"
     path = Path(path)
-    GetData(path, index, n = Number, all = ALL)
+    GetData(path, index, n = Number, all = ALL, first = first)
