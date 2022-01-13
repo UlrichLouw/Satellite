@@ -124,17 +124,23 @@ class Control:
         return N
     
     def Momentum_dumping(self, B, angular_wheel_momentum):
-        error = -SET_PARAMS.Kw * (angular_wheel_momentum - self.angular_momentum_ref)
-        M = crossProduct(error,B)/(np.linalg.norm(B)**2)
+        #? error = -SET_PARAMS.Kw * (angular_wheel_momentum - self.angular_momentum_ref)
+        #? M = crossProduct(error,B)/(np.linalg.norm(B)**2)
 
-        M = np.clip(M, -1, 1)
+        #? M = np.clip(M, -1, 1)
 
-        #! Nm is added as new part of the dumping control
-        Nm = crossProduct(M, B)
-        # N = np.clip(N, -SET_PARAMS.M_magnetic_max, SET_PARAMS.M_magnetic_max)
+        #? #! Nm is added as new part of the dumping control
+        #? Nm = crossProduct(M, B)
+        #? # N = np.clip(N, -SET_PARAMS.M_magnetic_max, SET_PARAMS.M_magnetic_max)
 
-
+        ###########################
+        # PROPORTIONAL CONTROLLER #
+        ###########################
         Nm = SET_PARAMS.Kw * (self.angular_momentum_ref - angular_wheel_momentum)
+
+        B_abs = np.abs(B)
+
+        Nm = np.clip(Nm, -B_abs, B_abs)
 
         return Nm
 

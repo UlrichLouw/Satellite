@@ -304,7 +304,7 @@ def main():
     SET_PARAMS.FD_strategy = "Distributed"
     SET_PARAMS.SensorFDIR = True
     SET_PARAMS.Mode = "EARTH_SUN" # Nominal or EARTH_SUN
-    SET_PARAMS.stateBufferLength = 1 #! The reset value was 1 and worked quite well (100 was terrible)
+    SET_PARAMS.stateBufferLength = 10 #! The reset value was 1 and worked quite well (100 was terrible)
     #? SET_PARAMS.Mode = "Nominal"
     numFaultStart = 2
     SET_PARAMS.NumberOfRandom = 1
@@ -327,9 +327,9 @@ def main():
 
     if SET_PARAMS.SensorFDIR:
         featureExtractionMethods = ["DMD"]
-        predictionMethods = ["None", "DecisionTrees", "PERFECT"] #! "DecisionTrees","RandomForest", "PERFECT"
-        isolationMethods = ["None", "DecisionTrees", "PERFECT"] #! "RandomForest", 
-        recoveryMethods = ["EKF-combination", "EKF-reset", "EKF-ignore"] #! "EKF-combination", "EKF-reset", "EKF-ignore", "EKF-replacement",, "EKF-top3", "EKF-top2" 
+        predictionMethods = ["None", "PERFECT"] #! "DecisionTrees","RandomForest", "PERFECT"
+        isolationMethods = ["None", "PERFECT"] #! "RandomForest", 
+        recoveryMethods = ["EKF-combination", "EKF-reset", "EKF-ignore", "EKF-replacement", "EKF-top3", "EKF-top2"] #! "EKF-combination", "EKF-reset", "EKF-ignore", "EKF-replacement"
         
         SET_PARAMS.FeatureExtraction = "DMD"
         SET_PARAMS.SensorPredictor = "PERFECT"
