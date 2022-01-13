@@ -3,7 +3,8 @@ import math
 import numpy as np
 import Simulation.igrf_utils as igrf_utils
 from scipy import interpolate
-
+import csv
+from Simulation.utilities import crossProduct
 
 IGRF_FILE = r'Simulation/Simulation_data/IGRF13.shc'
 igrf = igrf_utils.load_shcfile(IGRF_FILE, None)
@@ -62,8 +63,8 @@ class orbit:
         position_vector = position_vector/np.linalg.norm(position_vector)
         velocity_vector = velocity_vector/np.linalg.norm(velocity_vector)
         c = -position_vector   # position vector must be measured by sensors
-        b = np.cross(velocity_vector, position_vector)/(np.linalg.norm(np.cross(velocity_vector, position_vector)))
-        a = np.cross(b,c)
+        b = crossProduct(velocity_vector, position_vector)/(np.linalg.norm(crossProduct(velocity_vector, position_vector)))
+        a = crossProduct(b,c)
         A = np.reshape(np.array(([a],[b],[c])),(3,3))
         return A
 
@@ -71,12 +72,23 @@ class Earth:
     def __init__(self):
         self.V = np.zeros((2))
         self.coeffs = f(2021) 
+        if SET_PARAMS.UsePredeterminedPositionalData:
+            self.preData = np.genfromtxt('PreMagnetometer.csv', delimiter=',')
 
-    def scalar_potential_function(self, latitude, longitude, altitude):
+    def scalar_potential_function(self, latitude, longitude, altitude, t):
         rs = altitude[0,0]
         theta = 90 - latitude[0,0]
         lambda_ = longitude[0,0]
-        B = igrf_utils.synth_values(self.coeffs, rs, theta, lambda_, 10, 3)
-        B = np.array((B[0],B[1],B[2]))
+
+        if SET_PARAMS.UsePredeterminedPositionalData:
+            B = self.preData[t-1]
+        else:
+            B = igrf_utils.synth_values(self.coeffs, rs, theta, lambda_, 10, 3)
+            B = np.array((B[0],B[1],B[2]))
+            # writing to csv file
+            with open('PreMagnetometer.csv', 'a') as csvfile:
+                # creating a csv writer object
+                csvwriter = csv.writer(csvfile)
+                csvwriter.writerow(B)
 
         return B

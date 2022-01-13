@@ -2,6 +2,7 @@ import numpy as np
 from Simulation.Parameters import SET_PARAMS
 import time
 from Simulation.Disturbances import Disturbances
+from Simulation.utilities import crossProduct
 
 Ts = SET_PARAMS.Ts
 
@@ -58,7 +59,7 @@ class EKF():
         self.angular_momentum = SET_PARAMS.initial_angular_wheels
         self.t = SET_PARAMS.time
         self.dt = Ts                  # Time step
-        self.dh = self.dt/10                        # Size of increments for Runga-kutta method
+        self.dh = self.dt/SET_PARAMS.NumberOfIntegrationSteps                        # Size of increments for Runga-kutta method
         self.dist = Disturbances(None)
 
 
@@ -405,7 +406,7 @@ def rungeKutta_w(Inertia, x0, w, x, h, angular_momentum, Nw, Nm, Ngg):
     ######################################################
     # CONTROL TORQUES IMPLEMENTED DUE TO THE CONTROL LAW #
     ######################################################
-    N_gyro = np.cross(w,(Inertia @ w + angular_momentum))
+    N_gyro = crossProduct(w,(Inertia @ w + angular_momentum))
 
     n = int(np.round((x - x0)/h))
     y = w

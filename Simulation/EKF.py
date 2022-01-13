@@ -3,6 +3,7 @@ from Simulation.Parameters import SET_PARAMS
 import time
 from Simulation.Disturbances import Disturbances
 from numba import njit, jit
+from Simulation.utilities import crossProduct
 
 Ts = SET_PARAMS.Ts
 
@@ -60,20 +61,22 @@ class EKF():
         self.R_k = SET_PARAMS.R_k
 
         self.wo = SET_PARAMS.wo
-        self.angular_momentum = SET_PARAMS.initial_angular_wheels
+        self.angular_momentum_wheels = SET_PARAMS.initial_angular_wheels
         self.t = SET_PARAMS.time
         self.dt = Ts                  # Time step
-        self.dh = self.dt/10                        # Size of increments for Runga-kutta method
+        self.dh = self.dt/SET_PARAMS.NumberOfIntegrationSteps                        # Size of increments for Runga-kutta method
         self.dist = Disturbances(None)
+
+        self.Inertia_Inverse = np.linalg.inv(self.Inertia)
 
 
     def Kalman_update(self, vmeas_k, vmodel_k, Nm, Nw, t):
         if self.t != t or self.t == SET_PARAMS.time:
             #* Model update
-            self.x_k_est, self.w_bi_est, self.q_est, self.angular_momentum, self.A_ORC_to_SBC_est = self.Model_update(self.q, self.w_bi, self.w_bo, self.angular_momentum, Nw, Nm)
+            self.x_k_est, self.w_bi_est, self.q_est, self.angular_momentum_wheels, self.A_ORC_to_SBC_est = self.Model_update(self.q, self.w_bi, self.w_bo, self.angular_momentum_wheels, Nw, Nm)
             
             #* Peripherials after model update
-            self.P_k_est, self.K_k = self.Peripherals_update(self.P_k, vmodel_k, self.w_bi_est, self.q_est, self.angular_momentum, self.A_ORC_to_SBC_est)
+            self.P_k_est, self.K_k = self.Peripherals_update(self.P_k, vmodel_k, self.w_bi_est, self.q_est, self.angular_momentum_wheels, self.A_ORC_to_SBC_est)
             
             self.t = t
         else:
@@ -91,9 +94,9 @@ class EKF():
         # Updated self.q and self.w_bi with the measurement update
         self.q, self.w_bi, self.w_bo = q_updated, w_bi_updated, w_bo
 
-        return self.A_ORC_to_SBC_est, x_k_updated, w_bo, self.P_k, self.angular_momentum
+        return self.A_ORC_to_SBC_est, x_k_updated, w_bo, self.P_k, self.angular_momentum_wheels
 
-    def Model_update(self, q, w_bi, w_bo, angular_momentum, Nw, Nm):
+    def Model_update(self, q, w_bi, w_bo, angular_momentum_wheels, Nw, Nm):
         ########################################################################
         # THE UPDATED ESTIMATION OF THE QUATERNION MATRIX (ALREADY NORMALIZED) #
         ########################################################################
@@ -106,7 +109,7 @@ class EKF():
 
         Ngg = self.dist.Gravity_gradient_func(A_ORC_to_SBC_est) 
 
-        w_bi_est, angular_momentum_est = rungeKutta_w(self.Inertia, 0, w_bi, self.dt, self.dh, angular_momentum, Nw, Nm, Ngg, SET_PARAMS.h_ws_max , SET_PARAMS.wheel_angular_d_max)
+        w_bi_est, angular_momentum_wheels_est = rungeKutta_w(self.Inertia, self.Inertia_Inverse, 0, w_bi, self.dt, self.dh, angular_momentum_wheels, Nw, Nm, Ngg, SET_PARAMS.h_ws_max , SET_PARAMS.wheel_angular_d_max)
 
         #################################
         # PRINTS ERROR IF NAN IN SELF.Q #
@@ -119,11 +122,11 @@ class EKF():
         #######################################################
         x_k_est = np.concatenate((w_bi_est, q_est), axis = 0).T
 
-        return x_k_est, w_bi_est, q_est, angular_momentum_est, A_ORC_to_SBC_est
+        return x_k_est, w_bi_est, q_est, angular_momentum_wheels_est, A_ORC_to_SBC_est
 
 
 
-    def Peripherals_update(self, P_k, vmodel_k, w_bi_est, q_est, angular_momentum_est, A_ORC_to_SBC_est):
+    def Peripherals_update(self, P_k, vmodel_k, w_bi_est, q_est, angular_momentum_wheels_est, A_ORC_to_SBC_est):
         #################################################################
         # CALCULATES THE ANGULAR VELOCITY FOR THE SATELITE IN ORC FRAME #
         #################################################################
@@ -137,7 +140,7 @@ class EKF():
         ############################################################
         # THE CONTINUOUS SYSTEM PERTURBATION (JACOBIAN MATRIX F_T) #
         ############################################################
-        F_t, TL, TR, BL, BR = F_t_function(angular_momentum_est, w_bi_est, q_est, omega_k, A_ORC_to_SBC_est, self.Ixyz, self.k, self.wo)
+        F_t, TL, TR, BL, BR = F_t_function(angular_momentum_wheels_est, w_bi_est, q_est, omega_k, A_ORC_to_SBC_est, self.Ixyz, self.k, self.wo)
         T11, T12, T21, T22 = TL, TR, BL, BR
 
         ####################################
@@ -404,32 +407,30 @@ def rungeKutta_h(x0, angular, x, h, N_control, h_ws_max):
     angular_momentum_derived = N_control
     n = int(np.round((x - x0)/h))
 
-    y = angular
-    for _ in range(n):
-        k1 = h*(angular_momentum_derived) 
-        k2 = h*((angular_momentum_derived) + 0.5*k1) 
-        k3 = h*((angular_momentum_derived) + 0.5*k2) 
-        k4 = h*((angular_momentum_derived) + k3) 
+    y = angular + angular_momentum_derived * (h)
+    # for _ in range(n):
+    #     k1 = h*(angular_momentum_derived) 
+    #     k2 = h*((angular_momentum_derived) + 0.5*k1) 
+    #     k3 = h*((angular_momentum_derived) + 0.5*k2) 
+    #     k4 = h*((angular_momentum_derived) + k3) 
 
-        y = y + (1.0/6.0)*(k1 + 2*k2 + 2*k3 + k4)
+    #     y = y + (1.0/6.0)*(k1 + 2*k2 + 2*k3 + k4)
 
-        x0 = x0 + h; 
+    #     x0 = x0 + h; 
     
     y = np.clip(y, -h_ws_max, h_ws_max)
-    
+
     return y
 
 ########################################################################################
 # FUNCTION TO CALCULATE THE SATELLITE ANGULAR VELOCITY BASED ON THE DERIVATIVE THEREOF #
 ########################################################################################
 #@njit
-def rungeKutta_w(Inertia, x0, w, x, h, angular_momentum, Nw, Nm, Ngg, h_ws_max, wheel_angular_d_max):  
+def rungeKutta_w(Inertia, InvInertia, x0, w, x, h, angular_momentum_wheels, Nw, Nm, Ngg, h_ws_max, wheel_angular_d_max):  
 
     ######################################################
     # CONTROL TORQUES IMPLEMENTED DUE TO THE CONTROL LAW #
     ######################################################
-    N_gyro = np.cross(w,(Inertia @ w + angular_momentum))
-
     n = int(np.round((x - x0)/h))
     y = w
 
@@ -438,22 +439,22 @@ def rungeKutta_w(Inertia, x0, w, x, h, angular_momentum, Nw, Nm, Ngg, h_ws_max, 
     ######################################################
     x01 = x0
 
-    N = - Nw - N_gyro + Nm + Ngg
-
     for _ in range(n):    
-        k1 = h*((np.linalg.inv(Inertia) @ N)) 
-        k2 = h*((np.linalg.inv(Inertia) @ N) + 0.5*k1) 
-        k3 = h*((np.linalg.inv(Inertia) @ N) + 0.5*k2) 
-        k4 = h*((np.linalg.inv(Inertia) @ N) + k3) 
+        N_gyro = crossProduct(y,(Inertia @ y + angular_momentum_wheels))
+        N = - Nw - N_gyro + Nm + Ngg
+        k1 = h*((InvInertia @ N)) 
+        k2 = h*((InvInertia @ N) + 0.5*k1) 
+        k3 = h*((InvInertia @ N) + 0.5*k2) 
+        k4 = h*((InvInertia @ N) + k3) 
         y = y + (1.0/6.0)*(k1 + 2*k2 + 2*k3 + k4)
         
         x0 = x0 + h; 
 
-    angular_momentum = rungeKutta_h(x01, angular_momentum, x, h, Nw, h_ws_max)
+        angular_momentum_wheels = rungeKutta_h(x01, angular_momentum_wheels, x, h, Nw, h_ws_max)
 
-    y = np.clip(y, -wheel_angular_d_max, wheel_angular_d_max)
+    #! y = np.clip(y, -wheel_angular_d_max, wheel_angular_d_max)
 
-    return y, angular_momentum
+    return y, angular_momentum_wheels
 
 ###########################################################################################
 # FUNCTION TO CALCULATE THE SATELLITE QUATERNION POSITION BASED ON THE DERIVATIVE THEREOF #

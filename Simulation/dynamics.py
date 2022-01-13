@@ -13,6 +13,7 @@ import math
 import Fault_prediction.Fault_detection as FaultDetection
 import collections
 from numba import njit, jit
+from Simulation.utilities import crossProduct
 
 pi = math.pi
 
@@ -40,18 +41,19 @@ def rungeKutta_h(x0, angular, x, h, N_control):
     angular_momentum_derived = N_control
     n = int(np.round((x - x0)/h))
 
-    y = angular
-    for _ in range(n):
-        k1 = h*(angular_momentum_derived) 
-        k2 = h*((angular_momentum_derived) + 0.5*k1) 
-        k3 = h*((angular_momentum_derived) + 0.5*k2) 
-        k4 = h*((angular_momentum_derived) + k3) 
+    y = angular + angular_momentum_derived * (h)
 
-        y = y + (1.0/6.0)*(k1 + 2*k2 + 2*k3 + k4)
+    # for _ in range(n):
+    #     k1 = h*(angular_momentum_derived) 
+    #     k2 = h*((angular_momentum_derived) + 0.5*k1) 
+    #     k3 = h*((angular_momentum_derived) + 0.5*k2) 
+    #     k4 = h*((angular_momentum_derived) + k3) 
 
-        x0 = x0 + h; 
+    #     y = y + (1.0/6.0)*(k1 + 2*k2 + 2*k3 + k4)
+
+    #     x0 = x0 + h; 
     
-    y = np.clip(y, -SET_PARAMS.h_ws_max, SET_PARAMS.h_ws_max)
+    #! y = np.clip(y, -SET_PARAMS.h_ws_max, SET_PARAMS.h_ws_max)
 
     return y
 
@@ -244,9 +246,7 @@ class Dynamics:
         else:    
             Earth_vector = self.r_sat_sbc
         
-        N_control_magnetic, N_control_wheel = self.control.control(self.w_bi_est, self.w_bo_est, self.q_est, self.Inertia, Magnetometer_vector, self.angular_momentum_with_noise, Earth_vector, Sun_vector, self.sun_in_view)
-
-        N_gyro = np.cross(w,(self.Inertia @ w + self.angular_momentum))
+        N_control_magnetic, N_control_wheel = self.control.control(self.w_bi_est, self.w_bo_est, self.q_est, self.Inertia, Magnetometer_vector, self.angular_momentum_wheels_with_noise, Earth_vector, Sun_vector, self.sun_in_view)
 
         if "RW" in self.fault:
             N_control_wheel = self.Reaction_wheel_fault.Electronics_of_RW_failure(N_control_wheel)
@@ -256,7 +256,10 @@ class Dynamics:
             N_control_wheel = self.Control_fault.Decreasing_angular_RW_momentum(N_control_wheel)
             N_control_wheel = self.Control_fault.Oscillating_angular_RW_momentum(N_control_wheel)
 
-        N_aero = self.dist.Aerodynamic2(self.A_ORC_to_SBC, self.A_EIC_to_ORC, self.sun_in_view)
+        if SET_PARAMS.no_aero_disturbance:
+            N_aero = np.zeros(3) #! self.dist.Aerodynamic2(self.A_ORC_to_SBC, self.A_EIC_to_ORC, self.sun_in_view)
+        else:
+            N_aero = self.dist.Aerodynamic2(self.A_ORC_to_SBC, self.A_EIC_to_ORC, self.sun_in_view)
 
         ###################################
         # DISTURBANCE OF GRAVITY GRADIENT #
@@ -270,22 +273,29 @@ class Dynamics:
         y = w
 
         N_control = N_control_magnetic - N_control_wheel
-        #############################################
-        # DISTURBANCE OF A REACTION WHEEL IMBALANCE #
-        #############################################
 
-        N_rw = self.dist.Wheel_Imbalance(self.angular_momentum/self.Iw, x - x0)
+
+        #? print(N_rw)
 
         ######################################################
         # ALL THE DISTURBANCE TORQUES ADDED TO THE SATELLITE #
         ######################################################
 
-        N_disturbance = Ngg + N_aero + N_rw - N_gyro   
-
-        
-        N = N_control + N_disturbance
-
         for _ in range(n):
+            #############################################
+            # DISTURBANCE OF A REACTION WHEEL IMBALANCE #
+            #############################################
+            if SET_PARAMS.no_wheel_disturbance:
+                N_rw = np.zeros(3) #! self.dist.Aerodynamic2(self.A_ORC_to_SBC, self.A_EIC_to_ORC, self.sun_in_view)
+            else:
+                N_rw = self.dist.Wheel_Imbalance(self.Iw_Inverse @ self.angular_momentum_wheels, h) #! was x0-x
+
+            N_gyro = crossProduct(y,(self.Inertia @ y + self.angular_momentum_wheels))
+
+            N_disturbance = Ngg + N_aero + N_rw - N_gyro   
+
+            N = N_control + N_disturbance
+
             k1 = h*((self.Inertia_Inverse @ N)) 
             k2 = h*((self.Inertia_Inverse @ N) + 0.5*k1) 
             k3 = h*((self.Inertia_Inverse @ N) + 0.5*k2) 
@@ -293,6 +303,8 @@ class Dynamics:
             y = y + (1.0/6.0)*(k1 + 2*k2 + 2*k3 + k4)
             
             x0 = x0 + h
+
+            self.angular_momentum_wheels = rungeKutta_h(x0, self.angular_momentum_wheels, x, h, N_control_wheel)
         
         self.Ngyro = N_gyro
         self.Nm = N_control_magnetic
@@ -301,14 +313,14 @@ class Dynamics:
         self.Nrw = N_rw
         self.Naero = N_aero
 
-        self.angular_momentum = rungeKutta_h(x01, self.angular_momentum, x, h, N_control_wheel)
+        self.angular_momentum_wheels_with_noise = self.Angular_sensor_fault.normal_noise(self.angular_momentum_wheels, SET_PARAMS.Angular_sensor_noise)
+        self.angular_momentum_wheels_with_noise = self.Angular_sensor_fault.Angular_sensor_high_noise(self.angular_momentum_wheels)
 
-        self.angular_momentum_with_noise = self.Angular_sensor_fault.normal_noise(self.angular_momentum, SET_PARAMS.Angular_sensor_noise)
-        self.angular_momentum_with_noise = self.Angular_sensor_fault.Angular_sensor_high_noise(self.angular_momentum)
+        self.angular_momentum_wheels_with_noise = np.clip(self.angular_momentum_wheels_with_noise, -SET_PARAMS.h_ws_max, SET_PARAMS.h_ws_max)
 
-        self.angular_momentum_with_noise = np.clip(self.angular_momentum_with_noise, -SET_PARAMS.h_ws_max, SET_PARAMS.h_ws_max)
+        #! self.angular_momentum = rungeKutta_h(x01, self.angular_momentum, x, h, N_control_wheel)
 
-        y = np.clip(y, -SET_PARAMS.wheel_angular_d_max, SET_PARAMS.wheel_angular_d_max)
+        #! y = np.clip(y, -SET_PARAMS.wheel_angular_d_max, SET_PARAMS.wheel_angular_d_max)
 
         return y
 
@@ -732,11 +744,12 @@ class Dynamics:
                 if not (v_measured_k == 0.0).all():
                     # If the measured vector is equal to 0 then the sensor is not able to view the desired measurement
                     self.A_ORC_to_SBC_est, x, self.w_bo_est, P_k, self.angular_momentum_est = self.EKF.Kalman_update(v_measured_k, v_ORC_k, self.Nm, self.Nw, self.t)
-                    self.P_k_est = P_k
-                    self.q_est = x[3:]
-                    self.w_bi_est = x[:3]
-                    mean.append(np.mean(x))
-                    covariance.append(np.mean(P_k))
+            
+            self.P_k_est = P_k
+            self.q_est = x[3:]
+            self.w_bi_est = x[:3]
+            mean.append(np.mean(x))
+            covariance.append(np.mean(P_k))
                     
 
         elif SET_PARAMS.Kalman_filter_use == "RKF":
@@ -757,9 +770,28 @@ class Dynamics:
                 if not (v_model_k == 0.0).all():
                     # If the measured vektor is equal to 0 then the sensor is not able to view the desired measurement
                     x = self.RKF.Kalman_update(v_measured_k, self.Nm, self.Nw, self.Ngyro, self.t)
-                    self.w_bi_est = np.clip(x, -SET_PARAMS.wheel_angular_d_max, SET_PARAMS.wheel_angular_d_max)
+                    self.w_bi_est = x
                     self.q_est = self.q
         else:
+            for sensor in self.sensors_kalman:
+                # Step through both the sensor noise and the sensor measurement
+                # vector is the vector of the sensor's measurement
+                # This is used to compare it to the modelled measurement
+                # Consequently, the vector is the ORC modelled vector before
+                # the transformation Matrix is implemented on the vector
+                # Since the transformation matrix takes the modelled and measured into account
+                # Only noise is added to the measurement
+                v = self.sensor_vectors[sensor]
+                v_ORC_k = v["Model ORC"]
+                v_measured_k = v["SBC"]
+
+                if not (v_measured_k == 0.0).all():
+                    self.A_ORC_to_SBC_est, x, self.w_bo_est, P_k, self.angular_momentum_est = self.EKF.Kalman_update(v_measured_k, v_ORC_k, self.Nm, self.Nw, self.t)
+            
+            self.P_k_est = P_k
+            mean.append(np.mean(x))
+            covariance.append(np.mean(P_k))
+            self.A_ORC_to_SBC_est = self.A_ORC_to_SBC
             self.w_bi_est = self.w_bi
             self.q_est = self.q
             self.w_bo_est = self.w_bo
@@ -832,12 +864,13 @@ class Single_Satellite(Dynamics):
         self.w_bo = SET_PARAMS.wbo # Angular velocity in SBC
         self.w_bo_est = self.w_bo
         self.wo = SET_PARAMS.wo                     # Angular velocity of satellite around the earth
-        self.angular_wheels = SET_PARAMS.initial_angular_wheels 
+        self.angular_momentum_wheels = SET_PARAMS.initial_angular_wheels 
+        self.angular_momentum_wheels_with_noise = SET_PARAMS.initial_angular_wheels 
         self.q = SET_PARAMS.quaternion_initial      # Quaternion position
         self.q_est = self.q
         self.t = SET_PARAMS.time                    # Beginning time
         self.dt = SET_PARAMS.Ts                     # Time step
-        self.dh = self.dt/10                        # Size of increments for Runga-kutta method
+        self.dh = self.dt/SET_PARAMS.NumberOfIntegrationSteps                        # Size of increments for Runga-kutta method
         self.Ix = SET_PARAMS.Ix                     # Ixx inertia
         self.Iy = SET_PARAMS.Iy                     # Iyy inertia
         self.Iz = SET_PARAMS.Iz                     # Izz inertia
@@ -846,9 +879,10 @@ class Single_Satellite(Dynamics):
         self.Inertia = np.diag([self.Ix, self.Iy, self.Iz])
         self.Inertia_Inverse = np.linalg.inv(self.Inertia)
         self.Iw = SET_PARAMS.Iw                     # Inertia of a reaction wheel
-        self.angular_momentum = SET_PARAMS.initial_angular_wheels # Angular momentum of satellite wheels
+        self.Iw_Inverse = np.linalg.inv(self.Iw)    # Inverse Inertia of a reaction wheel
+        self.angular_momentum = SET_PARAMS.initial_angular_wheels # Angular momentum of satellite
         self.angular_momentum_est = self.angular_momentum
-        self.angular_momentum_with_noise = self.angular_momentum
+        self.angular_wheel_momentum_with_noise = self.angular_momentum
         self.faster_than_control = SET_PARAMS.faster_than_control   # If it is required that satellite must move faster around the earth than Ts
         self.control = Controller.Control()         # Controller.py is used for control of satellite    
         self.star_tracker_vector = SET_PARAMS.star_tracker_vector
@@ -871,6 +905,76 @@ class Single_Satellite(Dynamics):
         self.P_k_est = SET_PARAMS.P_k
         self.constellationData = []
         self.Nm, self.Nw = np.zeros(3), np.zeros(3)
+        self.globalArray = ["Sun_x",
+            "Sun_y",
+            "Sun_z",
+            "Magnetometer_x",    #B vector in SBC
+            "Magnetometer_y", 
+            "Magnetometer_z", 
+            "Earth_x",           #Satellite position vector in ORC
+            "Earth_y",
+            "Earth_z",
+            "Angular momentum of wheels_x",    #Wheel angular velocity of each reaction wheel
+            "Angular momentum of wheels_y", 
+            "Angular momentum of wheels_z", 
+            "Star_x",
+            "Star_y",
+            "Star_z",
+            "Angular velocity of satellite actual_x",
+            "Angular velocity of satellite actual_y",
+            "Angular velocity of satellite actual_z",
+            "Angular velocity of satellite estimated_x",
+            "Angular velocity of satellite estimated_y",
+            "Angular velocity of satellite estimated_z",
+            "Angular velocity of satellite reference_x",
+            "Angular velocity of satellite reference_y",
+            "Angular velocity of satellite reference_z",
+            "Moving Average",
+            "Wheel Control Torques_x",
+            "Wheel Control Torques_y",
+            "Wheel Control Torques_z",
+            "Magnetic Control Torques_x",
+            "Magnetic Control Torques_y",
+            "Magnetic Control Torques_z",
+            "Sun in view",                              #True or False values depending on whether the sun is in view of the satellite
+            "Current fault",                            #What the fault is that the system is currently experiencing
+            "Current fault numeric",
+            "Current fault binary",
+            "Wheel disturbance Torques_x",
+            "Wheel disturbance Torques_y",
+            "Wheel disturbance Torques_z",
+            "Gravity Gradient Torques_x",
+            "Gravity Gradient Torques_y",
+            "Gravity Gradient Torques_z",
+            "Gyroscopic Torques_x",
+            "Gyroscopic Torques_y",
+            "Gyroscopic Torques_z",
+            "Aerodynamic Torques_x",
+            "Aerodynamic Torques_y",
+            "Aerodynamic Torques_z",
+            "Predicted fault",
+            "Isolation Accuracy",
+            "Prediction Accuracy",
+            "Quaternions Actual_x",
+            "Quaternions Actual_y",
+            "Quaternions Actual_z",
+            "Quaternions Estimated_x",
+            "Quaternions Estimated_y",
+            "Quaternions Estimated_z",
+            "Quaternions Reference_x",
+            "Quaternions Reference_y",
+            "Quaternions Reference_z",
+            "Euler Angles Actual_x",
+            "Euler Angles Actual_y",
+            "Euler Angles Actual_z",
+            "Euler Angles Estimated_x",
+            "Euler Angles Estimated_y",
+            "Euler Angles Estimated_z",
+            "Euler Angles Reference_x",
+            "Euler Angles Reference_y",
+            "Euler Angles Reference_z",
+            "Pointing Metric",
+            "Estimation Metric"]
         ####################################################
         #  THE ORBIT_DATA DICTIONARY IS USED TO STORE ALL  #
         #     THE MEASUREMENTS FOR EACH TIMESTEP (TS)      #
@@ -939,7 +1043,7 @@ class Single_Satellite(Dynamics):
         self.Orbit_Data["Sun"] = self.S_sbc
         self.Orbit_Data["Earth"] = self.r_sat_sbc
         self.Orbit_Data["Star"] = self.star_tracker_sbc
-        self.Orbit_Data["Angular momentum of wheels"] = self.angular_momentum_with_noise
+        self.Orbit_Data["Angular momentum of wheels"] = self.angular_wheel_momentum_with_noise
         self.Orbit_Data["Angular velocity of satellite actual"] = self.w_bo
         self.Orbit_Data["Angular velocity of satellite estimated"] = self.w_bo_est
         self.Orbit_Data["Angular velocity of satellite reference"] = self.w_bo_ref
@@ -1022,6 +1126,77 @@ class Single_Satellite(Dynamics):
 
         self.Orbit_Data["Isolation Accuracy"] = 1 if FailedSensor == self.predictedFailedSensor else 0
 
+        self.globalArray = [self.S_sbc[0],
+            self.S_sbc[1],
+            self.S_sbc[2],
+            self.B_sbc_meas[0],
+            self.B_sbc_meas[1],
+            self.B_sbc_meas[2],
+            self.r_sat_sbc[0],
+            self.r_sat_sbc[1],
+            self.r_sat_sbc[2],
+            self.angular_momentum_wheels_with_noise[0],
+            self.angular_momentum_wheels_with_noise[1],
+            self.angular_momentum_wheels_with_noise[2],
+            self.star_tracker_sbc[0],
+            self.star_tracker_sbc[1],
+            self.star_tracker_sbc[2],
+            self.w_bo[0],
+            self.w_bo[1],
+            self.w_bo[2],
+            self.w_bo_est[0],
+            self.w_bo_est[1],
+            self.w_bo_est[2],
+            self.w_bo_ref[0],
+            self.w_bo_ref[1],
+            self.w_bo_ref[2],
+            self.MovingAverage,
+            self.Nw[0],
+            self.Nw[1],
+            self.Nw[2],
+            self.Nm[0],
+            self.Nm[1],
+            self.Nm[2],
+            self.sun_in_view,                              #True or False values depending on whether the sun is in view of the satellite
+            fault,                            #What the fault is that the system is currently experiencing
+            temp,
+            self.Orbit_Data["Current fault binary"],
+            self.Nrw[0],
+            self.Nrw[1],
+            self.Nrw[2],
+            self.Ngg[0],
+            self.Ngg[1],
+            self.Ngg[2],
+            self.Ngyro[0],
+            self.Ngyro[1],
+            self.Ngyro[2],
+            self.Naero[0],
+            self.Naero[1],
+            self.Naero[2],
+            self.predictedFailure,
+            self.Orbit_Data["Isolation Accuracy"],
+            self.Orbit_Data["Prediction Accuracy"],
+            self.q[:3][0],
+            self.q[:3][1],
+            self.q[:3][2],
+            self.q_est[:3][0],
+            self.q_est[:3][1],
+            self.q_est[:3][2],
+            self.q_ref[:3][0],
+            self.q_ref[:3][1],
+            self.q_ref[:3][2],
+            eulerAngleActual[0],
+            eulerAngleActual[1],
+            eulerAngleActual[2],
+            eulerAngleEstimated[0],
+            eulerAngleEstimated[1],
+            eulerAngleEstimated[2],
+            eulerAngleReference[0],
+            eulerAngleReference[1],
+            eulerAngleReference[2],
+            referenceDifferenceAngle,
+            estimatedDifferenceAngle]
+
 
 class Constellation_Satellites(Dynamics):
     # Initiate initial parameters for the beginning of each orbit set (fault)
@@ -1034,19 +1209,20 @@ class Constellation_Satellites(Dynamics):
         self.w_bi = SET_PARAMS.wbi                  # Angular velocity in ORC
         self.w_bi_est = self.w_bi
         self.wo = SET_PARAMS.wo                     # Angular velocity of satellite around the earth
-        self.angular_wheels = SET_PARAMS.initial_angular_wheels 
+        self.angular_momentum_wheels = SET_PARAMS.initial_angular_wheels # Angular momentum of satellite wheels
+        self.angular_momentum_wheels_with_noise = SET_PARAMS.initial_angular_wheels 
         self.q = SET_PARAMS.quaternion_initial      # Quaternion position
         self.q_est = self.q
         self.t = SET_PARAMS.time                    # Beginning time
         self.dt = SET_PARAMS.Ts                     # Time step
-        self.dh = self.dt/10                        # Size of increments for Runga-kutta method
+        self.dh = self.dt/SET_PARAMS.NumberOfIntegrationSteps                        # Size of increments for Runga-kutta method
         self.Ix = SET_PARAMS.Ix                     # Ixx inertia
         self.Iy = SET_PARAMS.Iy                     # Iyy inertia
         self.Iz = SET_PARAMS.Iz                     # Izz inertia
         self.Inertia = np.identity(3)*np.array(([self.Ix, self.Iy, self.Iz]))
         self.Inertia_Inverse = np.linalg.inv(self.Inertia)
         self.Iw = SET_PARAMS.Iw                     # Inertia of a reaction wheel
-        self.angular_momentum = SET_PARAMS.initial_angular_wheels # Angular momentum of satellite wheels
+        self.angular_momentum = SET_PARAMS.initial_angular_wheels # Angular momentum of satellite
         self.faster_than_control = SET_PARAMS.faster_than_control   # If it is required that satellite must move faster around the earth than Ts
         self.control = Controller.Control()         # Controller.py is used for control of satellite    
         self.star_tracker_ORC = SET_PARAMS.star_tracker_ORC

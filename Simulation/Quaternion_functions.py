@@ -1,4 +1,5 @@
 import numpy as np
+from Simulation.utilities import crossProduct
 
 def rad2deg(rad):
     return rad / np.pi * 180
@@ -26,7 +27,7 @@ def euler_to_quaternion(roll, pitch, yaw):
 def vectorsToQuaternion(vectorRef, vectorCurrent):
     Length1 = np.sqrt(np.sum(vectorCurrent**2))
     Length2 = np.sqrt(np.sum(vectorRef**2))
-    vectorA = np.cross(vectorCurrent, vectorRef)
+    vectorA = crossProduct(vectorCurrent, vectorRef)
     qx, qy, qz = vectorA
     qw = np.sqrt((Length1**2)*(Length2**2)) + np.dot(vectorCurrent, vectorRef)
     q = np.array(([qx, qy, qz, qw]))

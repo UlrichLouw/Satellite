@@ -43,7 +43,7 @@ class Sensors:
 
     def magnetometer(self, t):
         self.latitude, self.longitude, self.altitude = Earth_model.ecef2lla(self.r_sat_EIC)
-        B = self.earth.scalar_potential_function(self.latitude, self.longitude, self.altitude)
+        B = self.earth.scalar_potential_function(self.latitude, self.longitude, self.altitude, t)
         B += np.random.normal(0,np.linalg.norm(B)*SET_PARAMS.Magnetometer_noise,B.shape)
         self.position = np.array([self.longitude[0][0], self.latitude[0][0], self.altitude[0][0]])
 

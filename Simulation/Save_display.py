@@ -46,33 +46,33 @@ def save_as_pickle(Data, orbit):
 # FUNCTION TO VISUALIZE DATA AS GRAPHS   #
 ##########################################
 def visualize_data(D, fault, path):
-    doNotVisualize = ["Sun in view", "Current fault", "Current fault numeric"]
+    doNotVisualize = ["Sun in view", "Current fault", "Current fault numeric", "Moving Average"]
     singleVisualize = ["Pointing Metric", "Estimation Metric", "Mean", "Covariance", "Predicted fault", "Current fault binary", "Isolation Accuracy", "Prediction Accuracy", "Quaternion magnetitude error"]
 
     for data in D:
         if data in doNotVisualize:
             pass
-        elif data == "Moving Average":
-            newData = []
-            for processedData in D[data]:
-                newData.append(np.sum(processedData))
+        # elif data == "Moving Average":
+        #     newData = []
+        #     for processedData in D[data]:
+        #         newData.append(np.sum(processedData))
             
-            y = np.array(newData)
-            fig = make_subplots(rows=3, cols=1)
-            x = y.shape[0]
-            x = np.arange(0,x,1)
-            y_min = np.amin(y)
-            y_max = np.amax(y)
+        #     y = np.array(newData)
+        #     fig = make_subplots(rows=3, cols=1)
+        #     x = y.shape[0]
+        #     x = np.arange(0,x,1)
+        #     y_min = np.amin(y)
+        #     y_max = np.amax(y)
 
-            fig.append_trace(go.Scatter(
-                x=x,
-                y=y,
-                name = "x"
-            ), row=1, col=1)
+        #     fig.append_trace(go.Scatter(
+        #         x=x,
+        #         y=y,
+        #         name = "x"
+        #     ), row=1, col=1)
 
-            fig.update_yaxes(range=[y_min, y_max], row=1, col=1)
-            fig.update_layout(height=600, width=600, title_text=str(data))
-            fig.write_html(path + "/" + str(data)+".html")
+        #     fig.update_yaxes(range=[y_min, y_max], row=1, col=1)
+        #     fig.update_layout(height=600, width=600, title_text=str(data))
+        #     fig.write_html(path + "/" + str(data)+".html")
         
         elif data in singleVisualize:
             y = np.array((D[data]))
@@ -93,6 +93,7 @@ def visualize_data(D, fault, path):
             fig.write_html(path + "/" + str(data)+".html")
         
         else:
+            #! Visualize all as single values
             y = np.array((D[data]))
             fig = make_subplots(rows=3, cols=1)
             x = y.shape[0]
@@ -102,24 +103,40 @@ def visualize_data(D, fault, path):
 
             fig.append_trace(go.Scatter(
                 x=x,
-                y=y[:, 0],
+                y=y,
                 name = "x"
             ), row=1, col=1)
 
-            fig.append_trace(go.Scatter(
-                x=x,
-                y=y[:,1],
-                name = "y"
-            ), row=2, col=1)
-
-            fig.append_trace(go.Scatter(
-                x=x,
-                y=y[:,2],
-                name = 'z'
-            ), row=3, col=1)
-
             fig.update_yaxes(range=[y_min, y_max], row=1, col=1)
-            fig.update_yaxes(range=[y_min, y_max], row=2, col=1)
-            fig.update_yaxes(range=[y_min, y_max], row=3, col=1)
             fig.update_layout(height=600, width=600, title_text=str(data))
-            fig.write_html(path + str(data)+".html")
+            fig.write_html(path + "/" + str(data)+".html")
+            # y = np.array((D[data]))
+            # fig = make_subplots(rows=3, cols=1)
+            # x = y.shape[0]
+            # x = np.arange(0,x,1)
+            # y_min = np.amin(y)
+            # y_max = np.amax(y)
+
+            # fig.append_trace(go.Scatter(
+            #     x=x,
+            #     y=y[:, 0],
+            #     name = "x"
+            # ), row=1, col=1)
+
+            # fig.append_trace(go.Scatter(
+            #     x=x,
+            #     y=y[:,1],
+            #     name = "y"
+            # ), row=2, col=1)
+
+            # fig.append_trace(go.Scatter(
+            #     x=x,
+            #     y=y[:,2],
+            #     name = 'z'
+            # ), row=3, col=1)
+
+            # fig.update_yaxes(range=[y_min, y_max], row=1, col=1)
+            # fig.update_yaxes(range=[y_min, y_max], row=2, col=1)
+            # fig.update_yaxes(range=[y_min, y_max], row=3, col=1)
+            # fig.update_layout(height=600, width=600, title_text=str(data))
+            # fig.write_html(path + str(data)+".html")

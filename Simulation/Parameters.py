@@ -130,8 +130,9 @@ class SET_PARAMS:
     Ix = 0.4 #kg.m^2
     Iy = 0.45 #kg.m^2
     Iz = 0.3 #kg.m^2
-    Inertia = np.diag([Ix, Iy, Iz])
-    Iw = 88.1e-6 #kgm^2 Inertia of the RW-06 wheel
+    Inertia = np.diag(([Ix, Iy, Iz]))
+    Iw_single = 88.1e-6 #kgm^2 Inertia of the RW-06 wheel
+    Iw = np.diag([Iw_single, Iw_single, Iw_single])
     Surface_area_i = np.array(([Dimensions[0] * Dimensions[1], 
                                 Dimensions[1] * Dimensions[2], 
                                 Dimensions[0] * Dimensions[2]]))
@@ -269,7 +270,7 @@ class SET_PARAMS:
 
     # Path to hyperparameters
     pathHyperParameters = "/".join(str(pathlib.Path(__file__).parent.resolve()).split("/")[:-1]) + "/Hyperparameters/"
-
+    UsePredeterminedPositionalData = False
 
     #####################
     # MODE OF OPERATION #
@@ -451,6 +452,8 @@ class SET_PARAMS:
     }
 
     #################################################################################################################
+
+    NumberOfIntegrationSteps = 10
 
 
 Min_high_noise = 5.0

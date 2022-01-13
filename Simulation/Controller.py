@@ -2,6 +2,7 @@ import numpy as np
 import math
 import Simulation.Quaternion_functions as Quaternion_functions
 from Simulation.Parameters import SET_PARAMS
+from Simulation.utilities import crossProduct
 
 pi = math.pi
 
@@ -20,10 +21,10 @@ class Control:
         self.t = SET_PARAMS.time
         self.nadir_pointing = False
 
-    def control(self, w_bi_est, w_est, q, Inertia, B, angular_momentum, earthVector, sunVector, sun_in_view):             
+    def control(self, w_bi_est, w_est, q, Inertia, B, angular_momentum_wheels, earthVector, sunVector, sun_in_view):             
         if SET_PARAMS.Mode == "Nominal":   # Normal operation
             self.q_ref = SET_PARAMS.q_ref
-            N_magnet = self.Momentum_dumping(B, angular_momentum)
+            N_magnet = self.Momentum_dumping(B, angular_momentum_wheels)
             
         elif SET_PARAMS.Mode == "EARTH_SUN":
             if sun_in_view:
@@ -41,16 +42,18 @@ class Control:
                 self.nadir_pointing = True
                 
                 self.q_ref = SET_PARAMS.q_ref
-                if self.delay >= 200:
-                    N_magnet = self.Momentum_dumping(B, angular_momentum)
+                if self.delay >= 0:
+                    N_magnet = self.Momentum_dumping(B, angular_momentum_wheels)
                 else:
                     N_magnet = np.zeros(3)
+                
+            N_magnet = self.Momentum_dumping(B, angular_momentum_wheels)
 
         if SET_PARAMS.Mode == "Safe":    # Detumbling mode
             N_magnet = self.B_dot_control(B, w_est)
             N_wheel = np.zeros(3)
         else:
-            N_wheel = self.Full_State_Quaternion(w_bi_est, w_est, q, Inertia, angular_momentum)
+            N_wheel = self.Full_State_Quaternion(w_bi_est, w_est, q, Inertia, angular_momentum_wheels)
 
 
         self.t += SET_PARAMS.Ts
@@ -60,7 +63,7 @@ class Control:
     # DETERMINE THE COMMAND QUATERNION FOR EARTH FOLLOWING #
     ########################################################
     def EarthCommandQuaternion(self, earthVector):
-        u1 = np.cross(self.Earth_sensor_position, earthVector)
+        u1 = crossProduct(self.Earth_sensor_position, earthVector)
         normu1 = np.linalg.norm(u1)
         if normu1 != 0:
             uc = u1/np.linalg.norm(u1)
@@ -78,7 +81,7 @@ class Control:
     # DETERMINE THE COMMAND QUATERNION FOR SUN FOLLOWING #
     ######################################################
     def SunCommandQuaternion(self, sunVector):
-        u1 = np.cross(self.SolarPanelPosition, sunVector)
+        u1 = crossProduct(self.SolarPanelPosition, sunVector)
         normu1 = np.linalg.norm(u1)
         if normu1 != 0:
             uc = u1/np.linalg.norm(u1)
@@ -93,14 +96,14 @@ class Control:
         q_ref = q_ref/np.linalg.norm(q_ref)
         return q_ref
 
-    def Full_State_Quaternion(self, w_bi_est, w_est, q, Inertia, angular_momentum):
+    def Full_State_Quaternion(self, w_bi_est, w_est, q, Inertia, angular_momentum_wheels):
         #! self.q_error = Quaternion_functions.quaternion_error(q, self.q_ref)
         #! self.q_e = self.q_error[0:3]
         q_error = Quaternion_functions.quaternion_error(q, self.q_ref)
         self.q_e = q_error[0:3]
         w_error = w_est - self.w_ref
         self.w_e = w_error
-        N = self.Kp * Inertia @ self.q_e + self.Kd * Inertia @ w_error - np.cross(w_bi_est,(Inertia @ w_bi_est + angular_momentum))
+        N = self.Kp * Inertia @ self.q_e + self.Kd * Inertia @ w_error - crossProduct(w_bi_est,(Inertia @ w_bi_est + angular_momentum_wheels))
         N = np.clip(N, -self.N_max,self.N_max)
         return N
     
@@ -120,10 +123,20 @@ class Control:
         N = np.clip(N, -SET_PARAMS.M_magnetic_max, SET_PARAMS.M_magnetic_max)
         return N
     
-    def Momentum_dumping(self, B, angular_momentum):
-        error = -SET_PARAMS.Kw * (angular_momentum - self.angular_momentum_ref)
-        M = np.cross(error,B)/(np.linalg.norm(B)**2)
-        return M
+    def Momentum_dumping(self, B, angular_wheel_momentum):
+        error = -SET_PARAMS.Kw * (angular_wheel_momentum - self.angular_momentum_ref)
+        M = crossProduct(error,B)/(np.linalg.norm(B)**2)
+
+        M = np.clip(M, -1, 1)
+
+        #! Nm is added as new part of the dumping control
+        Nm = crossProduct(M, B)
+        # N = np.clip(N, -SET_PARAMS.M_magnetic_max, SET_PARAMS.M_magnetic_max)
+
+
+        Nm = SET_PARAMS.Kw * (self.angular_momentum_ref - angular_wheel_momentum)
+
+        return Nm
 
     def reinitialize(self):
         self.Kp = SET_PARAMS.Kp

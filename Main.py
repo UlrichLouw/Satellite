@@ -12,10 +12,13 @@ from numba import njit, jit, vectorize
 import math
 from sgp4.api import jday
 from datetime import datetime
+import csv
 
 pi = math.pi
 
 dimensions = ['x', 'y', 'z']
+
+SET_PARAMS.Display = False
 
 # ! The matplotlib cannot display plots while visual simulation runs.
 # ! Consequently the Display and visualize parameters in Parameters 
@@ -34,87 +37,6 @@ def loop(index, D, SET_PARAMS):
         satellite = view.initializeCube(SET_PARAMS.Dimensions)
         pv = view.ProjectionViewer(1920, 1080, satellite)
 
-    Visualize_data = {col: [] for col in D.Orbit_Data}
-    # KalmanControl = {col: [] for col in SET_PARAMS.visualizeKalman}
-    MeasurementUpdates = {col: [] for col in SET_PARAMS.measurementUpdateVars}
-    
-    Columns = []
-
-    for col in D.Orbit_Data:
-        if isinstance(D.Orbit_Data[col], np.ndarray) and col != "Moving Average":
-            for i in range(len(dimensions)):
-                Columns.append(col + "_" + dimensions[i])
-        else:
-            Columns.append(col)
-
-    Data = pd.DataFrame(columns=Columns, index = [*range(1, int(SET_PARAMS.Period/(SET_PARAMS.faster_than_control*SET_PARAMS.Ts)+1))])
-    
-    for j in range(1, int(SET_PARAMS.Number_of_orbits*SET_PARAMS.Period/(SET_PARAMS.faster_than_control*SET_PARAMS.Ts)+1)):
-        w, q, A, r, sun_in_view = D.rotation()
-        if SET_PARAMS.Display and j%SET_PARAMS.skip == 0:
-            pv.run(w, q, A, r, sun_in_view)
-
-        if j%(int(SET_PARAMS.Number_of_orbits*SET_PARAMS.Period/(SET_PARAMS.faster_than_control*SET_PARAMS.Ts)/100)) == 0:
-            print("Number of time steps for orbit loop number", index, " = ", "%.2f" % float(j/int(SET_PARAMS.Number_of_orbits*SET_PARAMS.Period/(SET_PARAMS.faster_than_control*SET_PARAMS.Ts))))
-
-        # if j%int(SET_PARAMS.Period/(SET_PARAMS.faster_than_control*SET_PARAMS.Ts)) == 0:
-        #     Data = pd.DataFrame(columns=Columns, index = [*range(1, int(SET_PARAMS.Period/(SET_PARAMS.faster_than_control*SET_PARAMS.Ts)+1))])
-
-        if SET_PARAMS.fixed_orbit_failure == 0:
-            D.initiate_purposed_fault(SET_PARAMS.Fault_names_values[index])
-            if SET_PARAMS.Display:
-                pv.fault = D.fault
-
-        elif SET_PARAMS.Fault_simulation_mode == 2 and j%(int(SET_PARAMS.Number_of_orbits*SET_PARAMS.Period/(SET_PARAMS.faster_than_control*SET_PARAMS.Ts)/SET_PARAMS.fixed_orbit_failure)) == 0:
-            D.initiate_purposed_fault(SET_PARAMS.Fault_names_values[index])
-            print(SET_PARAMS.Fault_names_values[index], "is initiated")
-            if SET_PARAMS.Display:
-                pv.fault = D.fault
-
-        data_unfiltered = D.Orbit_Data
-
-        # # Convert array's to individual values in the dictionary
-        # data = {col + "_" + dimensions[i]: data_unfiltered[col][i] for col in data_unfiltered if isinstance(data_unfiltered[col], np.ndarray) and col != "Moving Average" for i in range(len(data_unfiltered[col]))}
-
-        # Add all the values to the dictionary that is not numpy arrays
-        for col in data_unfiltered:
-            Visualize_data[col].append(data_unfiltered[col])
-
-            # if not isinstance(data_unfiltered[col], np.ndarray):
-            #     data[col] = data_unfiltered[col]
-        for col in data_unfiltered:
-            if isinstance(D.Orbit_Data[col], np.ndarray) and col != "Moving Average":
-                for i in range(len(dimensions)):
-                    Data[col + "_" + dimensions[i]][j] = data_unfiltered[col][i]
-            else:
-                Data[col][j] = data_unfiltered[col]
-
-        
-        # Overall_data.append(Data.copy())
-        # for col in D.KalmanControl:
-        #     KalmanControl[col].append(D.KalmanControl[col])
-
-        for col in D.MeasurementUpdateDictionary:
-            perTimestep = D.MeasurementUpdateDictionary[col]
-            for var in perTimestep:
-                MeasurementUpdates[col].append(var)
-
-    # Data = pd.concat(Overall_data)
-
-    Datapgf= Data[int((SET_PARAMS.Number_of_orbits-1)*SET_PARAMS.Period/(SET_PARAMS.faster_than_control*SET_PARAMS.Ts)):]
-
-    DatapgfSensors = Datapgf.loc[:,Datapgf.columns.str.contains('Sun') | Datapgf.columns.str.contains('Magnetometer') |
-                            Datapgf.columns.str.contains('Earth') | Datapgf.columns.str.contains('Angular momentum of wheels') |
-                            Datapgf.columns.str.contains('Star')]
-    
-    DatapgfTorques = Datapgf.loc[:, Datapgf.columns.str.contains('Torques')]
-
-    DatapgfKalmanFilter = Datapgf.loc[:,Datapgf.columns.str.contains('Quaternions') | Datapgf.columns.str.contains('Euler Angles') | Datapgf.columns.str.contains('Angular velocity of satellite')]
-
-    DatapgfPrediction = Datapgf.loc[:,Datapgf.columns.str.contains('Accuracy') | Datapgf.columns.str.contains('fault')]
-
-    DatapgfMetric = Datapgf.loc[:,Datapgf.columns.str.contains('Metric')]
-
     if SET_PARAMS.NumberOfRandom > 1:
         GenericPath = "Predictor-" + SET_PARAMS.SensorPredictor+ "/Isolator-" + SET_PARAMS.SensorIsolator + "/Recovery-" + SET_PARAMS.SensorRecoveror +"/"+SET_PARAMS.Mode+"/" + SET_PARAMS.Model_or_Measured +"/" + \
                     "SunSensorSize-Length:" + str(SET_PARAMS.Sun_sensor_length) + "-Width:" + str(SET_PARAMS.Sun_sensor_width) + "/" + str(SET_PARAMS.Fault_names_values[index]) 
@@ -132,14 +54,107 @@ def loop(index, D, SET_PARAMS):
 
     path_to_folder = Path(path)
     path_to_folder.mkdir(parents = True, exist_ok=True)
+    
+    Visualize_data = {col: [] for col in D.Orbit_Data}
+    # KalmanControl = {col: [] for col in SET_PARAMS.visualizeKalman}
+    MeasurementUpdates = {col: [] for col in SET_PARAMS.measurementUpdateVars}
+    
+    Columns = []
+
+    for col in D.Orbit_Data:
+        if isinstance(D.Orbit_Data[col], np.ndarray) and col != "Moving Average":
+            for i in range(len(dimensions)):
+                Columns.append(col + "_" + dimensions[i])
+        else:
+            Columns.append(col)
+
+    filename = path + ".csv"
+
+    with open(filename, 'w') as csvfile:
+        # creating a csv writer object
+        csvwriter = csv.writer(csvfile)
+        
+        # writing the fields
+        csvwriter.writerow(D.globalArray)
+
+        # Data = pd.DataFrame(columns=Columns, index = [*range(1, int(SET_PARAMS.Period/(SET_PARAMS.faster_than_control*SET_PARAMS.Ts)+1))])
+        
+        for j in range(1, int(SET_PARAMS.Number_of_orbits*SET_PARAMS.Period/(SET_PARAMS.faster_than_control*SET_PARAMS.Ts)+1)):
+            w, q, A, r, sun_in_view = D.rotation()
+            if SET_PARAMS.Display and j%SET_PARAMS.skip == 0:
+                pv.run(w, q, A, r, sun_in_view)
+
+            if j%(int(SET_PARAMS.Number_of_orbits*SET_PARAMS.Period/(SET_PARAMS.faster_than_control*SET_PARAMS.Ts)/100)) == 0:
+                print("Number of time steps for orbit loop number", index, " = ", "%.2f" % float(j/int(SET_PARAMS.Number_of_orbits*SET_PARAMS.Period/(SET_PARAMS.faster_than_control*SET_PARAMS.Ts))))
+
+            # if j%int(SET_PARAMS.Period/(SET_PARAMS.faster_than_control*SET_PARAMS.Ts)) == 0:
+            #     Data = pd.DataFrame(columns=Columns, index = [*range(1, int(SET_PARAMS.Period/(SET_PARAMS.faster_than_control*SET_PARAMS.Ts)+1))])
+
+            if SET_PARAMS.fixed_orbit_failure == 0:
+                D.initiate_purposed_fault(SET_PARAMS.Fault_names_values[index])
+                if SET_PARAMS.Display:
+                    pv.fault = D.fault
+
+            elif SET_PARAMS.Fault_simulation_mode == 2 and j%(int(SET_PARAMS.Number_of_orbits*SET_PARAMS.Period/(SET_PARAMS.faster_than_control*SET_PARAMS.Ts)/SET_PARAMS.fixed_orbit_failure)) == 0:
+                D.initiate_purposed_fault(SET_PARAMS.Fault_names_values[index])
+                print(SET_PARAMS.Fault_names_values[index], "is initiated")
+                if SET_PARAMS.Display:
+                    pv.fault = D.fault
+
+            # data_unfiltered = D.Orbit_Data
+                
+                # writing the fields
+            csvwriter.writerow(D.globalArray)
+
+            # # Convert array's to individual values in the dictionary
+            # data = {col + "_" + dimensions[i]: data_unfiltered[col][i] for col in data_unfiltered if isinstance(data_unfiltered[col], np.ndarray) and col != "Moving Average" for i in range(len(data_unfiltered[col]))}
+
+        # # Add all the values to the dictionary that is not numpy arrays
+        # for col in data_unfiltered:
+        #     Visualize_data[col].append(data_unfiltered[col])
+
+        #     # if not isinstance(data_unfiltered[col], np.ndarray):
+        #     #     data[col] = data_unfiltered[col]
+        # for col in data_unfiltered:
+        #     if isinstance(D.Orbit_Data[col], np.ndarray) and col != "Moving Average":
+        #         for i in range(len(dimensions)):
+        #             Data[col + "_" + dimensions[i]][j] = data_unfiltered[col][i]
+        #     else:
+        #         Data[col][j] = data_unfiltered[col][0]
+
+        
+        # # Overall_data.append(Data.copy())
+        # # for col in D.KalmanControl:
+        # #     KalmanControl[col].append(D.KalmanControl[col])
+
+        # for col in D.MeasurementUpdateDictionary:
+        #     perTimestep = D.MeasurementUpdateDictionary[col]
+        #     for var in perTimestep:
+        #         MeasurementUpdates[col].append(var)
+
+    # Data = pd.concat(Overall_data)
+
+    Data = pd.read_csv(filename)
+
+    Datapgf= Data[int((SET_PARAMS.Number_of_orbits-1)*SET_PARAMS.Period/(SET_PARAMS.faster_than_control*SET_PARAMS.Ts)):]
+
+    DatapgfSensors = Datapgf.loc[:,Datapgf.columns.str.contains('Sun') | Datapgf.columns.str.contains('Magnetometer') |
+                            Datapgf.columns.str.contains('Earth') | Datapgf.columns.str.contains('Angular momentum of wheels') |
+                            Datapgf.columns.str.contains('Star')]
+    
+    DatapgfTorques = Datapgf.loc[:, Datapgf.columns.str.contains('Torques')]
+
+    DatapgfKalmanFilter = Datapgf.loc[:,Datapgf.columns.str.contains('Quaternions') | Datapgf.columns.str.contains('Euler Angles') | Datapgf.columns.str.contains('Angular velocity of satellite')]
+
+    DatapgfPrediction = Datapgf.loc[:,Datapgf.columns.str.contains('Accuracy') | Datapgf.columns.str.contains('fault')]
+
+    DatapgfMetric = Datapgf.loc[:,Datapgf.columns.str.contains('Metric')]
 
     if SET_PARAMS.Visualize and SET_PARAMS.Display == False:
         pathPlots = "Plots/"+ GenericPath + str(D.fault) + "/"
         path_to_folder = Path(pathPlots)
         path_to_folder.mkdir(parents = True, exist_ok=True)
-        visualize_data(Visualize_data, D.fault, path = pathPlots)
-        # visualize_data(KalmanControl, D.fault, path = path)
-        visualize_data(MeasurementUpdates, D.fault, path = pathPlots)
+        visualize_data(Data, D.fault, path = pathPlots)
     
     elif SET_PARAMS.Display == True:
         pv.save_plot(D.fault)
@@ -280,22 +295,27 @@ def main():
     SET_PARAMS.save_as = ".csv"
     SET_PARAMS.Kalman_filter_use = "EKF"
     SET_PARAMS.sensor_number = "ALL"
-    SET_PARAMS.Number_of_orbits = 2
+    SET_PARAMS.Number_of_orbits = 30
     SET_PARAMS.fixed_orbit_failure = 0
-    SET_PARAMS.Number_of_multiple_orbits = 1 #len(SET_PARAMS.Fault_names)
+    SET_PARAMS.Number_of_multiple_orbits = len(SET_PARAMS.Fault_names)
     SET_PARAMS.skip = 20
     SET_PARAMS.Number_of_satellites = 1
     SET_PARAMS.k_nearest_satellites = 5
     SET_PARAMS.FD_strategy = "Distributed"
-    SET_PARAMS.SensorFDIR = False
+    SET_PARAMS.SensorFDIR = True
     SET_PARAMS.Mode = "EARTH_SUN" # Nominal or EARTH_SUN
     SET_PARAMS.stateBufferLength = 1 #! The reset value was 1 and worked quite well (100 was terrible)
-    #SET_PARAMS.Mode = "Nominal"
-    numFaultStart = 1
+    #? SET_PARAMS.Mode = "Nominal"
+    numFaultStart = 2
     SET_PARAMS.NumberOfRandom = 1
     SET_PARAMS.NumberOfFailuresReset = 10
     SET_PARAMS.Model_or_Measured = "Model"
     SET_PARAMS.Low_Aerodynamic_Disturbance = False
+    SET_PARAMS.UsePredeterminedPositionalData = True #! change this to false if it doesn't work
+    SET_PARAMS.no_aero_disturbance = False
+    SET_PARAMS.no_wheel_disturbance = False
+
+    SET_PARAMS.NumberOfIntegrationSteps = 10
 
     includeNone = False
 
@@ -336,12 +356,13 @@ def main():
     #! since the oscillations increase)
 
     SET_PARAMS.P_k = np.eye(7)
-    SET_PARAMS.R_k = np.eye(3)*1e-3 #! This was 1e-4 (1e-3) is working perfectly
+    #? SET_PARAMS.R_k = np.eye(3)*1e-3 #! This was 1e-4 (1e-3) is working perfectly
+    SET_PARAMS.R_k = np.eye(3)*1e-3
     SET_PARAMS.Q_k = np.eye(7)*0.8e1 #! This was 2.2e-1, 2e1, 1e2 (the best so far), 2e2 was bad, 1.15e2 (also bad)
 
     SET_PARAMS.Kp = 2 * wn**2
     SET_PARAMS.Kd = 2 * damping_coefficient * wn
-    SET_PARAMS.Kw = SET_PARAMS.Kp*1e-3 #! I just changed this from e-6 to e-5 to e-4 to e-3
+    SET_PARAMS.Kw = 2e-3 #2e-4 #! *2e-3 #! I just changed this from e-6 to e-5 to e-4 to e-3
 
     #####################################
     # PARAMETERS FOR SATELLITE DYNAMICS #
@@ -584,10 +605,10 @@ def main():
 
 
 if __name__ == "__main__": 
-    import cProfile, pstats
-    profiler = cProfile.Profile()
-    profiler.enable()
+    # import cProfile, pstats
+    # profiler = cProfile.Profile()
+    # profiler.enable()
     main()
-    profiler.disable()
-    stats = pstats.Stats(profiler).sort_stats('cumtime')
-    stats.print_stats()
+    # profiler.disable()
+    # stats = pstats.Stats(profiler).sort_stats('cumtime')
+    # stats.print_stats()

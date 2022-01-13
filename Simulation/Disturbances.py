@@ -2,6 +2,7 @@ from Simulation.Parameters import SET_PARAMS
 import numpy as np
 from Simulation.Earth_model import orbit
 from Simulation.Sensors import Sensors
+from Simulation.utilities import crossProduct
 
 class Disturbances:
     def __init__(self, sense):
@@ -38,13 +39,13 @@ class Disturbances:
 
     def Gravity_gradient_func(self, A):
         zoB = A @ np.array(([0,0,1])).T
-        Ngg = 3 * SET_PARAMS.wo**2 * (np.cross(zoB, SET_PARAMS.Inertia@zoB))
+        Ngg = 3 * SET_PARAMS.wo**2 * (crossProduct(zoB, SET_PARAMS.Inertia@zoB))
 
         return Ngg
 
     def Aerodynamic2(self, A_ORC_to_SBC, A_EIC_to_ORC, sun_in_view):
         
-        v_AB = A_ORC_to_SBC @ A_EIC_to_ORC @ (np.cross(np.array([0, 0, -self.wo]), self.sense.position) - self.sense.velocity)
+        v_AB = A_ORC_to_SBC @ A_EIC_to_ORC @ (crossProduct(np.array([0, 0, -self.wo]), self.sense.position) - self.sense.velocity)
 
         normv_AB = np.linalg.norm(v_AB)
 
@@ -74,8 +75,8 @@ class Disturbances:
             sigma_t = 0.05
             sigma_n = 0.05
         else:
-            sigma_t = 0.2
-            sigma_n = 0.2
+            sigma_t = 0.7
+            sigma_n = 0.7
 
         S = 0.05
 
@@ -94,41 +95,11 @@ class Disturbances:
                 heaviside = 0
             else:
                 heaviside = 1
-
-            N_aero += p * normv_AB**2 * Ai * heaviside * cosa * (sigma_t * (np.cross(ri, unit_v_AB)) + (sigma_n * S + (2 - sigma_n - sigma_t)*cosa)*(np.cross(ri, ni)))
+           
+            N_aero += p * normv_AB**2 * Ai * heaviside * cosa * (sigma_t * (crossProduct(ri, unit_v_AB)) + (sigma_n * S + (2 - sigma_n - sigma_t)*cosa)*(crossProduct(ri, ni)))
             
-        return N_aero
-        
-
-
-    def Aerodynamic(self, DCM, EIC_to_ORC, sun_in_view):
-        r_sat = np.array(([self.sense.r_sat]))
-        v_A_EIC = np.matmul(np.array(([[0],[0],[SET_PARAMS.w_earth]])),r_sat)
-        v_ORC = np.matmul(EIC_to_ORC,v_A_EIC)
-        v_ab = np.matmul(DCM,v_ORC)
-        Ai = SET_PARAMS.Surface_area_i
-        alpha_i = SET_PARAMS.incidence_angle
-        h, h_o, H = [Sensors.current_height_above_earth, SET_PARAMS.Height_above_earth_surface, SET_PARAMS.Scale_height]
-        sigma_t = SET_PARAMS.tangential_accommodation      # tangential_accommodation
-        sigma_n = SET_PARAMS.normal_accommodation  # normal_accommodation
-        S = SET_PARAMS.ratio_of_molecular_exit        # ratio_of_molecular_exit
-        r_pi = SET_PARAMS.offset_vector
-        n_i = SET_PARAMS.unit_normal_vector
-        p_o = SET_PARAMS.atmospheric_reference_density
-        if sun_in_view:
-            p = 0.5 * (p_o * np.exp(-(h-h_o)/H))
-        else:
-            p = (p_o * np.exp(-(h-h_o)/H))
-
-        va = np.matmul(np.array(([0],[0],[SET_PARAMS.w_earth])), r_sat) - SET_PARAMS.v_sat
-        N_aero = []
-        for i in range(3):
-            N_aero.append(p * np.linalg.norm(va)**2 * Ai[i] * np.heaviside(np.cos(alpha_i))*np.cos(alpha_i)*sigma_t*(r_pi) + (sigma_n * S + (2-sigma_n - sigma_t)*np.cos(alpha_i)*(r_pi)))
-        
-        N_aero = np.array((N_aero))    
-
         #! Make a constant aerodynamic disturbance
-        N_aero = np.array([1e-8, 1e-8, 1e-8])
+        # N_aero = np.array([1e-8, 1e-8, 1e-8])
 
         return N_aero
 
@@ -144,17 +115,18 @@ class Disturbances:
         
         wx, wy, wz = omega
 
-        F_xs = Us * wx**2 * np.array(([np.sin(wx*t+self.phi_sx),np.cos(wx*t + self.phi_sx),0]))
-        F_ys = Us * wy**2 * np.array(([np.sin(wy*t+self.phi_sy),np.cos(wy*t + self.phi_sy),0]))
+        F_xs = Us * wx**2 * np.array(([0, np.sin(wx*t+self.phi_sx),np.cos(wx*t + self.phi_sx)]))
+        F_ys = Us * wy**2 * np.array(([np.sin(wy*t+self.phi_sy), 0, np.cos(wy*t + self.phi_sy)]))
         F_zs = Us * wz**2 * np.array(([np.sin(wz*t+self.phi_sz),np.cos(wz*t + self.phi_sz),0]))
         
         self.phi_sx = wx*t + self.phi_sx
         self.phi_sy = wy*t + self.phi_sy
         self.phi_sz = wz*t + self.phi_sz
 
-        N_xs = np.cross(self.position_vector_of_wheelx,F_xs)
-        N_ys = np.cross(self.position_vector_of_wheely,F_ys)
-        N_zs = np.cross(self.position_vector_of_wheelz,F_zs)
+        N_xs = crossProduct(self.position_vector_of_wheelx,F_xs)
+        N_ys = crossProduct(self.position_vector_of_wheely,F_ys)
+        N_zs = crossProduct(self.position_vector_of_wheelz,F_zs)
+
         N_s = N_xs + N_ys + N_zs
 
         return N_s
@@ -172,8 +144,8 @@ class Disturbances:
         
         wx, wy, wz = omega
 
-        N_xd = Ud * wx**2 * np.array(([np.sin(wx*t+self.phi_dx),np.cos(wx*t + self.phi_dx),0]))
-        N_yd = Ud * wy**2 * np.array(([np.sin(wy*t+self.phi_dy),np.cos(wy*t + self.phi_dy),0]))
+        N_xd = Ud * wx**2 * np.array(([0, np.sin(wx*t+self.phi_dx),np.cos(wx*t + self.phi_dx)]))
+        N_yd = Ud * wy**2 * np.array(([np.sin(wy*t+self.phi_dy),0, np.cos(wy*t + self.phi_dy)]))
         N_zd = Ud * wz**2 * np.array(([np.sin(wz*t+self.phi_dz),np.cos(wz*t + self.phi_dz),0]))
         
         self.phi_dx = wx*t + self.phi_dx
