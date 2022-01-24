@@ -27,7 +27,7 @@ def Transformation_matrix(q):
 
 class EKF():
     def __init__(self):
-        self.angular_noise = SET_PARAMS.RW_sigma
+        self.angular_noise = SET_PARAMS.RW_sigma/3600
 
         self.measurement_noise =  0.001
 
@@ -90,11 +90,11 @@ class EKF():
         x_k_updated, w_bo, P_k, q_updated, w_bi_updated = self.Measurement_update(self.P_k_est, self.x_k_est, self.K_k, self.A_ORC_to_SBC_est, vmeas_k, vmodel_k)
 
         self.P_k = P_k
-        
+
         # Updated self.q and self.w_bi with the measurement update
         self.q, self.w_bi, self.w_bo = q_updated, w_bi_updated, w_bo
 
-        return self.A_ORC_to_SBC_est, x_k_updated, w_bo, self.P_k, self.angular_momentum_wheels
+        return self.A_ORC_to_SBC_est, x_k_updated, w_bo, self.P_k, self.angular_momentum_wheels, self.K_k
 
     def Model_update(self, q, w_bi, w_bo, angular_momentum_wheels, Nw, Nm):
         ########################################################################
@@ -153,9 +153,9 @@ class EKF():
         # CAN EITHER BE FIXED AT INITIATION OR CALCULATED BASED ON THE CURRENT F_T AND #
         #                THE NOISE OF THE ANGULAR VELOCITY (SELF.Q_WT)                 #
         ################################################################################
-        #! if self.t == SET_PARAMS.time:
-        #!     self.Q_k = system_noise_covariance_matrix_discrete(T11, T12, T21, T22, self.Q_wt, SET_PARAMS.RW_sigma)
-        #!     print(self.Q_k)
+        # if self.t == SET_PARAMS.time:
+        #     self.Q_k = system_noise_covariance_matrix_discrete(T11, T12, T21, T22, self.Q_wt, SET_PARAMS.RW_sigma)
+        #     print(self.Q_k)
 
         ##########################################################
         # CALCULATE THE MEASUREMENT PERTURBATION MATRIX FROM THE #
@@ -213,45 +213,45 @@ class EKF():
 
 
 def error_message(variable):
-    if np.isnan(variable).any():
+    if np.isnan(variable).any() and SET_PARAMS.printBreak:
         print("Break")    
 
 #@njit
 def system_noise_covariance_matrix_discrete(T11, T12, T21, T22, Q_wt, RW_sigma):
-    # TL = Ts*Q_wt
-    # TR = 0.5 * (Ts**2) * (Q_wt @ T21.T)
-    # BL = 0.5 * (Ts**2) * (T21 @ Q_wt)
-    # BR = (1/3) * (Ts**3) * (T21 @ Q_wt @ T21.T)
+    TL = Ts*Q_wt
+    TR = 0.5 * (Ts**2) * (Q_wt @ T21.T)
+    BL = 0.5 * (Ts**2) * (T21 @ Q_wt)
+    BR = (1/3) * (Ts**3) * (T21 @ Q_wt @ T21.T)
+    T = np.concatenate((TL, TR), axis = 1)
+
+    B = np.concatenate((BL, BR), axis = 1)
+
+    Q_k = np.concatenate((T, B))
+    # S1 = np.diag([RW_sigma**2, RW_sigma**2, RW_sigma**2, 0, 0, 0, 0])
+
+    # TL = Q_wt @ T11.T + T11 @ Q_wt 
+    # TR = Q_wt @ T21.T
+    # BL = T21 @ Q_wt
+    # BR = np.zeros((4,4), dtype = 'float64')
+    
     # T = np.concatenate((TL, TR), axis = 1)
 
     # B = np.concatenate((BL, BR), axis = 1)
 
-    # Q_k = np.concatenate((T, B))
-    S1 = np.diag([RW_sigma**2, RW_sigma**2, RW_sigma**2, 0, 0, 0, 0])
+    # S2 = np.concatenate((T, B))
 
-    TL = Q_wt @ T11.T + T11 @ Q_wt 
-    TR = Q_wt @ T21.T
-    BL = T21 @ Q_wt
-    BR = np.zeros((4,4), dtype = 'float64')
+    # TL = T11 @ Q_wt @ T11.T
+    # TR = T11 @ Q_wt @ T21.T
+    # BL = T21 @ Q_wt @ T11.T
+    # BR = T21 @ Q_wt @ T21.T
     
-    T = np.concatenate((TL, TR), axis = 1)
+    # T = np.concatenate((TL, TR), axis = 1)
 
-    B = np.concatenate((BL, BR), axis = 1)
+    # B = np.concatenate((BL, BR), axis = 1)
 
-    S2 = np.concatenate((T, B))
+    # S3 = np.concatenate((T, B))
 
-    TL = T11 @ Q_wt @ T11.T
-    TR = T11 @ Q_wt @ T21.T
-    BL = T21 @ Q_wt @ T11.T
-    BR = T21 @ Q_wt @ T21.T
-    
-    T = np.concatenate((TL, TR), axis = 1)
-
-    B = np.concatenate((BL, BR), axis = 1)
-
-    S3 = np.concatenate((T, B))
-
-    Q_k = Ts*S1 + 0.5 * Ts**2 * S2 + (1/3) * Ts**3 * S3
+    # Q_k = Ts*S1 + 0.5 * Ts**2 * S2 + (1/3) * Ts**3 * S3
 
     return Q_k
 
@@ -312,7 +312,7 @@ def state_model_update_quaternion(q, kq, omega_k, w_ob):
 
 #@njit
 def Jacobian_K(P_k, H_k, R_k):
-    K_k = P_k @ H_k.T @ np.linalg.inv(H_k @ P_k @ H_k.T + R_k)
+    K_k = P_k @ (H_k.T) @ np.linalg.inv(H_k @ P_k @ H_k.T + R_k) #! np.linalg.inv(H_k @ P_k @ H_k.T + R_k)
     return K_k
 
 #@njit
@@ -322,7 +322,7 @@ def state_covariance_matrix(Q_k, P_k, sigma_k):
 
 #@njit
 def update_state_covariance_matrix(K_k, H_k, P_k, R_k):
-    P_k = (np.eye(7) - K_k @ H_k) @ P_k @ (np.eye(7) - K_k @ H_k).T + K_k @ R_k @ K_k.T
+    P_k = (np.eye(7) - K_k @ H_k) @ P_k @ (np.eye(7) - K_k @ H_k).T + K_k @ R_k @ K_k.T #! (np.eye(7) - K_k @ H_k) @ P_k @ np.linalg.inv(np.eye(7) - K_k @ H_k) + K_k @ R_k @ K_k.T
     return P_k
 
 #@njit
@@ -334,7 +334,7 @@ def state_measurement_update(x_k, K_k, e_k):
 def e_k_function(vmeas_k, A, vmodel_k):
     vmodel_k_SBC = A @ vmodel_k
     e_k = vmeas_k - vmodel_k_SBC
-    #! print(e_k)
+    # print(e_k)
     return e_k
 
 #@njit
@@ -452,7 +452,7 @@ def rungeKutta_w(Inertia, InvInertia, x0, w, x, h, angular_momentum_wheels, Nw, 
 
         angular_momentum_wheels = rungeKutta_h(x01, angular_momentum_wheels, x, h, Nw, h_ws_max)
 
-    #! y = np.clip(y, -wheel_angular_d_max, wheel_angular_d_max)
+    y = np.clip(y, -SET_PARAMS.angularSatelliteMax, SET_PARAMS.angularSatelliteMax)
 
     return y, angular_momentum_wheels
 
@@ -480,7 +480,7 @@ def rungeKutta_q(w_bo, x0, y0, x, h):
     norm_y = np.linalg.norm(y)
     y = y/norm_y
     
-    if np.isnan(y).any() or (y == 0).all():
+    if (np.isnan(y).any() or (y == 0).all()) and SET_PARAMS.printBreak:
         print("Break")
 
     return y

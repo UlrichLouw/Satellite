@@ -17,13 +17,14 @@ if __name__ == '__main__':
     SET_PARAMS.SensorIsolator = "None"
     SET_PARAMS.number_of_faults = 2
     SET_PARAMS.Number_of_satellites = 100
+    SET_PARAMS.Model_or_Measured = "ORC"
     constellation = False
     multi_class = False
 
-    GenericPath = "Predictor-" + SET_PARAMS.SensorPredictor+ "/Isolator-" + SET_PARAMS.SensorIsolator + "/Recovery-" + SET_PARAMS.SensorRecoveror +"/"+SET_PARAMS.Mode+"/"+ "General CubeSat Model/"
+    GenericPath = "Predictor-" + SET_PARAMS.SensorPredictor+ "/Isolator-" + SET_PARAMS.SensorIsolator + "/Recovery-" + SET_PARAMS.SensorRecoveror +"/"+SET_PARAMS.Mode+"/"+ SET_PARAMS.Model_or_Measured +"/" +"General CubeSat Model/"
     
     if constellation:
-        GenericPath = "Constellation/Predictor-" + SET_PARAMS.SensorPredictor+ "/Isolator-" + SET_PARAMS.SensorIsolator + "/Recovery-" + SET_PARAMS.SensorRecoveror +"/"+SET_PARAMS.Mode+"/"+ "General CubeSat Model/"
+        GenericPath = "Constellation/Predictor-" + SET_PARAMS.SensorPredictor+ "/Isolator-" + SET_PARAMS.SensorIsolator + "/Recovery-" + SET_PARAMS.SensorRecoveror +"/"+SET_PARAMS.Mode+"/"+ SET_PARAMS.Model_or_Measured +"/" +"General CubeSat Model/"
     
     SET_PARAMS.path = SET_PARAMS.path + GenericPath
     SET_PARAMS.numberOfSensors = 4

@@ -47,6 +47,9 @@ def Dataset_order(index, binary_set, buffer, categorical_num, controlInputx = Tr
     Data = Data.loc[:, ~Data.columns.str.contains("Euler Angles")]
     Data = Data.loc[:, ~Data.columns.str.contains("Angular velocity of satellite")]
     Data = Data.loc[:, ~Data.columns.str.contains("Sun in view")]
+    Data = Data.loc[:, ~Data.columns.str.contains("P_k")]
+    Data = Data.loc[:, ~Data.columns.str.contains("_Error_")]
+    Data = Data.loc[:, ~Data.columns.str.contains("K_k")]
 
     ReplaceDict = {'\n': '',
                     '[': '',

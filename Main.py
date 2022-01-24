@@ -13,6 +13,7 @@ import math
 from sgp4.api import jday
 from datetime import datetime
 import csv
+import os
 
 pi = math.pi
 
@@ -68,7 +69,14 @@ def loop(index, D, SET_PARAMS):
         else:
             Columns.append(col)
 
-    filename = path + ".csv"
+    filename = path + str(SET_PARAMS.Fault_names_values[index]) + ".csv"
+
+
+    if os.path.exists(filename):
+        os.remove(filename)
+        print("Remove file")
+    else:
+        print("The file does not exist") 
 
     with open(filename, 'w') as csvfile:
         # creating a csv writer object
@@ -103,36 +111,8 @@ def loop(index, D, SET_PARAMS):
 
             # data_unfiltered = D.Orbit_Data
                 
-                # writing the fields
+            # writing the fields
             csvwriter.writerow(D.globalArray)
-
-            # # Convert array's to individual values in the dictionary
-            # data = {col + "_" + dimensions[i]: data_unfiltered[col][i] for col in data_unfiltered if isinstance(data_unfiltered[col], np.ndarray) and col != "Moving Average" for i in range(len(data_unfiltered[col]))}
-
-        # # Add all the values to the dictionary that is not numpy arrays
-        # for col in data_unfiltered:
-        #     Visualize_data[col].append(data_unfiltered[col])
-
-        #     # if not isinstance(data_unfiltered[col], np.ndarray):
-        #     #     data[col] = data_unfiltered[col]
-        # for col in data_unfiltered:
-        #     if isinstance(D.Orbit_Data[col], np.ndarray) and col != "Moving Average":
-        #         for i in range(len(dimensions)):
-        #             Data[col + "_" + dimensions[i]][j] = data_unfiltered[col][i]
-        #     else:
-        #         Data[col][j] = data_unfiltered[col][0]
-
-        
-        # # Overall_data.append(Data.copy())
-        # # for col in D.KalmanControl:
-        # #     KalmanControl[col].append(D.KalmanControl[col])
-
-        # for col in D.MeasurementUpdateDictionary:
-        #     perTimestep = D.MeasurementUpdateDictionary[col]
-        #     for var in perTimestep:
-        #         MeasurementUpdates[col].append(var)
-
-    # Data = pd.concat(Overall_data)
 
     Data = pd.read_csv(filename)
 
@@ -151,18 +131,18 @@ def loop(index, D, SET_PARAMS):
     DatapgfMetric = Datapgf.loc[:,Datapgf.columns.str.contains('Metric')]
 
     if SET_PARAMS.Visualize and SET_PARAMS.Display == False:
-        pathPlots = "Plots/"+ GenericPath + str(D.fault) + "/"
+        pathPlots = "Plots/"+ GenericPath + str(SET_PARAMS.Fault_names_values[index]) + "/"
         path_to_folder = Path(pathPlots)
         path_to_folder.mkdir(parents = True, exist_ok=True)
-        visualize_data(Data, D.fault, path = pathPlots)
+        visualize_data(Data, SET_PARAMS.Fault_names_values[index], path = pathPlots)
     
     elif SET_PARAMS.Display == True:
         pv.save_plot(D.fault)
 
-    if SET_PARAMS.save_as == ".csv":
-        save_as_csv(Data, filename = SET_PARAMS.Fault_names_values[index], index = index, path = path, mode = 'a')
-    else:
-        save_as_pickle(Data, index)
+    # if SET_PARAMS.save_as == ".csv":
+    #     save_as_csv(Data, filename = SET_PARAMS.Fault_names_values[index], index = index, path = path, mode = 'a')
+    # else:
+    #     save_as_pickle(Data, index)
 
     if SET_PARAMS.NumberOfRandom <= 1:
         path = "Data files/pgfPlots/" + GenericPath
@@ -297,23 +277,25 @@ def main():
     SET_PARAMS.sensor_number = "ALL"
     SET_PARAMS.Number_of_orbits = 30
     SET_PARAMS.fixed_orbit_failure = 0
-    SET_PARAMS.Number_of_multiple_orbits = len(SET_PARAMS.Fault_names)
+    SET_PARAMS.Number_of_multiple_orbits = 1 #len(SET_PARAMS.Fault_names)
     SET_PARAMS.skip = 20
     SET_PARAMS.Number_of_satellites = 1
     SET_PARAMS.k_nearest_satellites = 5
     SET_PARAMS.FD_strategy = "Distributed"
-    SET_PARAMS.SensorFDIR = True
+    SET_PARAMS.SensorFDIR = False
     SET_PARAMS.Mode = "EARTH_SUN" # Nominal or EARTH_SUN
-    SET_PARAMS.stateBufferLength = 10 #! The reset value was 1 and worked quite well (100 was terrible)
+    SET_PARAMS.stateBufferLength = 1 #! The reset value was 1 and worked quite well (100 was terrible)
     #? SET_PARAMS.Mode = "Nominal"
-    numFaultStart = 2
+    numFaultStart = 1
     SET_PARAMS.NumberOfRandom = 1
     SET_PARAMS.NumberOfFailuresReset = 10
-    SET_PARAMS.Model_or_Measured = "Model"
+    SET_PARAMS.Model_or_Measured = "ORC"
     SET_PARAMS.Low_Aerodynamic_Disturbance = False
-    SET_PARAMS.UsePredeterminedPositionalData = True #! change this to false if it doesn't work
+    SET_PARAMS.UsePredeterminedPositionalData = False #! change this to false if it doesn't work
     SET_PARAMS.no_aero_disturbance = False
     SET_PARAMS.no_wheel_disturbance = False
+    SET_PARAMS.kalmanSensors = ["Magnetometer", "Earth_Sensor", "Sun_Sensor"]
+    SET_PARAMS.printBreak = True
 
     SET_PARAMS.NumberOfIntegrationSteps = 10
 
@@ -327,9 +309,9 @@ def main():
 
     if SET_PARAMS.SensorFDIR:
         featureExtractionMethods = ["DMD"]
-        predictionMethods = ["None", "PERFECT"] #! "DecisionTrees","RandomForest", "PERFECT"
-        isolationMethods = ["None", "PERFECT"] #! "RandomForest", 
-        recoveryMethods = ["EKF-combination", "EKF-reset", "EKF-ignore", "EKF-replacement", "EKF-top3", "EKF-top2"] #! "EKF-combination", "EKF-reset", "EKF-ignore", "EKF-replacement"
+        predictionMethods = ["None", "DecisionTrees","RandomForest", "PERFECT"] #! "DecisionTrees","RandomForest", "PERFECT"
+        isolationMethods = ["None", "DecisionTrees","RandomForest", "PERFECT"] #! "RandomForest", 
+        recoveryMethods = ["EKF-combination", "EKF-reset", "EKF-ignore", "EKF-replacement"] # ["EKF-combination", "EKF-reset", "EKF-ignore", "EKF-replacement", "EKF-top3", "EKF-top2"] #! "EKF-combination", "EKF-reset", "EKF-ignore", "EKF-replacement"
         
         SET_PARAMS.FeatureExtraction = "DMD"
         SET_PARAMS.SensorPredictor = "PERFECT"
@@ -348,7 +330,7 @@ def main():
 
     SET_PARAMS.measurementUpdateVars = ["Mean", "Covariance"]
 
-    settling_time = 200 #! Was 200 3 Dec 10:36
+    settling_time = 150 #! Was 200 3 Dec 10:36
     damping_coefficient = 0.707
     wn = 1/(settling_time*damping_coefficient)
 
@@ -356,13 +338,12 @@ def main():
     #! since the oscillations increase)
 
     SET_PARAMS.P_k = np.eye(7)
-    #? SET_PARAMS.R_k = np.eye(3)*1e-3 #! This was 1e-4 (1e-3) is working perfectly
-    SET_PARAMS.R_k = np.eye(3)*1e-3
-    SET_PARAMS.Q_k = np.eye(7)*0.8e1 #! This was 2.2e-1, 2e1, 1e2 (the best so far), 2e2 was bad, 1.15e2 (also bad)
+    SET_PARAMS.R_k = np.eye(3)*(1e-4) #* np.eye(3)*1e-3 
+    SET_PARAMS.Q_k = np.diag([8.89e-8, 8.89e-8, 8.89e-8, 7.4e-7, 7.4e-7, 7.4e-7, 7.4e-7])
 
     SET_PARAMS.Kp = 2 * wn**2
     SET_PARAMS.Kd = 2 * damping_coefficient * wn
-    SET_PARAMS.Kw = 2e-3 #2e-4 #! *2e-3 #! I just changed this from e-6 to e-5 to e-4 to e-3
+    SET_PARAMS.Kw = 2e-3 #! *2e-3 #! I just changed this from e-6 to e-5 to e-4 to e-3
 
     #####################################
     # PARAMETERS FOR SATELLITE DYNAMICS #
@@ -411,14 +392,14 @@ def main():
         threads.clear()
 
 
-    elif SET_PARAMS.Number_of_multiple_orbits == 1:
-        FD = Fault_detection.Basic_detection()
-        for i in range(1, SET_PARAMS.Number_of_multiple_orbits + 1):
-            D = Single_Satellite(i, s_list, t_list, J_t, fr)
+    # elif SET_PARAMS.Number_of_multiple_orbits == 1:
+    #     FD = Fault_detection.Basic_detection()
+    #     for i in range(1, SET_PARAMS.Number_of_multiple_orbits + 1):
+    #         D = Single_Satellite(i, s_list, t_list, J_t, fr)
 
-            print(SET_PARAMS.Fault_names_values[i])
+    #         print(SET_PARAMS.Fault_names_values[i])
 
-            loop(i, D, SET_PARAMS)
+    #         loop(i, D, SET_PARAMS)
 
     ######################################################
     # IF THE SAVE AS IS NOT EQUAL TO XLSX, THE THREADING #

@@ -109,6 +109,9 @@ class Control:
     
     def B_dot_control(self, B, w):
         Beta = np.arccos(B[1]/np.linalg.norm(B))
+        if self.t == SET_PARAMS.time:
+            self.Beta = Beta
+
         My = SET_PARAMS.Kd_magnet * (Beta - self.Beta)/SET_PARAMS.Ts
         if B[2] > B[0]:
             Mx = SET_PARAMS.Ks_magnet * (w[1][0] - self.w_ref[1][0])*np.sign(B[2])

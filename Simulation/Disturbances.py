@@ -75,8 +75,8 @@ class Disturbances:
             sigma_t = 0.05
             sigma_n = 0.05
         else:
-            sigma_t = 0.7
-            sigma_n = 0.7
+            sigma_t = 0.8
+            sigma_n = 0.8
 
         S = 0.05
 
@@ -97,9 +97,6 @@ class Disturbances:
                 heaviside = 1
            
             N_aero += p * normv_AB**2 * Ai * heaviside * cosa * (sigma_t * (crossProduct(ri, unit_v_AB)) + (sigma_n * S + (2 - sigma_n - sigma_t)*cosa)*(crossProduct(ri, ni)))
-            
-        #! Make a constant aerodynamic disturbance
-        # N_aero = np.array([1e-8, 1e-8, 1e-8])
 
         return N_aero
 

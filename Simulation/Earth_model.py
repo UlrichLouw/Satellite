@@ -50,7 +50,7 @@ def ecef2lla(R):
 
 class orbit:
     def __init__(self):
-        self.w_earth = SET_PARAMS.w_earth
+        self.w_earth = SET_PARAMS.wo
         self.a_G0 = SET_PARAMS.a_G0
 
     def EFC_to_EIC(self, t):
@@ -65,7 +65,7 @@ class orbit:
         c = -position_vector   # position vector must be measured by sensors
         b = crossProduct(velocity_vector, position_vector)/(np.linalg.norm(crossProduct(velocity_vector, position_vector)))
         a = crossProduct(b,c)
-        A = np.reshape(np.array(([a],[b],[c])),(3,3))
+        A = np.array((a,b,c)).T
         return A
 
 class Earth:   

@@ -4,7 +4,7 @@ from sgp4.api import jday
 from struct import *
 from scipy import special
 import pathlib
-from Simulation.utilities import Reflection, Intersection, PointWithinParallelLines, lineEquation, line2Equation
+from Simulation.utilities import Reflection, Intersection, PointWithinParallelLines, lineEquation, line2Equation, NormalizeVector
 
 pi = math.pi
 
@@ -136,6 +136,8 @@ class SET_PARAMS:
     Surface_area_i = np.array(([Dimensions[0] * Dimensions[1], 
                                 Dimensions[1] * Dimensions[2], 
                                 Dimensions[0] * Dimensions[2]]))
+
+    
     kgx = 3 * wo**2 * (Iz - Iy)
     kgy = 3 * wo**2 * (Ix - Iz)
     kgz = 3 * wo**2 * (Iy - Ix)
@@ -145,7 +147,7 @@ class SET_PARAMS:
     # SATELLITE INITIAL POSITION #
     ##############################
     
-    quaternion_initial = np.array(([0,0,1,0]), dtype = "float64") #Quaternion_functions.euler_to_quaternion(0,0,0) #roll, pitch, yaw
+    quaternion_initial = np.array(([0, 0, 1, 0]), dtype = "float64") #Quaternion_functions.euler_to_quaternion(0,0,0) #roll, pitch, yaw
     A_ORC_to_SBC = Transformation_matrix(quaternion_initial)
     wbo = np.array(([0.0,0.0,0.0]))
     wbi = wbo + A_ORC_to_SBC @ np.array(([0,-wo,0]), dtype = "float64")
@@ -155,9 +157,11 @@ class SET_PARAMS:
     # MAX PARAMETERS OF ACTUATERS #
     ###############################
     
-    wheel_angular_d_max = 2.0 #degrees per second (theta derived), angular velocity
+    angularSatelliteMax = 2.0 #degrees per second (theta derived), angular velocity
+    angularSatelliteMax = angularSatelliteMax * pi/180
     wheel_angular_d_d = 0.133 # degrees per second^2 (rotation speed derived), angular acceleration
     h_ws_max = 60e-3 # Nms
+    wheel_angular_d_max = h_ws_max/Iw_single
     N_ws_max = 5e-3 # Nm
     M_magnetic_max = 25e-6 # Nm
     RW_sigma_x = 14.6
@@ -171,7 +175,8 @@ class SET_PARAMS:
     ######################
     
     w_ref = np.zeros(3) # desired angular velocity of satellite
-    q_ref = quaternion_initial/np.linalg.norm(quaternion_initial) # initial position of satellite
+    quaternion_initial = quaternion_initial/np.linalg.norm(quaternion_initial) # initial position of satellite
+    q_ref = quaternion_initial
     time = 1
     Ts = 1 # Time_step
     wn = 90
@@ -351,8 +356,7 @@ class SET_PARAMS:
     # SENSOR MODELS #
     #################
     # Star tracker
-    star_tracker_vector = np.array(([1.0,1.0,1.0]))
-    star_tracker_vector = star_tracker_vector/np.linalg.norm(star_tracker_vector)
+    star_tracker_vector = np.array([1.0,1.0,1.0])/np.linalg.norm(np.array([1.0,1.0,1.0]))
     star_tracker_noise = 1e-4
 
     # Magnetometer
@@ -360,15 +364,15 @@ class SET_PARAMS:
 
     # Earth sensor
     Earth_sensor_position = np.array(([0, 0, -Lz/2])) # x, y, en z
-    Earth_sensor_FOV = 180 # Field of view in degrees
+    Earth_sensor_FOV = 180 # Field of view in degrees #! change this back to 180
     Earth_sensor_angle = Earth_sensor_FOV/2 # The angle use to check whether the dot product angle is within the field of view
-    Earth_noise = 1e-2                  #standard deviation away from where the actual earth is
+    Earth_noise = 5e-3                  #standard deviation away from where the actual earth is
 
     # Fine Sun sensor
     Fine_sun_sensor_position = np.array(([Lx/2, 0, 0])) # x, y, en z 
     Fine_sun_sensor_FOV = 180 # Field of view in degrees
     Fine_sun_sensor_angle = Fine_sun_sensor_FOV/2 # The angle use to check whether the dot product angle is within the field of view
-    Fine_sun_noise = 1e-3                   #standard deviation away from where the actual sun is
+    Fine_sun_noise = 5e-4                   #standard deviation away from where the actual sun is
     # Define sun sensor dimensions
     Sun_sensor_length = 0.028
     Sun_sensor_width = 0.023
@@ -380,7 +384,7 @@ class SET_PARAMS:
     Coarse_sun_sensor_position = np.array(([-Lx/2, 0, 0])) # x, y, en z 
     Coarse_sun_sensor_FOV = 180 # Field of view in degrees
     Coarse_sun_sensor_angle = Coarse_sun_sensor_FOV/2 # The angle use to check whether the dot product angle is within the field of view
-    Coarse_sun_noise = 1e-2 #standard deviation away from where the actual sun is
+    Coarse_sun_noise = 5e-3 #standard deviation away from where the actual sun is
 
     SSC_LeftCorner = np.array(([Coarse_sun_sensor_position[0], Coarse_sun_sensor_position[1] - Sun_sensor_width/2, Coarse_sun_sensor_position[2] - Sun_sensor_length/2]))
     SSC_RightCorner = np.array(([Coarse_sun_sensor_position[0], Coarse_sun_sensor_position[1] + Sun_sensor_width/2, Coarse_sun_sensor_position[2] - Sun_sensor_length/2]))
@@ -455,6 +459,10 @@ class SET_PARAMS:
 
     NumberOfIntegrationSteps = 10
 
+    process_noise = 1e-2
+
+    kalmanSensors = ["Magnetometer", "Earth_Sensor", "Sun_Sensor", "Star_tracker"]
+
 
 Min_high_noise = 5.0
 Max_high_noise = 10.0
@@ -525,10 +533,16 @@ class Fault_parameters:
         return self.np_random.normal(self.weibull_mean, self.weibull_std) 
 
     def normal_noise(self, sensor, noise):
-        if self.failure == "None":
-            sensor[0] += np.random.normal(0,abs(sensor[0]*noise))
-            sensor[1] += np.random.normal(0,abs(sensor[1]*noise))
-            sensor[2] += np.random.normal(0,abs(sensor[2]*noise))
+        sensor = sensor.copy()
+ 
+        #! sensor[0] += np.random.normal(0,abs(sensor[0]*noise))
+        #! sensor[1] += np.random.normal(0,abs(sensor[1]*noise))
+        #! sensor[2] += np.random.normal(0,abs(sensor[2]*noise))
+
+        noiseDistribution = np.random.normal(0, noise, 3)
+
+        sensor = sensor + noiseDistribution
+
         return sensor
 
 class Reaction_wheels(Fault_parameters):
@@ -649,6 +663,9 @@ class Sun_sensor(Fault_parameters):
                         S_ORC = reflectedSunVector
                 else:
                     S_ORC = reflectedSunVector
+
+
+                S_ORC = NormalizeVector(S_ORC)
             
             else:
                 reflectedSunVector = Reflection(S_sbc, SET_PARAMS.SPC_normal_vector)
@@ -682,7 +699,9 @@ class Sun_sensor(Fault_parameters):
                         S_ORC = reflectedSunVector
                 else:
                     S_ORC = reflectedSunVector
-            
+
+                S_ORC = NormalizeVector(S_ORC)
+
         return S_ORC, reflection
 
 class Magnetorquers(Fault_parameters):
@@ -772,7 +791,10 @@ class Star_tracker(Fault_parameters):
         super().__init__(self.Fault_rate_per_hour, self.number_of_failures, self.failures, seed)
 
     def Closed_shutter(self, Star_tracker):
-        return np.zeros(Star_tracker.shape) if self.failure == "Closed_shutter" else Star_tracker
+        if self.failure == "Closed_shutter":
+            return np.zeros(Star_tracker.shape)
+        else:
+            return Star_tracker
 
 class Overall_control(Fault_parameters):
     def __init__(self, seed):

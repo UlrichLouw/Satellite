@@ -77,8 +77,8 @@ def GetData(path, index, n, all = False, first = False):
 
 if __name__ == "__main__":
     featureExtractionMethods = ["DMD"]
-    # predictionMethods = ["RandomForest"]
-    # isolationMethods = ["RandomForest"] #! "RandomForest", 
+    # predictionMethods = ["DecisionTrees"]
+    # isolationMethods = ["DecisionTrees"] #! "RandomForest", "PERFECT",  
     # recoveryMethods = ["EKF-combination", "EKF-reset", "EKF-ignore"]
     # recoverMethodsWithoutPrediction = ["None", "EKF-top3"]
     predictionMethods = ["None"]
@@ -86,14 +86,14 @@ if __name__ == "__main__":
     recoveryMethods = ["None"]
     recoverMethodsWithoutPrediction = ["None"]
     SET_PARAMS.Mode = "EARTH_SUN"
-    SET_PARAMS.Model_or_Measured = "Model"
-    SET_PARAMS.Number_of_orbits = 25
+    SET_PARAMS.Model_or_Measured = "ORC"
+    SET_PARAMS.Number_of_orbits = 30
     SET_PARAMS.save_as = ".csv"
-    SET_PARAMS.Low_Aerodynamic_Disturbance = True
+    SET_PARAMS.Low_Aerodynamic_Disturbance = False
     index = 1
-    Number = 15
+    Number = 2
     ALL = False
-    first = True
+    first = False
 
     includeNone = True
 

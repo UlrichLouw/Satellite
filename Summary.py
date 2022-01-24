@@ -55,10 +55,11 @@ def SaveSummary(path, method):
 
 if __name__ == "__main__":
     featureExtractionMethods = ["DMD"]
-    predictionMethods = ["DecisionTrees", "PERFECT"]
-    isolationMethods = ["DecisionTrees", "PERFECT"] #! "RandomForest", 
-    recoveryMethods = ["EKF"]
+    predictionMethods = ["DecisionTrees", "RandomForest", "PERFECT"]
+    isolationMethods = ["DecisionTrees", "RandomForest", "PERFECT"] #! "RandomForest", 
+    recoveryMethods = ["EKF-ignore", "EKF-combination", "EKF-reset", "EKF-replacement"]
     SET_PARAMS.Mode = "EARTH_SUN"
+    SET_PARAMS.Model_or_Measured = "ORC"
     SET_PARAMS.Number_of_orbits = 30
     index = 2
 
@@ -73,8 +74,8 @@ if __name__ == "__main__":
                         SET_PARAMS.SensorPredictor = prediction
                         SET_PARAMS.SensorIsolator = isolation
                         SET_PARAMS.SensorRecoveror = recovery
-                        GenericPath = "Predictor-" + SET_PARAMS.SensorPredictor+ "/Isolator-" + SET_PARAMS.SensorIsolator + "/Recovery-" + SET_PARAMS.SensorRecoveror +"/"+SET_PARAMS.Mode+"/"+"SunSensorSize-Length:0.03-Width:0.02/"
-                        path = "Data files/"+ GenericPath + SET_PARAMS.Fault_names_values[index] 
+                        GenericPath = "Predictor-" + SET_PARAMS.SensorPredictor+ "/Isolator-" + SET_PARAMS.SensorIsolator + "/Recovery-" + SET_PARAMS.SensorRecoveror +"/"+SET_PARAMS.Mode+"/" + SET_PARAMS.Model_or_Measured +"/" + "General CubeSat Model/"
+                        path = "Data files/"+ GenericPath #+ SET_PARAMS.Fault_names_values[index] 
                         method = extraction + prediction + isolation + recovery
                         print("Begin: " + method)
                         path = Path(path)
@@ -86,8 +87,8 @@ if __name__ == "__main__":
     SET_PARAMS.SensorPredictor = "None"
     SET_PARAMS.SensorIsolator = "None"
     SET_PARAMS.SensorRecoveror = "None"
-    GenericPath = "Predictor-" + SET_PARAMS.SensorPredictor+ "/Isolator-" + SET_PARAMS.SensorIsolator + "/Recovery-" + SET_PARAMS.SensorRecoveror +"/"+SET_PARAMS.Mode+"/"+"SunSensorSize-Length:0.03-Width:0.02/"
-    path = "Data files/"+ GenericPath + SET_PARAMS.Fault_names_values[index]
+    GenericPath = "Predictor-" + SET_PARAMS.SensorPredictor+ "/Isolator-" + SET_PARAMS.SensorIsolator + "/Recovery-" + SET_PARAMS.SensorRecoveror +"/"+SET_PARAMS.Mode+"/"+SET_PARAMS.Model_or_Measured +"/" + "General CubeSat Model/"
+    path = "Data files/"+ GenericPath #+ SET_PARAMS.Fault_names_values[index]
     method = "DMD" + "None" + "None" + "None"
     print("Begin: " + method)
     path = Path(path)

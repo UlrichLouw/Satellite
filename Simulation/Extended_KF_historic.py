@@ -196,7 +196,7 @@ class EKF():
         self.vmeas_k = vmeas_k
 
 def error_message(variable):
-    if np.isnan(variable).any():
+    if np.isnan(variable).any() and SET_PARAMS.printBreak:
         print("Break")    
 
 

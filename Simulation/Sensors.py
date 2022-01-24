@@ -5,6 +5,7 @@ from sgp4.api import Satrec, WGS72
 from sgp4.api import jday
 from skyfield.api import wgs84, EarthSatellite
 import math
+from Simulation.utilities import crossProduct, NormalizeVector
 pi = math.pi
 
 
@@ -30,6 +31,7 @@ class Sensors:
         norm_rsun = np.linalg.norm(rsun)
         S_EIC = rsun - self.r_sat_EIC
         norm_S_EIC = np.linalg.norm(S_EIC)
+        self.sunVectorEIC = S_EIC
         norm_r_sat = max(np.linalg.norm(self.r_sat_EIC),SET_PARAMS.Radius_earth)
         theta_e = np.arcsin(SET_PARAMS.Radius_earth/norm_r_sat)
         theta_s = np.arcsin(SET_PARAMS.Radius_sun/norm_S_EIC)
@@ -39,12 +41,12 @@ class Sensors:
             S_EIC = np.zeros(3)
         else:
             self.in_sun_view = True
+
         return S_EIC, self.in_sun_view     #in m
 
     def magnetometer(self, t):
         self.latitude, self.longitude, self.altitude = Earth_model.ecef2lla(self.r_sat_EIC)
         B = self.earth.scalar_potential_function(self.latitude, self.longitude, self.altitude, t)
-        B += np.random.normal(0,np.linalg.norm(B)*SET_PARAMS.Magnetometer_noise,B.shape)
         self.position = np.array([self.longitude[0][0], self.latitude[0][0], self.altitude[0][0]])
 
         return B
@@ -57,11 +59,20 @@ class Sensors:
         self.v_sat_EIC = np.array((v_sat)) # v_sat to m/s
     
         self.A_EFC_to_EIC = self.orbit.EFC_to_EIC(t)
-        self.r_sat_EFC = np.matmul(np.linalg.inv(self.A_EFC_to_EIC),self.r_sat_EIC)
+        # self.r_sat_EFC = np.linalg.inv(self.A_EFC_to_EIC) @ self.r_sat_EIC
         self.A_EIC_to_ORC = self.orbit.EIC_to_ORC(self.r_sat_EIC, self.v_sat_EIC)
-        self.r_sat = np.matmul(self.A_EIC_to_ORC, self.r_sat_EIC)
-        self.v_sat = np.matmul(self.A_EIC_to_ORC, self.v_sat_EIC)
-        self.r_sat = self.r_sat/np.linalg.norm(self.r_sat)
+
+        r_sat_EIC = NormalizeVector(self.r_sat_EIC)
+        v_sat_EIC = NormalizeVector(self.v_sat_EIC)
+        self.r_sat = self.A_EIC_to_ORC @ r_sat_EIC
+        self.v_sat = self.A_EIC_to_ORC @ v_sat_EIC
+        self.r_sat = NormalizeVector(self.r_sat)
         self.r_sat_EIC = self.r_sat_EIC*1000
         self.v_sat_EIC = self.v_sat_EIC*1000
-        return self.r_sat, self.v_sat/np.linalg.norm(self.v_sat), self.A_EIC_to_ORC, self.r_sat_EIC
+        return self.r_sat.copy(), NormalizeVector(self.v_sat), self.A_EIC_to_ORC, self.r_sat_EIC
+
+    def starTracker(self):
+        starEIC = crossProduct(NormalizeVector(self.sunVectorEIC), NormalizeVector(self.r_sat_EIC))
+        vector = NormalizeVector(self.A_EIC_to_ORC @ starEIC)
+
+        return vector
