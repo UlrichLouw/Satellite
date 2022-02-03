@@ -5,6 +5,7 @@ import Simulation.igrf_utils as igrf_utils
 from scipy import interpolate
 import csv
 from Simulation.utilities import crossProduct
+import os
 
 IGRF_FILE = r'Simulation/Simulation_data/IGRF13.shc'
 igrf = igrf_utils.load_shcfile(IGRF_FILE, None)
@@ -74,6 +75,12 @@ class Earth:
         self.coeffs = f(2021) 
         if SET_PARAMS.UsePredeterminedPositionalData:
             self.preData = np.genfromtxt('PreMagnetometer.csv', delimiter=',')
+        else:
+            if os.path.exists('PreMagnetometer.csv'):
+                os.remove('PreMagnetometer.csv')
+                print("Remove PreMagnetometer.csv")
+            else:
+                print("PreMagnetometer.csv does not exist") 
 
     def scalar_potential_function(self, latitude, longitude, altitude, t):
         rs = altitude[0,0]

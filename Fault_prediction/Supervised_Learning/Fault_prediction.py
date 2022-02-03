@@ -134,7 +134,9 @@ def prediction_NN(X, Y, index, direction):
     with open("models/" + str(index) + str(direction) + ".json", "w") as json_file:
         json_file.write(model_json)
 
-    model.save_weights("models/" + str(index) + str(direction) + ".h5")
+    model.save_weights("models/" + str(index) + str(direction))
+
+    model.save("models/ANN")
 
     cm = confusion_matrix(y_test, y_pred.round())
     return cm

@@ -183,7 +183,6 @@ class EKF():
         #####################################################################
         e_k = e_k_function(vmeas_k, A_ORC_to_SBC_est, vmodel_k)
 
-
         x_k_updated = state_measurement_update(x_k_est, K_k, e_k)
 
         ########################################################

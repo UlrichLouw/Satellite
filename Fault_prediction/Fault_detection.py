@@ -4,6 +4,8 @@ import numpy as np
 import collections
 from Simulation.Parameters import SET_PARAMS
 import pickle
+import tensorflow as tf
+from tensorflow.keras.models import model_from_json, load_model
 
 ######################################################
 # BASIC DETECTION WITH THRESHOLDS AND IF STATEMENTS. #
@@ -243,7 +245,23 @@ class RandomForestPredict():
         y_predict = self.RandomForest.predict(X)[0]
         return y_predict
 
+class NeuralNetworkBasic():
+    def __init__(self):
+        # json_file = open("models/all samplesNone.json", 'r')
+        # loaded_model_json = json_file.read()
+        # json_file.close()
+        # model = model_from_json(loaded_model_json)
+        # model.load_weights("models/all samplesNone.h5")
+        # model.compile(optimizer='adam',
+        # loss='binary_crossentropy',
+        # metrics=['Precision'])
 
+        self.NN = load_model("models/ANN")
+
+    def Predict(self, X):
+        y_predict = self.NN.predict(X)
+
+        return y_predict.round()
 ###################################################
 # THIS CLASS IS THE MOST NOVEL DETECTION METHODS  #
 # THIS CLASS WILL HAVE MULTIPLE METHODS TO CHOOSE #

@@ -366,13 +366,13 @@ class SET_PARAMS:
     Earth_sensor_position = np.array(([0, 0, -Lz/2])) # x, y, en z
     Earth_sensor_FOV = 180 # Field of view in degrees #! change this back to 180
     Earth_sensor_angle = Earth_sensor_FOV/2 # The angle use to check whether the dot product angle is within the field of view
-    Earth_noise = 5e-3                  #standard deviation away from where the actual earth is
+    Earth_noise = 7e-3                  #standard deviation away from where the actual earth is
 
     # Fine Sun sensor
     Fine_sun_sensor_position = np.array(([Lx/2, 0, 0])) # x, y, en z 
     Fine_sun_sensor_FOV = 180 # Field of view in degrees
     Fine_sun_sensor_angle = Fine_sun_sensor_FOV/2 # The angle use to check whether the dot product angle is within the field of view
-    Fine_sun_noise = 5e-4                   #standard deviation away from where the actual sun is
+    Fine_sun_noise = 2e-3                   #standard deviation away from where the actual sun is
     # Define sun sensor dimensions
     Sun_sensor_length = 0.028
     Sun_sensor_width = 0.023
@@ -384,14 +384,14 @@ class SET_PARAMS:
     Coarse_sun_sensor_position = np.array(([-Lx/2, 0, 0])) # x, y, en z 
     Coarse_sun_sensor_FOV = 180 # Field of view in degrees
     Coarse_sun_sensor_angle = Coarse_sun_sensor_FOV/2 # The angle use to check whether the dot product angle is within the field of view
-    Coarse_sun_noise = 5e-3 #standard deviation away from where the actual sun is
+    Coarse_sun_noise = 2e-3 #standard deviation away from where the actual sun is
 
     SSC_LeftCorner = np.array(([Coarse_sun_sensor_position[0], Coarse_sun_sensor_position[1] - Sun_sensor_width/2, Coarse_sun_sensor_position[2] - Sun_sensor_length/2]))
     SSC_RightCorner = np.array(([Coarse_sun_sensor_position[0], Coarse_sun_sensor_position[1] + Sun_sensor_width/2, Coarse_sun_sensor_position[2] - Sun_sensor_length/2]))
     
     SSC_Plane = [-1/2, 0, 0, Lx/2] # x, y, z, d
     # Angular Momentum sensor
-    Angular_sensor_noise = 1e-3
+    Angular_sensor_noise = 5e-3
     
     ###################
     # HARDWARE MODELS #
@@ -459,7 +459,7 @@ class SET_PARAMS:
 
     NumberOfIntegrationSteps = 10
 
-    process_noise = 1e-2
+    process_noise = 1e-4
 
     kalmanSensors = ["Magnetometer", "Earth_Sensor", "Sun_Sensor", "Star_tracker"]
 

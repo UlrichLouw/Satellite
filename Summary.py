@@ -29,7 +29,7 @@ def GetData(path, nameList):
     return Dataframe
 
 def SaveSummary(path, method):
-    nameList = ["Pointing Metric", "Estimation Metric"]
+    nameList = ["Pointing Metric", "Estimation Metric", "Prediction Accuracy"]
     DataFrames = GetData(path, nameList)
 
     meanList, stdList = [], []
@@ -42,8 +42,9 @@ def SaveSummary(path, method):
         for DataFrame in DataFrames:
             DF = DataFrame[int((orbit-1)*SET_PARAMS.Period/(SET_PARAMS.faster_than_control*SET_PARAMS.Ts)):int((orbit)*SET_PARAMS.Period/(SET_PARAMS.faster_than_control*SET_PARAMS.Ts))]
             
-            PA = DF["Pointing Metric"]
-            EA = DF["Estimation Metric"]
+            PM = DF["Pointing Metric"]
+            EM = DF["Estimation Metric"]
+            PA = DF["Prediction Accuracy"]
             meanList.append(PA.mean())
             stdList.append(PA.std())
 
@@ -55,12 +56,15 @@ def SaveSummary(path, method):
 
 if __name__ == "__main__":
     featureExtractionMethods = ["DMD"]
-    predictionMethods = ["DecisionTrees", "RandomForest", "PERFECT"]
-    isolationMethods = ["DecisionTrees", "RandomForest", "PERFECT"] #! "RandomForest", 
-    recoveryMethods = ["EKF-ignore", "EKF-combination", "EKF-reset", "EKF-replacement"]
+    predictionMethods = ["DecisionTrees","RandomForest"] #! "DecisionTrees","RandomForest", "PERFECT", "RandomChoice"
+    isolationMethods = ["DecisionTrees","RandomForest"] #! "RandomForest", 
+    recoveryMethods = ["EKF-ignore"] # ["
+    # predictionMethods = ["RandomForest"]
+    # isolationMethods = ["RandomForest"] #! "RandomForest", 
+    # recoveryMethods = ["EKF-replacement"]
     SET_PARAMS.Mode = "EARTH_SUN"
     SET_PARAMS.Model_or_Measured = "ORC"
-    SET_PARAMS.Number_of_orbits = 30
+    SET_PARAMS.Number_of_orbits = 5
     index = 2
 
     dfList = []
@@ -101,4 +105,4 @@ if __name__ == "__main__":
 
     path_to_folder = Path(path)
     path_to_folder.mkdir(parents = True, exist_ok=True)
-    save_as_csv(dataFrame, filename = SET_PARAMS.Fault_names_values[index], index = index, path = path)
+    save_as_csv(dataFrame, filename = SET_PARAMS.Fault_names_values[index], index = index, path = path,  float_format="%.2f")

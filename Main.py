@@ -14,6 +14,7 @@ from sgp4.api import jday
 from datetime import datetime
 import csv
 import os
+from tensorflow.keras.models import model_from_json, load_model
 
 pi = math.pi
 
@@ -39,14 +40,14 @@ def loop(index, D, SET_PARAMS):
         pv = view.ProjectionViewer(1920, 1080, satellite)
 
     if SET_PARAMS.NumberOfRandom > 1:
-        GenericPath = "Predictor-" + SET_PARAMS.SensorPredictor+ "/Isolator-" + SET_PARAMS.SensorIsolator + "/Recovery-" + SET_PARAMS.SensorRecoveror +"/"+SET_PARAMS.Mode+"/" + SET_PARAMS.Model_or_Measured +"/" + \
+        GenericPath = "Predictor-" + str(SET_PARAMS.SensorPredictor)+ "/Isolator-" + str(SET_PARAMS.SensorIsolator) + "/Recovery-" + SET_PARAMS.SensorRecoveror +"/"+SET_PARAMS.Mode+"/" + SET_PARAMS.Model_or_Measured +"/" + \
                     "SunSensorSize-Length:" + str(SET_PARAMS.Sun_sensor_length) + "-Width:" + str(SET_PARAMS.Sun_sensor_width) + "/" + str(SET_PARAMS.Fault_names_values[index]) 
         path = "Data files/"+ GenericPath
         path = path + "/" + "SolarPanel-Length: " + str(SET_PARAMS.SP_Length) + "SolarPanel-Width: " + str(SET_PARAMS.SP_width) + \
                     "Raan: " + str(SET_PARAMS.RAAN) + " inclinination: " +str(SET_PARAMS.inclination)
         
     else:
-        GenericPath = "Predictor-" + SET_PARAMS.SensorPredictor+ "/Isolator-" + SET_PARAMS.SensorIsolator + "/Recovery-" + SET_PARAMS.SensorRecoveror +"/"+SET_PARAMS.Mode+"/" + SET_PARAMS.Model_or_Measured +"/" + "General CubeSat Model/"
+        GenericPath = "Predictor-" + str(SET_PARAMS.SensorPredictor)+ "/Isolator-" + str(SET_PARAMS.SensorIsolator) + "/Recovery-" + SET_PARAMS.SensorRecoveror +"/"+SET_PARAMS.Mode+"/" + SET_PARAMS.Model_or_Measured +"/" + "General CubeSat Model/"
         path = "Data files/"+ GenericPath
 
     if SET_PARAMS.Low_Aerodynamic_Disturbance:
@@ -275,27 +276,27 @@ def main():
     SET_PARAMS.save_as = ".csv"
     SET_PARAMS.Kalman_filter_use = "EKF"
     SET_PARAMS.sensor_number = "ALL"
-    SET_PARAMS.Number_of_orbits = 30
+    SET_PARAMS.Number_of_orbits = 3
     SET_PARAMS.fixed_orbit_failure = 0
-    SET_PARAMS.Number_of_multiple_orbits = 1 #len(SET_PARAMS.Fault_names)
+    SET_PARAMS.Number_of_multiple_orbits = len(SET_PARAMS.Fault_names)
     SET_PARAMS.skip = 20
     SET_PARAMS.Number_of_satellites = 1
     SET_PARAMS.k_nearest_satellites = 5
     SET_PARAMS.FD_strategy = "Distributed"
-    SET_PARAMS.SensorFDIR = False
+    SET_PARAMS.SensorFDIR = True
     SET_PARAMS.Mode = "EARTH_SUN" # Nominal or EARTH_SUN
     SET_PARAMS.stateBufferLength = 1 #! The reset value was 1 and worked quite well (100 was terrible)
     #? SET_PARAMS.Mode = "Nominal"
-    numFaultStart = 1
+    numFaultStart = 2
     SET_PARAMS.NumberOfRandom = 1
-    SET_PARAMS.NumberOfFailuresReset = 10
+    SET_PARAMS.NumberOfFailuresReset = 20
     SET_PARAMS.Model_or_Measured = "ORC"
     SET_PARAMS.Low_Aerodynamic_Disturbance = False
-    SET_PARAMS.UsePredeterminedPositionalData = False #! change this to false if it doesn't work
+    SET_PARAMS.UsePredeterminedPositionalData = True #! change this to false if it doesn't work
     SET_PARAMS.no_aero_disturbance = False
     SET_PARAMS.no_wheel_disturbance = False
-    SET_PARAMS.kalmanSensors = ["Magnetometer", "Earth_Sensor", "Sun_Sensor"]
-    SET_PARAMS.printBreak = True
+    SET_PARAMS.kalmanSensors = ["Magnetometer", "Earth_Sensor", "Sun_Sensor"] #!, "Sun_Sensor"]
+    SET_PARAMS.printBreak = False
 
     SET_PARAMS.NumberOfIntegrationSteps = 10
 
@@ -309,9 +310,9 @@ def main():
 
     if SET_PARAMS.SensorFDIR:
         featureExtractionMethods = ["DMD"]
-        predictionMethods = ["None", "DecisionTrees","RandomForest", "PERFECT"] #! "DecisionTrees","RandomForest", "PERFECT"
-        isolationMethods = ["None", "DecisionTrees","RandomForest", "PERFECT"] #! "RandomForest", 
-        recoveryMethods = ["EKF-combination", "EKF-reset", "EKF-ignore", "EKF-replacement"] # ["EKF-combination", "EKF-reset", "EKF-ignore", "EKF-replacement", "EKF-top3", "EKF-top2"] #! "EKF-combination", "EKF-reset", "EKF-ignore", "EKF-replacement"
+        predictionMethods = ["None", "ANN"] #! "DecisionTrees","RandomForest", "PERFECT", "RandomChoice"
+        isolationMethods = ["None", "ANN"] #! "RandomForest", , 10, 20, 30, 40, 50, 60, 70, 80, 90
+        recoveryMethods = ["EKF-ignore"] # ["EKF-combination", "EKF-reset", "EKF-ignore", "EKF-replacement", "EKF-top3", "EKF-top2"] #! "EKF-combination", "EKF-reset", "EKF-ignore", "EKF-replacement"
         
         SET_PARAMS.FeatureExtraction = "DMD"
         SET_PARAMS.SensorPredictor = "PERFECT"
@@ -337,8 +338,11 @@ def main():
     #! If the current settings do not work, then the Kw parameter should change (the Kw parameter should decrease
     #! since the oscillations increase)
 
+    SET_PARAMS.measurement_noise = 0.5
+    SET_PARAMS.process_noise = 0.5
+
     SET_PARAMS.P_k = np.eye(7)
-    SET_PARAMS.R_k = np.eye(3)*(1e-4) #* np.eye(3)*1e-3 
+    SET_PARAMS.R_k = np.eye(3)*(SET_PARAMS.process_noise**2 + SET_PARAMS.measurement_noise**2) #* np.eye(3)*1e-4
     SET_PARAMS.Q_k = np.diag([8.89e-8, 8.89e-8, 8.89e-8, 7.4e-7, 7.4e-7, 7.4e-7, 7.4e-7])
 
     SET_PARAMS.Kp = 2 * wn**2

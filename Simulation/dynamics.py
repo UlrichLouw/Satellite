@@ -14,6 +14,10 @@ import Fault_prediction.Fault_detection as FaultDetection
 import collections
 from numba import njit, jit
 from Simulation.utilities import crossProduct, NormalizeVector
+import random
+from sklearn.preprocessing import StandardScaler
+from tensorflow.keras.models import load_model
+sc = StandardScaler()
 
 pi = math.pi
 
@@ -64,7 +68,8 @@ class Dynamics:
         #* Normalize self.B_ORC
         self.B_ORC = NormalizeVector(self.B_ORC)
 
-        self.sensor_vectors["Magnetometer"]["Model ORC"] = self.B_ORC.copy()
+        self.sensor_vectors["Magnetometer"]["True ORC"] = self.B_ORC.copy()
+        self.sensor_vectors["Magnetometer"]["Noise ORC"] = self.Magnetometer_fault.normal_noise(self.B_ORC, SET_PARAMS.process_noise)
 
         self.B_sbc = self.A_ORC_to_SBC @ self.B_ORC
         ######################################################
@@ -85,16 +90,17 @@ class Dynamics:
     def determine_star_tracker(self):
         self.star_tracker_ORC = self.sense.starTracker()
 
-        self.star_tracker_ORC = self.Star_tracker_fault.normal_noise(self.star_tracker_ORC,SET_PARAMS.process_noise)
+        # self.star_tracker_ORC = self.Star_tracker_fault.normal_noise(self.star_tracker_ORC,SET_PARAMS.process_noise)
 
-        self.sensor_vectors["Star_tracker"]["Model ORC"] = self.star_tracker_ORC.copy()
+        self.sensor_vectors["Star_tracker"]["True ORC"] = self.star_tracker_ORC.copy()
+        self.sensor_vectors["Star_tracker"]["Noise ORC"] = self.Star_tracker_fault.normal_noise(self.star_tracker_ORC, SET_PARAMS.process_noise)
 
         #* Star tracker
         self.star_tracker_sbc = self.A_ORC_to_SBC @ self.star_tracker_ORC
 
-        self.star_tracker_sbc = self.Star_tracker_fault.normal_noise(self.star_tracker_sbc,SET_PARAMS.star_tracker_noise)
+        self.star_tracker_sbc_meas = self.Star_tracker_fault.normal_noise(self.star_tracker_sbc,SET_PARAMS.star_tracker_noise)
 
-        self.star_tracker_sbc = self.Star_tracker_fault.Closed_shutter(self.star_tracker_sbc)
+        self.star_tracker_sbc_meas = self.Star_tracker_fault.Closed_shutter(self.star_tracker_sbc)
 
         # self.star_tracker_sbc = NormalizeVector(self.star_tracker_sbc)
 
@@ -107,11 +113,12 @@ class Dynamics:
         #             THIS IS DETERMINED WITH THE SBC FRAME             #
         #################################################################
         #* self.r_sat_ORC is already normalized
-        self.sensor_vectors["Earth_Sensor"]["Model ORC"] = self.r_sat_ORC.copy()
+        self.sensor_vectors["Earth_Sensor"]["True ORC"] = self.r_sat_ORC.copy()
+        self.sensor_vectors["Earth_Sensor"]["Noise ORC"] = self.Earth_sensor_fault.normal_noise(self.r_sat_ORC, SET_PARAMS.process_noise)
 
         self.r_sat_sbc = self.A_ORC_to_SBC @ self.r_sat_ORC
 
-        self.r_sat_sbc = self.Earth_sensor_fault.normal_noise(self.r_sat_sbc, SET_PARAMS.Earth_noise)
+        self.r_sat_sbc_meas = self.Earth_sensor_fault.normal_noise(self.r_sat_sbc, SET_PARAMS.Earth_noise)
 
         self.earthSeenBySensor = True
 
@@ -119,15 +126,18 @@ class Dynamics:
 
         if angle_difference < SET_PARAMS.Earth_sensor_angle:
             self.earthSeenBySensor = True
-            self.r_sat_sbc = self.Earth_sensor_fault.normal_noise(self.r_sat_sbc, SET_PARAMS.Earth_noise)
-            self.r_sat_sbc = self.Earth_sensor_fault.Earth_sensor_high_noise(self.r_sat_sbc)
-            self.r_sat_sbc = self.Common_data_transmission_fault.Bit_flip(self.r_sat_sbc)
-            self.r_sat_sbc = self.Common_data_transmission_fault.Sign_flip(self.r_sat_sbc)
-            self.r_sat_sbc = self.Common_data_transmission_fault.Insertion_of_zero_bit(self.r_sat_sbc) 
+            self.r_sat_sbc_meas = self.Earth_sensor_fault.normal_noise(self.r_sat_sbc, SET_PARAMS.Earth_noise)
+            self.r_sat_sbc_meas = self.Earth_sensor_fault.Earth_sensor_high_noise(self.r_sat_sbc)
+            self.r_sat_sbc_meas = self.Common_data_transmission_fault.Bit_flip(self.r_sat_sbc)
+            self.r_sat_sbc_meas = self.Common_data_transmission_fault.Sign_flip(self.r_sat_sbc)
+            self.r_sat_sbc_meas = self.Common_data_transmission_fault.Insertion_of_zero_bit(self.r_sat_sbc) 
 
         else:
+            self.r_sat_sbc_meas = np.zeros(self.r_sat_sbc_meas.shape)
             self.r_sat_sbc = np.zeros(self.r_sat_sbc.shape)
             self.r_sat_ORC = np.zeros(self.r_sat_ORC.shape)
+            self.sensor_vectors["Earth_Sensor"]["True ORC"] = np.zeros(self.r_sat_ORC.shape)
+            self.sensor_vectors["Earth_Sensor"]["Noise ORC"] = np.zeros(self.r_sat_ORC.shape)
             #* self.r_sat_ORC is already normalized
             self.earthSeenBySensor = False
 
@@ -144,11 +154,12 @@ class Dynamics:
         #* Normalize self.S_ORC
         self.S_ORC = NormalizeVector(self.S_ORC)
 
-        self.sensor_vectors["Sun_Sensor"]["Model ORC"] = self.S_ORC.copy()
+        self.sensor_vectors["Sun_Sensor"]["True ORC"] = self.S_ORC.copy()
+        self.sensor_vectors["Sun_Sensor"]["Noise ORC"] = self.Sun_sensor_fault.normal_noise(self.S_ORC, SET_PARAMS.process_noise)
 
         self.S_sbc = self.A_ORC_to_SBC @ self.S_ORC
 
-        self.S_sbc = self.Sun_sensor_fault.normal_noise(self.S_sbc, SET_PARAMS.Coarse_sun_noise)
+        self.S_sbc_meas = self.Sun_sensor_fault.normal_noise(self.S_sbc, SET_PARAMS.Coarse_sun_noise)
 
         self.SunSeenBySensor = True
 
@@ -160,58 +171,63 @@ class Dynamics:
 
             if angle_difference_fine < SET_PARAMS.Fine_sun_sensor_angle: 
                 self.SunSeenBySensor = True
-                self.S_ORC, reflection = self.Sun_sensor_fault.Reflection_sun(self.S_sbc, self.S_ORC, "Fine")
+                self.S_ORC_reflection, reflection = self.Sun_sensor_fault.Reflection_sun(self.S_sbc, self.S_ORC, "Fine")
 
-                self.S_sbc = self.A_ORC_to_SBC @ self.S_ORC
+                self.S_sbc = self.A_ORC_to_SBC @ self.S_ORC_reflection
 
-                self.S_sbc = self.Sun_sensor_fault.normal_noise(self.S_sbc, SET_PARAMS.Fine_sun_noise)
+                self.S_sbc_meas = self.Sun_sensor_fault.normal_noise(self.S_sbc, SET_PARAMS.Fine_sun_noise)
 
                 ######################################################
                 # IMPLEMENT ERROR OR FAILURE OF SENSOR IF APPLICABLE #
                 ######################################################
 
-                self.S_sbc = self.Sun_sensor_fault.Catastrophic_sun(self.S_sbc, "Fine")
-                self.S_sbc = self.Sun_sensor_fault.Erroneous_sun(self.S_sbc, "Fine")
-                self.S_sbc = self.Common_data_transmission_fault.Bit_flip(self.S_sbc)
-                self.S_sbc = self.Common_data_transmission_fault.Sign_flip(self.S_sbc)
-                self.S_sbc = self.Common_data_transmission_fault.Insertion_of_zero_bit(self.S_sbc)  
+                self.S_sbc_meas = self.Sun_sensor_fault.Catastrophic_sun(self.S_sbc, "Fine")
+                self.S_sbc_meas = self.Sun_sensor_fault.Erroneous_sun(self.S_sbc, "Fine")
+                self.S_sbc_meas = self.Common_data_transmission_fault.Bit_flip(self.S_sbc)
+                self.S_sbc_meas = self.Common_data_transmission_fault.Sign_flip(self.S_sbc)
+                self.S_sbc_meas = self.Common_data_transmission_fault.Insertion_of_zero_bit(self.S_sbc)  
 
                 self.sun_noise = SET_PARAMS.Fine_sun_noise
 
             elif angle_difference_coarse < SET_PARAMS.Coarse_sun_sensor_angle:
                 self.SunSeenBySensor = True
-                self.S_ORC, reflection = self.Sun_sensor_fault.Reflection_sun(self.S_sbc, self.S_ORC, "Coarse")
+                self.S_ORC_reflection, reflection = self.Sun_sensor_fault.Reflection_sun(self.S_sbc, self.S_ORC, "Coarse")
 
-                self.S_sbc = self.A_ORC_to_SBC @ self.S_ORC
+                self.S_sbc = self.A_ORC_to_SBC @ self.S_ORC_reflection
 
-                self.S_sbc = self.Sun_sensor_fault.normal_noise(self.S_sbc, SET_PARAMS.Coarse_sun_noise)
+                self.S_sbc_meas = self.Sun_sensor_fault.normal_noise(self.S_sbc, SET_PARAMS.Coarse_sun_noise)
 
                 ######################################################
                 # IMPLEMENT ERROR OR FAILURE OF SENSOR IF APPLICABLE #
                 ######################################################
 
-                self.S_sbc = self.Sun_sensor_fault.Catastrophic_sun(self.S_sbc, "Coarse")
-                self.S_sbc = self.Sun_sensor_fault.Erroneous_sun(self.S_sbc, "Coarse")
-                self.S_sbc = self.Common_data_transmission_fault.Bit_flip(self.S_sbc)
-                self.S_sbc = self.Common_data_transmission_fault.Sign_flip(self.S_sbc)
-                self.S_sbc = self.Common_data_transmission_fault.Insertion_of_zero_bit(self.S_sbc)  
+                self.S_sbc_meas = self.Sun_sensor_fault.Catastrophic_sun(self.S_sbc, "Coarse")
+                self.S_sbc_meas = self.Sun_sensor_fault.Erroneous_sun(self.S_sbc, "Coarse")
+                self.S_sbc_meas = self.Common_data_transmission_fault.Bit_flip(self.S_sbc)
+                self.S_sbc_meas = self.Common_data_transmission_fault.Sign_flip(self.S_sbc)
+                self.S_sbc_meas = self.Common_data_transmission_fault.Insertion_of_zero_bit(self.S_sbc)  
 
                 self.sun_noise = SET_PARAMS.Coarse_sun_noise
             else:
                 self.S_sbc = np.zeros(3)
+                self.S_sbc_meas = np.zeros(3)
                 self.S_ORC = np.zeros(3)
+                self.S_ORC_reflection = np.zeros(3)
                 self.sun_in_view = False
                 self.SunSeenBySensor = False
                 reflection = False
 
         else:
             self.S_sbc = np.zeros(3)
+            self.S_sbc_meas = np.zeros(3)
             self.S_ORC = np.zeros(3)
+            self.S_ORC_reflection = np.zeros(3)
             self.SunSeenBySensor = False
             reflection = False
 
         # self.S_sbc = NormalizeVector(self.S_sbc)
         self.reflection = reflection
+        self.sensor_vectors["Sun_Sensor"]["ORC Measured"] = self.S_ORC_reflection.copy()
 
         
 
@@ -251,9 +267,9 @@ class Dynamics:
         #! Third change to implement correct control
 
         if SET_PARAMS.Model_or_Measured == "Model" and self.predictedFailedSensor == "Sun":
-            Sun_vector = self.sensor_vectors["Sun_Sensor"]["Model ORC"]
+            Sun_vector = self.sensor_vectors["Sun_Sensor"]["True ORC"]
         else:
-            Sun_vector = self.S_ORC
+            Sun_vector = self.sensor_vectors["Sun_Sensor"]["ORC Measured"]
 
         if self.predictedFailedSensor == "Magnetometer":
             Magnetometer_vector = self.sensor_vectors["Magnetometer"]["Estimated SBC"]
@@ -454,6 +470,21 @@ class Dynamics:
             if self.implementedFault != "None":
                 predictedFailure = True
 
+        elif SET_PARAMS.SensorPredictor == "ANN":
+            Sensors_X = np.array([np.concatenate([Sensors_X, self.MovingAverage])])
+            Sensors_X = np.asarray(Sensors_X).astype(np.float32)
+            NN_Basic = load_model("models/ANN")
+            predictedFailure = NN_Basic.predict(Sensors_X).round()
+
+        elif SET_PARAMS.SensorPredictor == "RandomChoice":
+            predictedFailure = True if random.uniform(0,1) < 0.5 else False
+
+        elif isinstance(SET_PARAMS.SensorIsolator, int):
+            if self.implementedFault != "None":
+                predictedFailure = True if random.uniform(0,1) < SET_PARAMS.SensorIsolator/100 else False
+            else:
+                predictedFailure = False
+
         return predictedFailure
 
 
@@ -494,47 +525,54 @@ class Dynamics:
 
         if predictedFailure:
             #! This should account for multiple predictions of failures
-            if SET_PARAMS.SensorIsolator == "DMD":
-                FailedSensor = max(zip(MovingAverageDict.values(), MovingAverageDict.keys()))[1]
+            FailedSensor = "Sun"
+            # if SET_PARAMS.SensorIsolator == "DMD":
+            #     FailedSensor = max(zip(MovingAverageDict.values(), MovingAverageDict.keys()))[1]
             
-            elif SET_PARAMS.SensorIsolator == "DecisionTrees":
-                arrayFault = self.DecisionTreeDMDMulti.Predict(np.array([np.concatenate([Sensors_X, self.MovingAverage.flatten()])]))
-                arrayFault = arrayFault.replace("]", "").replace("[", "").replace(" ", "")
-                arrayFault = arrayFault.split(",")
-                indexFault = arrayFault.index("1")
-                fault = SET_PARAMS.faultnames[indexFault]
-                if fault in SET_PARAMS.SunFailures:
-                    FailedSensor = "Sun"
+            # elif SET_PARAMS.SensorIsolator == "DecisionTrees":
+            #     arrayFault = self.DecisionTreeDMDMulti.Predict(np.array([np.concatenate([Sensors_X, self.MovingAverage.flatten()])]))
+            #     arrayFault = arrayFault.replace("]", "").replace("[", "").replace(" ", "")
+            #     arrayFault = arrayFault.split(",")
+            #     indexFault = arrayFault.index("1")
+            #     fault = SET_PARAMS.faultnames[indexFault]
+            #     if fault in SET_PARAMS.SunFailures:
+            #         FailedSensor = "Sun"
                 
-                elif fault in SET_PARAMS.EarthFailures:
-                    FailedSensor = "Earth"
+            #     elif fault in SET_PARAMS.EarthFailures:
+            #         FailedSensor = "Earth"
 
-                elif fault in SET_PARAMS.starTrackerFailures:
-                    FailedSensor = "Star"
+            #     elif fault in SET_PARAMS.starTrackerFailures:
+            #         FailedSensor = "Star"
 
-                elif fault in SET_PARAMS.magnetometerFailures:
-                    FailedSensor = "Magnetometer"
+            #     elif fault in SET_PARAMS.magnetometerFailures:
+            #         FailedSensor = "Magnetometer"
 
-            elif SET_PARAMS.SensorPredictor == "RandomForest":
-                arrayFault = self.RandomForestDMDMulti.Predict(np.array([np.concatenate([Sensors_X, self.MovingAverage.flatten()])]))
-                arrayFault = arrayFault.replace("]", "").replace("[", "").replace(" ", "")
-                arrayFault = arrayFault.split(",")
-                indexFault = arrayFault.index("1")
-                fault = SET_PARAMS.faultnames[indexFault]
-                if fault in SET_PARAMS.SunFailures:
-                    FailedSensor = "Sun"
+            # elif SET_PARAMS.SensorPredictor == "RandomForest":
+            #     arrayFault = self.RandomForestDMDMulti.Predict(np.array([np.concatenate([Sensors_X, self.MovingAverage.flatten()])]))
+            #     arrayFault = arrayFault.replace("]", "").replace("[", "").replace(" ", "")
+            #     arrayFault = arrayFault.split(",")
+            #     indexFault = arrayFault.index("1")
+            #     fault = SET_PARAMS.faultnames[indexFault]
+            #     if fault in SET_PARAMS.SunFailures:
+            #         FailedSensor = "Sun"
                 
-                elif fault in SET_PARAMS.EarthFailures:
-                    FailedSensor = "Earth"
+            #     elif fault in SET_PARAMS.EarthFailures:
+            #         FailedSensor = "Earth"
 
-                elif fault in SET_PARAMS.starTrackerFailures:
-                    FailedSensor = "Star"
+            #     elif fault in SET_PARAMS.starTrackerFailures:
+            #         FailedSensor = "Star"
 
-                elif fault in SET_PARAMS.magnetometerFailures:
-                    FailedSensor = "Magnetometer"
+            #     elif fault in SET_PARAMS.magnetometerFailures:
+            #         FailedSensor = "Magnetometer"
 
-            elif SET_PARAMS.SensorIsolator == "PERFECT":
-                FailedSensor = self.implementedFailedSensor
+            # elif SET_PARAMS.SensorIsolator == "PERFECT":
+            #     FailedSensor = self.implementedFailedSensor
+
+            # elif SET_PARAMS.SensorIsolator == "RandomChoice":
+            #     FailedSensor = "Sun"
+
+            # elif isinstance(SET_PARAMS.SensorIsolator, int):
+            #     FailedSensor = "Sun"
     
         else:
             FailedSensor = "None"
@@ -547,7 +585,7 @@ class Dynamics:
     ############################################
     def SensorRecovery(self, failedSensor):
         reset = False
-        sensors_kalman = SET_PARAMS.kalmanSensors
+        sensors_kalman = SET_PARAMS.kalmanSensors.copy()
         # The EKF method of recovery resets the kalman filter 
         # if the predictedFailed sensor changes
 
@@ -622,8 +660,11 @@ class Dynamics:
 
         if SET_PARAMS.SensorRecoveror == "EKF-replacement":
             if failedSensor != "None":
-                self.sensor_vectors[SET_PARAMS.availableSensors[failedSensor]]["SBC"] = self.A_ORC_to_SBC_est @ self.sensor_vectors[SET_PARAMS.availableSensors[failedSensor]]["Model ORC"]
-            
+                if SET_PARAMS.availableSensors[failedSensor] != "Sun_Sensor":
+                    self.sensor_vectors[SET_PARAMS.availableSensors[failedSensor]]["SBC"] = self.Sun_sensor_fault.normal_noise(self.A_ORC_to_SBC_est @ self.sensor_vectors[SET_PARAMS.availableSensors[failedSensor]]["True ORC"], SET_PARAMS.process_noise)
+                elif self.sun_in_view:
+                    self.sensor_vectors[SET_PARAMS.availableSensors[failedSensor]]["SBC"] = self.Sun_sensor_fault.normal_noise(self.A_ORC_to_SBC_est @ self.sensor_vectors[SET_PARAMS.availableSensors[failedSensor]]["True ORC"], SET_PARAMS.process_noise)
+
             self.sensors_kalman = sensors_kalman
         
         if failedSensor == "None":
@@ -656,25 +697,14 @@ class Dynamics:
         #* Earth sensor
         self.r_sat_ORC, self.v_sat_EIC, self.A_EIC_to_ORC, self.r_EIC = self.sense.Earth(self.t)
 
-        self.r_sat_ORC = self.Earth_sensor_fault.normal_noise(self.r_sat_ORC, SET_PARAMS.process_noise)
-
         #* Sun sensor
         S_EIC, self.sun_in_view = self.sense.sun(self.t)
         self.S_ORC = self.A_EIC_to_ORC @ S_EIC
-
-        self.S_ORC = NormalizeVector(self.S_ORC)
-
-        if self.sun_in_view:
-            self.S_ORC = self.Sun_sensor_fault.normal_noise(self.r_sat_ORC, SET_PARAMS.process_noise)
 
         #* Magnetometer
         self.Beta = self.sense.magnetometer(self.t) 
 
         self.B_ORC = self.A_EIC_to_ORC @ self.Beta 
-
-        self.B_ORC = NormalizeVector(self.B_ORC)
-
-        self.B_ORC = self.Magnetometer_fault.normal_noise(self.B_ORC, SET_PARAMS.process_noise)
 
         ##################################################
         # DETERMINE WHETHER THE SUN AND THE EARTH SENSOR #
@@ -696,21 +726,17 @@ class Dynamics:
         # The SBC value can be changed by some of the recovery methods, but should not change the actual value
         # Consequently, two values are created which should usually be the same unless
         # the recovery method changes the value of SBC (that is the only use thereof)
-        self.sensor_vectors["Magnetometer"]["Actual SBC"] = self.B_sbc
-        self.sensor_vectors["Magnetometer"]["SBC"] = self.B_sbc_meas
-        self.sensor_vectors["Magnetometer"]["ORC"] = self.B_ORC
+        self.sensor_vectors["Magnetometer"]["True SBC"] = self.B_sbc
+        self.sensor_vectors["Magnetometer"]["Noise SBC"] = self.B_sbc_meas
 
-        self.sensor_vectors["Sun_Sensor"]["Actual SBC"] = self.S_sbc
-        self.sensor_vectors["Sun_Sensor"]["SBC"] = self.S_sbc
-        self.sensor_vectors["Sun_Sensor"]["ORC"] = self.S_ORC
+        self.sensor_vectors["Sun_Sensor"]["True SBC"] = self.S_sbc
+        self.sensor_vectors["Sun_Sensor"]["Noise SBC"] = self.S_sbc_meas
 
-        self.sensor_vectors["Earth_Sensor"]["Actual SBC"] = self.r_sat_sbc
-        self.sensor_vectors["Earth_Sensor"]["SBC"] = self.r_sat_sbc
-        self.sensor_vectors["Earth_Sensor"]["ORC"] = self.r_sat_ORC
+        self.sensor_vectors["Earth_Sensor"]["True SBC"] = self.r_sat_sbc
+        self.sensor_vectors["Earth_Sensor"]["Noise SBC"] = self.r_sat_sbc_meas
 
-        self.sensor_vectors["Star_tracker"]["Actual SBC"] = self.star_tracker_sbc
-        self.sensor_vectors["Star_tracker"]["SBC"] = self.star_tracker_sbc
-        self.sensor_vectors["Star_tracker"]["ORC"] = self.star_tracker_ORC
+        self.sensor_vectors["Star_tracker"]["True SBC"] = self.star_tracker_sbc
+        self.sensor_vectors["Star_tracker"]["Noise SBC"] = self.star_tracker_sbc_meas
 
         # Predict whether sensors have failed
         reset = self.SensorFailureHandling()
@@ -754,9 +780,8 @@ class Dynamics:
                 # Since the transformation matrix takes the modelled and measured into account
                 # Only noise is added to the measurement
                 v = self.sensor_vectors[sensor]
-                # v_ORC_k = self.Sun_sensor_fault.normal_noise(v["Model ORC"], 0.01)
-                v_ORC_k = v["Model ORC"]
-                v_measured_k = v["SBC"]
+                v_ORC_k = v["True ORC"]
+                v_measured_k = v["Noise SBC"]
 
                 if not (v_measured_k == 0.0).all():
                     # If the measured vector is equal to 0 then the sensor is not able to view the desired measurement
@@ -781,8 +806,8 @@ class Dynamics:
                 # Only noise is added to the measurement
 
                 v = self.sensor_vectors[sensor]
-                v_model_k = v["ORC"]
-                v_measured_k = v["Actual SBC"]
+                v_model_k = v["True ORC"]
+                v_measured_k = v["True SBC"]
                 self.RKF.measurement_noise = v["noise"]
 
                 if not (v_model_k == 0.0).all():
@@ -800,7 +825,7 @@ class Dynamics:
 
         # Update the estimated vector in SBC
         for sensor in ["Magnetometer", "Earth_Sensor", "Sun_Sensor", "Star_tracker"]:
-            v_ORC_k = self.sensor_vectors[sensor]["Model ORC"].copy()
+            v_ORC_k = self.sensor_vectors[sensor]["True ORC"].copy()
             self.sensor_vectors[sensor]["Estimated SBC"] = self.A_ORC_to_SBC_est @ v_ORC_k
 
         self.q = self.rungeKutta_q(self.t, self.q, self.t+self.dt, self.dh)
@@ -845,8 +870,8 @@ def resetEKF(EKF, stateBuffer, sensorsKalman):
         for sensor in sensorsKalman:
             if sensor in state:
                 v = state[sensor]
-                v_ORC_k = v["Model ORC"]
-                v_measured_k = v["Actual SBC"]
+                v_ORC_k = v["Noise ORC"]
+                v_measured_k = v["Noise SBC"]
 
                 if not (v_measured_k == 0.0).all():
                     # If the measured vector is equal to 0 then the sensor is not able to view the desired measurement
@@ -897,6 +922,7 @@ class Single_Satellite(Dynamics):
         self.DecisionTreeDMDMulti = FaultDetection.DecisionTreePredict(path = SET_PARAMS.pathHyperParameters + 'PhysicsEnabledDMDMethod/DecisionTreesPhysicsEnabledDMDMultiClass.sav')
         self.RandomForestDMDBinary = FaultDetection.DecisionTreePredict(path = SET_PARAMS.pathHyperParameters + 'PhysicsEnabledDMDMethod/RandomForestPhysicsEnabledDMDBinaryClass.sav')
         self.RandomForestDMDMulti = FaultDetection.DecisionTreePredict(path = SET_PARAMS.pathHyperParameters + 'PhysicsEnabledDMDMethod/RandomForestPhysicsEnabledDMDMultiClass.sav')
+        # self.NN_Basic = load_model("models/ANN")
         self.stateBuffer = collections.deque(maxlen = SET_PARAMS.stateBufferLength)
         super().initiate_fault_parameters()
         self.star_tracker_ORC = self.star_tracker_vector
@@ -1044,10 +1070,10 @@ class Single_Satellite(Dynamics):
 
         #! First change
         self.sensor_vectors = {
-        "Magnetometer": {"Actual SBC": zero3, "ORC": zero3, "Model ORC": zero3, "Estimated SBC": zero3, "noise": SET_PARAMS.Magnetometer_noise}, 
-        "Sun_Sensor": {"Actual SBC": zero3, "ORC": zero3, "Model ORC": zero3, "Estimated SBC": zero3, "noise": SET_PARAMS.Fine_sun_noise},
-        "Earth_Sensor": {"Actual SBC": zero3, "ORC": zero3, "Model ORC": zero3, "Estimated SBC": zero3, "noise": SET_PARAMS.Earth_noise}, 
-        "Star_tracker": {"Actual SBC": zero3, "ORC": zero3, "Model ORC": zero3, "Estimated SBC": zero3, "noise": SET_PARAMS.star_tracker_noise}
+        "Magnetometer": {"Noise SBC": zero3, "True SBC": zero3, "True ORC": zero3, "Noise ORC": zero3, "Estimated SBC": zero3, "noise": SET_PARAMS.Magnetometer_noise}, 
+        "Sun_Sensor": {"Noise SBC": zero3,"True SBC": zero3, "True ORC": zero3, "Noise ORC": zero3, "Estimated SBC": zero3, "noise": SET_PARAMS.Fine_sun_noise},
+        "Earth_Sensor": {"Noise SBC": zero3,"True SBC": zero3, "True ORC": zero3, "Noise ORC": zero3, "Estimated SBC": zero3, "noise": SET_PARAMS.Earth_noise}, 
+        "Star_tracker": {"Noise SBC": zero3,"True SBC": zero3, "True ORC": zero3, "Noise ORC": zero3, "Estimated SBC": zero3, "noise": SET_PARAMS.star_tracker_noise}
         }
 
         self.zeros = np.zeros((SET_PARAMS.number_of_faults,), dtype = int)
@@ -1112,7 +1138,14 @@ class Single_Satellite(Dynamics):
 
         self.Orbit_Data["Predicted fault"] = self.predictedFailure
 
-        if not self.reflection and self.fault == "Reflection":
+        #* Test this for new fault identification
+        #* This is because the anomaly is not just when reflection occurs
+        #* But also when the satellite estimation is incorrect
+
+        if estimatedDifferenceAngle > 6:
+            fault = self.fault
+
+        elif not self.reflection and self.fault == "Reflection":
             fault = "None"
         elif not self.SunSeenBySensor and self.fault in SET_PARAMS.SunFailures:
             fault = "None"
@@ -1149,11 +1182,11 @@ class Single_Satellite(Dynamics):
 
         self.Orbit_Data["Isolation Accuracy"] = 1 if FailedSensor == self.predictedFailedSensor else 0
 
-        Earth_Error = self.sensor_vectors["Earth_Sensor"]["Actual SBC"] - self.sensor_vectors["Earth_Sensor"]["Estimated SBC"]
+        Earth_Error = self.sensor_vectors["Earth_Sensor"]["True SBC"] - self.sensor_vectors["Earth_Sensor"]["Estimated SBC"]
 
-        Sun_Error = self.sensor_vectors["Sun_Sensor"]["Actual SBC"] - self.sensor_vectors["Sun_Sensor"]["Estimated SBC"]
+        Sun_Error = self.sensor_vectors["Sun_Sensor"]["True SBC"] - self.sensor_vectors["Sun_Sensor"]["Estimated SBC"]
 
-        Magnetometer_Error = self.sensor_vectors["Magnetometer"]["Actual SBC"] - self.sensor_vectors["Magnetometer"]["Estimated SBC"]
+        Magnetometer_Error = self.sensor_vectors["Magnetometer"]["True SBC"] - self.sensor_vectors["Magnetometer"]["Estimated SBC"]
 
         self.globalArray = [self.S_sbc[0],
             self.S_sbc[1],

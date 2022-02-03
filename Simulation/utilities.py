@@ -60,8 +60,8 @@ def crossProduct(a, b):
 
     vector = np.array([x, y, z])
 
-    if np.isnan(vector).any():
-        print("Nan Vector")
+    # if np.isnan(vector).any():
+    #     print("Nan Vector")
 
     return vector
 

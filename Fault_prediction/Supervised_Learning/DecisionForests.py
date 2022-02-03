@@ -7,7 +7,7 @@ from Simulation.Parameters import SET_PARAMS
 from pathlib import Path
 import matplotlib.pyplot as plt
 
-def DecisionTreeAllAnomalies(path, depth, multi_class = False, constellation = False):
+def DecisionTreeAllAnomalies(path, depth, multi_class = False, constellation = False, lowPredictionAccuracy = False):
     X_list = []
     Y_list = []
 
@@ -41,7 +41,10 @@ def DecisionTreeAllAnomalies(path, depth, multi_class = False, constellation = F
 
     # Beform a decision tree on the X and Y matrices
     # This must however include the moving average
-    clf = tree.DecisionTreeClassifier(max_depth = depth)
+    if lowPredictionAccuracy:
+        clf = tree.DecisionTreeClassifier(max_depth = depth)
+    else:
+        clf = tree.DecisionTreeClassifier(max_depth = depth)
 
     # Split data into training and testing data
     mask = np.random.rand(len(X)) <= 0.6
@@ -57,11 +60,7 @@ def DecisionTreeAllAnomalies(path, depth, multi_class = False, constellation = F
 
     cm = confusion_matrix(testing_Y, predict_y)
 
-    print(cm.size)
-
     ColumnNames = ColumnNames.to_list()
-
-    print(len(ColumnNames))
 
     ClassNames = ["Anomaly", "Normal"]
 
@@ -70,7 +69,13 @@ def DecisionTreeAllAnomalies(path, depth, multi_class = False, constellation = F
     path_to_folder = Path(path)
     path_to_folder.mkdir(exist_ok=True)
 
-    if multi_class and constellation:
+    if lowPredictionAccuracy:
+        pickle.dump(clf, open(path + '/DecisionTreesPhysicsEnabledDMDBinaryClassLowAccuracy.sav', 'wb'))
+        if SET_PARAMS.Visualize:
+            fig = plt.figure(figsize=(25,20))
+            tree.plot_tree(clf, feature_names = ColumnNames, filled=True, max_depth = 2)
+            fig.savefig(path + '/DecisionTreeBinaryClassLowAccuracy.png')
+    elif multi_class and constellation:
         #! ClassNames = ["First", "Second", "Third", "Fourth", "Fifth"]
         pickle.dump(clf, open(path + '/ConstellationDecisionTreesPhysicsEnabledDMDMultiClass.sav', 'wb'))
         if SET_PARAMS.Visualize:

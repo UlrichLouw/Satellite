@@ -17,7 +17,7 @@ class Disturbances:
         self.position_vector_of_wheely = np.array(([0,SET_PARAMS.Ly/2,0]))
         self.position_vector_of_wheelz = np.array(([0,0,SET_PARAMS.Lz/2]))
 
-        self.wo = SET_PARAMS.wo
+        self.w_earth = SET_PARAMS.w_earth
 
         self.surfaceI = SET_PARAMS.surfaceI
 
@@ -45,7 +45,7 @@ class Disturbances:
 
     def Aerodynamic2(self, A_ORC_to_SBC, A_EIC_to_ORC, sun_in_view):
         
-        v_AB = A_ORC_to_SBC @ A_EIC_to_ORC @ (crossProduct(np.array([0, 0, -self.wo]), self.sense.position) - self.sense.velocity)
+        v_AB = A_ORC_to_SBC @ A_EIC_to_ORC @ (crossProduct(np.array([0, 0, -self.w_earth]), self.sense.position) - self.sense.velocity)
 
         normv_AB = np.linalg.norm(v_AB)
 
@@ -57,10 +57,10 @@ class Disturbances:
 
         hft = float(h) * 3.28084
 
-        #! if sun_in_view:
-        #!     p = 0.5 * (p_o * np.exp(-(h-h_o)/H))
-        #! else:
-        #!     p = p_o * np.exp(-(h-h_o)/H)
+        # if sun_in_view:
+        #     p = 0.5 * (p_o * np.exp(-(h-h_o)/H))
+        # else:
+        #     p = p_o * np.exp(-(h-h_o)/H)
 
         #* According to https://www.grc.nasa.gov/www/k-12/rocket/atmos.html the model for the density of the atmosphere
         #* This is calculate with ft and then the pressure is converted back to kg/m3
@@ -98,7 +98,7 @@ class Disturbances:
            
             N_aero += p * normv_AB**2 * Ai * heaviside * cosa * (sigma_t * (crossProduct(ri, unit_v_AB)) + (sigma_n * S + (2 - sigma_n - sigma_t)*cosa)*(crossProduct(ri, ni)))
 
-        return N_aero
+        return N_aero/10
 
     def static(self, rotation_rate, t):
         ###############################################################################
