@@ -41,6 +41,7 @@ class Sensors:
             S_EIC = np.zeros(3)
         else:
             self.in_sun_view = True
+        # self.in_sun_view = True
 
         return S_EIC, self.in_sun_view     #in m
 

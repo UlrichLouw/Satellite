@@ -413,7 +413,12 @@ class Dynamics:
         if SET_PARAMS.SensorFDIR:
             self.DefineIfFault()
 
-            self.predictedFailure = self.SensorPredicting(Sensors_X)
+            self.predictedFailureValue = self.SensorPredicting(Sensors_X)
+
+            if self.predictedFailureValue > 0.5:
+                self.predictedFailure = True
+            else:
+                self.predictedFailure = False
 
             # If a failure is predicted the cause of the failure must be determined
             sensorFailed = self.SensorIsolation(MovingAverageDict, Sensors_X, self.predictedFailure)
@@ -459,7 +464,9 @@ class Dynamics:
             predictedFailure = self.DecisionTreeDMDBinary.Predict(self.constellationData)
 
         elif SET_PARAMS.SensorPredictor == "DecisionTrees":
-            Sensors_X = np.array([np.concatenate([Sensors_X, self.MovingAverage])])
+            #! Sensors_X = np.array([np.concatenate([Sensors_X, self.MovingAverage])])
+            # Sensors_X = np.array([np.concatenate([Sensors_X, self.Orbit_Data["Angular momentum of wheels"]])])
+            Sensors_X = Sensors_X.reshape(1, Sensors_X.shape[0])
             predictedFailure = self.DecisionTreeDMDBinary.Predict(Sensors_X)
 
         elif SET_PARAMS.SensorPredictor == "RandomForest":
@@ -479,11 +486,15 @@ class Dynamics:
         elif SET_PARAMS.SensorPredictor == "RandomChoice":
             predictedFailure = True if random.uniform(0,1) < 0.5 else False
 
-        elif isinstance(SET_PARAMS.SensorIsolator, int):
+        elif isinstance(SET_PARAMS.SensorIsolator, float):
             if self.implementedFault != "None":
-                predictedFailure = True if random.uniform(0,1) < SET_PARAMS.SensorIsolator/100 else False
+                randomValue = random.uniform(0,1)
+                predictedFailure = True if randomValue < SET_PARAMS.SensorIsolator/100 else False
             else:
                 predictedFailure = False
+
+        if not predictedFailure:
+            predictedFailure = float(self.predictedFailureValue)*0.9 + float(predictedFailure)*0.1
 
         return predictedFailure
 
@@ -917,6 +928,7 @@ class Single_Satellite(Dynamics):
         self.RKF = RKF()                            # Rate Kalman_filter
         self.EKF = EKF()                            # Extended Kalman_filter
         self.MovingAverage = 0
+        self.predictedFailureValue = 0
         self.sensors_kalman = SET_PARAMS.kalmanSensors #Sun_Sensor, Earth_Sensor, Magnetometer
         self.DecisionTreeDMDBinary = FaultDetection.DecisionTreePredict(path = SET_PARAMS.pathHyperParameters + 'PhysicsEnabledDMDMethod/DecisionTreesPhysicsEnabledDMDBinaryClass.sav')
         self.DecisionTreeDMDMulti = FaultDetection.DecisionTreePredict(path = SET_PARAMS.pathHyperParameters + 'PhysicsEnabledDMDMethod/DecisionTreesPhysicsEnabledDMDMultiClass.sav')
@@ -1142,10 +1154,10 @@ class Single_Satellite(Dynamics):
         #* This is because the anomaly is not just when reflection occurs
         #* But also when the satellite estimation is incorrect
 
-        if estimatedDifferenceAngle > 6:
-            fault = self.fault
+        #! if estimatedDifferenceAngle > 6:
+        #!    fault = self.fault
 
-        elif not self.reflection and self.fault == "Reflection":
+        if not self.reflection and self.fault == "Reflection":
             fault = "None"
         elif not self.SunSeenBySensor and self.fault in SET_PARAMS.SunFailures:
             fault = "None"
@@ -1188,15 +1200,15 @@ class Single_Satellite(Dynamics):
 
         Magnetometer_Error = self.sensor_vectors["Magnetometer"]["True SBC"] - self.sensor_vectors["Magnetometer"]["Estimated SBC"]
 
-        self.globalArray = [self.S_sbc[0],
-            self.S_sbc[1],
-            self.S_sbc[2],
+        self.globalArray = [self.S_sbc_meas[0],
+            self.S_sbc_meas[1],
+            self.S_sbc_meas[2],
             self.B_sbc_meas[0],
             self.B_sbc_meas[1],
             self.B_sbc_meas[2],
-            self.r_sat_sbc[0],
-            self.r_sat_sbc[1],
-            self.r_sat_sbc[2],
+            self.r_sat_sbc_meas[0],
+            self.r_sat_sbc_meas[1],
+            self.r_sat_sbc_meas[2],
             self.angular_momentum_wheels_with_noise[0],
             self.angular_momentum_wheels_with_noise[1],
             self.angular_momentum_wheels_with_noise[2],

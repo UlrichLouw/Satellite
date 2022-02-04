@@ -17,7 +17,7 @@ def Binary_split(classified_data):
 
     return classified_data
 
-def Dataset_order(index, binary_set, buffer, categorical_num, controlInputx = True, ControlInput = False, onlySensors = False, use_previously_saved_models = False, columns_compare = None, columns_compare_to = None, constellation = False, onlyCurrentSatellite = True, multi_class = False):
+def Dataset_order(index, binary_set, buffer, categorical_num, controlInputx = True, ControlInput = False, onlySensors = False, use_previously_saved_models = False, columns_compare = None, columns_compare_to = None, constellation = False, onlyCurrentSatellite = True, multi_class = False, MovingAverage = True, includeAngularMomemntumSensors = False):
     # If multi-class and constellation, then the output should be a list of which satellite has failed
     
     ColumnNames = []
@@ -57,35 +57,38 @@ def Dataset_order(index, binary_set, buffer, categorical_num, controlInputx = Tr
                     '  ': ' '
     }
 
+    if MovingAverage:
+        try:
+            if constellation:
+                for replacement in ReplaceDict:
+                    for k in range(SET_PARAMS.k_nearest_satellites + 1):
+                        Data[str(k) + '_Moving Average'] = Data[str(k) + '_Moving Average'].str.replace(replacement,ReplaceDict[replacement], regex = True)
+                
+                Data[str(k) + '_Moving Average'] = Data[str(k) + '_Moving Average'].apply(lambda x: np.fromstring(x, sep=' '))
 
-    try:
-        if constellation:
-            for replacement in ReplaceDict:
-                for k in range(SET_PARAMS.k_nearest_satellites + 1):
-                    Data[str(k) + '_Moving Average'] = Data[str(k) + '_Moving Average'].str.replace(replacement,ReplaceDict[replacement], regex = True)
+                DataMA = pd.DataFrame(Data[str(k) + '_Moving Average'].tolist()).add_prefix('Moving Average')
+            else:
+                for replacement in ReplaceDict:
+                    Data['Moving Average'] = Data['Moving Average'].str.replace(replacement,ReplaceDict[replacement], regex = True)
+
+
+                Data['Moving Average'] = Data['Moving Average'].apply(lambda x: np.fromstring(x, sep=' '))
+
+                
+                DataMA = pd.DataFrame(Data['Moving Average'].tolist()).add_prefix('Moving Average')
             
-            Data[str(k) + '_Moving Average'] = Data[str(k) + '_Moving Average'].apply(lambda x: np.fromstring(x, sep=' '))
-
-            DataMA = pd.DataFrame(Data[str(k) + '_Moving Average'].tolist()).add_prefix('Moving Average')
-        else:
-            for replacement in ReplaceDict:
-                Data['Moving Average'] = Data['Moving Average'].str.replace(replacement,ReplaceDict[replacement], regex = True)
-
-
-            Data['Moving Average'] = Data['Moving Average'].apply(lambda x: np.fromstring(x, sep=' '))
-
-            
-            DataMA = pd.DataFrame(Data['Moving Average'].tolist()).add_prefix('Moving Average')
+            Data = pd.concat([Data, DataMA], axis = 1)
+        except:
+            pass
         
-        Data = pd.concat([Data, DataMA], axis = 1)
-    except:
-        pass
-    
-    if constellation:
-        for k in range(SET_PARAMS.k_nearest_satellites + 1):
-            Data.drop(columns = [str(k) + '_Moving Average'], inplace = True)
+        if constellation:
+            for k in range(SET_PARAMS.k_nearest_satellites + 1):
+                Data.drop(columns = [str(k) + '_Moving Average'], inplace = True)
+        else:
+            Data.drop(columns = ['Moving Average'], inplace = True)
+
     else:
-        Data.drop(columns = ['Moving Average'], inplace = True)
+        Data = Data.loc[:, ~Data.columns.str.contains('Moving Average')]
 
     if constellation and multi_class:
         Orbit = Data.copy()
@@ -144,19 +147,34 @@ def Dataset_order(index, binary_set, buffer, categorical_num, controlInputx = Tr
         X = Orbit[columns_compare].to_numpy()
         Y = Orbit[columns_compare_to].to_numpy()
     else:
-        if onlySensors:
-            Xdf = Orbit.loc[:,Orbit.columns.str.contains('Sun') | Orbit.columns.str.contains('Magnetometer') |
-                            Orbit.columns.str.contains('Earth') | 
-                            Orbit.columns.str.contains('Star')]
-            X = Xdf.to_numpy() # Ignore the angular sensor
-            ColumnNames = Xdf.columns
+        if not includeAngularMomemntumSensors:
+            if onlySensors:
+                Xdf = Orbit.loc[:,Orbit.columns.str.contains('Sun') | Orbit.columns.str.contains('Magnetometer') |
+                                Orbit.columns.str.contains('Earth') | 
+                                Orbit.columns.str.contains('Star')]
+                X = Xdf.to_numpy() # Ignore the angular sensor
+                ColumnNames = Xdf.columns
+            else:
+                Xdf = Orbit.loc[:,Orbit.columns.str.contains('Sun') | Orbit.columns.str.contains('Magnetometer') |
+                                Orbit.columns.str.contains('Earth') | 
+                                Orbit.columns.str.contains('Star') | 
+                                Orbit.columns.str.contains('Moving Average') ]
+                X = Xdf.to_numpy() # Ignore the angular sensor
+                ColumnNames = Xdf.columns
         else:
-            Xdf = Orbit.loc[:,Orbit.columns.str.contains('Sun') | Orbit.columns.str.contains('Magnetometer') |
-                            Orbit.columns.str.contains('Earth') | 
-                            Orbit.columns.str.contains('Star') | 
-                            Orbit.columns.str.contains('Moving Average') ]
-            X = Xdf.to_numpy() # Ignore the angular sensor
-            ColumnNames = Xdf.columns
+            if onlySensors:
+                Xdf = Orbit.loc[:,Orbit.columns.str.contains('Sun') | Orbit.columns.str.contains('Magnetometer') |
+                                Orbit.columns.str.contains('Earth') | 
+                                Orbit.columns.str.contains('Star') | Orbit.columns.str.contains('Angular momentum of wheels')]
+                X = Xdf.to_numpy() # Ignore the angular sensor
+                ColumnNames = Xdf.columns
+            else:
+                Xdf = Orbit.loc[:,Orbit.columns.str.contains('Sun') | Orbit.columns.str.contains('Magnetometer') |
+                                Orbit.columns.str.contains('Earth') | 
+                                Orbit.columns.str.contains('Star') | 
+                                Orbit.columns.str.contains('Moving Average') | Orbit.columns.str.contains('Angular momentum of wheels') ]
+                X = Xdf.to_numpy() # Ignore the angular sensor
+                ColumnNames = Xdf.columns
         
         if constellation and multi_class:
             Ydf = Orbit["Multi-Agent-Fault"]

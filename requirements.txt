@@ -18,3 +18,4 @@ pygame
 pydmd
 sympy
 numba
+pyyaml

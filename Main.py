@@ -6,15 +6,13 @@ import multiprocessing
 from pathlib import Path
 from Simulation.dynamics import Single_Satellite
 from Simulation.Save_display import visualize_data, save_as_csv, save_as_pickle, save_as_excel
-import Fault_prediction.Fault_detection as Fault_detection
 import Simulation.Constellation as Constellation
-from numba import njit, jit, vectorize
 import math
 from sgp4.api import jday
-from datetime import datetime
 import csv
 import os
-from tensorflow.keras.models import model_from_json, load_model
+from argparse import Namespace
+import yaml
 
 pi = math.pi
 
@@ -262,6 +260,21 @@ def constellationMultiProcessing(fault, SET_PARAMS):
         path_to_folder.mkdir(parents = True, exist_ok=True)
         save_as_csv(DataList[sat_num], filename = SET_PARAMS.Fault_names_values[fault], index = fault, path = path)
 
+def loadParameters(fileName):
+    full_path =  "Configurations/" + fileName + "/" + fileName + '.yaml'
+    with open(full_path) as file:
+        conf_dict = yaml.load(file, Loader=yaml.FullLoader)    
+    
+    conf = Namespace(**conf_dict)    
+    return conf
+        
+def load_yaml_dict(fileName):
+    full_path =  "Configurations/" + fileName + "/" + fileName + '.yaml'
+    with open(full_path) as file:
+        conf_dict = yaml.load(file, Loader=yaml.FullLoader)    
+    
+    return conf_dict
+
 ################################################################
 # FOR ALL OF THE FAULTS RUN A NUMBER OF ORBITS TO COLLECT DATA #
 ################################################################
@@ -271,75 +284,57 @@ def main():
     # IF THE SAVE AS IS EQUAL TO XLSX, THE THREADING CANNOT #
     #           BE USED TO SAVE SHEETS                      #     
     #########################################################
-    SET_PARAMS.Display = False
-    SET_PARAMS.Visualize = True
-    SET_PARAMS.save_as = ".csv"
-    SET_PARAMS.Kalman_filter_use = "EKF"
-    SET_PARAMS.sensor_number = "ALL"
-    SET_PARAMS.Number_of_orbits = 3
-    SET_PARAMS.fixed_orbit_failure = 0
-    SET_PARAMS.Number_of_multiple_orbits = len(SET_PARAMS.Fault_names)
-    SET_PARAMS.skip = 20
-    SET_PARAMS.Number_of_satellites = 1
-    SET_PARAMS.k_nearest_satellites = 5
-    SET_PARAMS.FD_strategy = "Distributed"
-    SET_PARAMS.SensorFDIR = True
-    SET_PARAMS.Mode = "EARTH_SUN" # Nominal or EARTH_SUN
-    SET_PARAMS.stateBufferLength = 1 #! The reset value was 1 and worked quite well (100 was terrible)
-    #? SET_PARAMS.Mode = "Nominal"
-    numFaultStart = 2
-    SET_PARAMS.NumberOfRandom = 1
-    SET_PARAMS.NumberOfFailuresReset = 20
-    SET_PARAMS.Model_or_Measured = "ORC"
-    SET_PARAMS.Low_Aerodynamic_Disturbance = False
-    SET_PARAMS.UsePredeterminedPositionalData = True #! change this to false if it doesn't work
-    SET_PARAMS.no_aero_disturbance = False
-    SET_PARAMS.no_wheel_disturbance = False
-    SET_PARAMS.kalmanSensors = ["Magnetometer", "Earth_Sensor", "Sun_Sensor"] #!, "Sun_Sensor"]
-    SET_PARAMS.printBreak = False
+    Configuration = "EarthSun"
 
-    SET_PARAMS.NumberOfIntegrationSteps = 10
+    params = load_yaml_dict(Configuration)
+
+    SET_PARAMS.Display = params["Display"]
+    SET_PARAMS.Visualize = params["Visualize"]
+    SET_PARAMS.save_as = params["save_as"]
+    SET_PARAMS.Kalman_filter_use = params["Kalman_filter_use"]
+    SET_PARAMS.sensor_number = params["sensor_number"]
+    SET_PARAMS.Number_of_orbits = params["Number_of_orbits"]
+    SET_PARAMS.fixed_orbit_failure = params["fixed_orbit_failure"]
+    SET_PARAMS.Number_of_multiple_orbits = params["Number_of_multiple_orbits"]
+    SET_PARAMS.skip = params["skip"]
+    SET_PARAMS.Number_of_satellites = params["Number_of_satellites"]
+    SET_PARAMS.k_nearest_satellites = params["k_nearest_satellites"]
+    SET_PARAMS.FD_strategy = params["FD_strategy"]
+    SET_PARAMS.SensorFDIR = params["SensorFDIR"]
+    SET_PARAMS.Mode = params["Mode"]
+    SET_PARAMS.stateBufferLength = params["stateBufferLength"]
+    numFaultStart = params["numFaultStart"]
+    SET_PARAMS.NumberOfRandom = params["NumberOfRandom"]
+    SET_PARAMS.NumberOfFailuresReset = params["NumberOfFailuresReset"]
+    SET_PARAMS.Model_or_Measured = params["Model_or_Measured"]
+    SET_PARAMS.Low_Aerodynamic_Disturbance = params["Low_Aerodynamic_Disturbance"]
+    SET_PARAMS.UsePredeterminedPositionalData = params["UsePredeterminedPositionalData"]
+    SET_PARAMS.no_aero_disturbance = params["no_aero_disturbance"]
+    SET_PARAMS.no_wheel_disturbance = params["no_wheel_disturbance"]
+    SET_PARAMS.kalmanSensors = params["kalmanSensors"]
+    SET_PARAMS.printBreak = params["printBreak"]
+
+    SET_PARAMS.NumberOfIntegrationSteps = params["NumberOfIntegrationSteps"]
 
     includeNone = False
 
-    featureExtractionMethods = ["DMD"]
-    predictionMethods = ["None"]
-    isolationMethods = ["None"]
-    recoveryMethods = ["None"]
-    recoverMethodsWithoutPrediction = ["None", "EKF-top3", "EKF-top2"]
-
-    if SET_PARAMS.SensorFDIR:
-        featureExtractionMethods = ["DMD"]
-        predictionMethods = ["None", "ANN"] #! "DecisionTrees","RandomForest", "PERFECT", "RandomChoice"
-        isolationMethods = ["None", "ANN"] #! "RandomForest", , 10, 20, 30, 40, 50, 60, 70, 80, 90
-        recoveryMethods = ["EKF-ignore"] # ["EKF-combination", "EKF-reset", "EKF-ignore", "EKF-replacement", "EKF-top3", "EKF-top2"] #! "EKF-combination", "EKF-reset", "EKF-ignore", "EKF-replacement"
-        
-        SET_PARAMS.FeatureExtraction = "DMD"
-        SET_PARAMS.SensorPredictor = "PERFECT"
-        SET_PARAMS.SensorIsolator = "PERFECT"
-        SET_PARAMS.SensorRecoveror = "EKF"
-    else:
-        includeNone = False
-        SET_PARAMS.FeatureExtraction = "DMD"
-        SET_PARAMS.SensorPredictor = "None"
-        SET_PARAMS.SensorIsolator = "None"
-        SET_PARAMS.SensorRecoveror = "None"
-    
-    # SET_PARAMS.visualizeKalman = ["w_est","w_act","quaternion_est","quaternion_actual",
-    #                             "quaternion_ref", "w_ref","quaternion_error",
-    #                             "w_error"]
+    featureExtractionMethods = params["featureExtractionMethods"]
+    predictionMethods = params["predictionMethods"]
+    isolationMethods = params["isolationMethods"]
+    recoveryMethods = params["recoveryMethods"]
+    recoverMethodsWithoutPrediction = params["recoverMethodsWithoutPrediction"]
 
     SET_PARAMS.measurementUpdateVars = ["Mean", "Covariance"]
 
-    settling_time = 150 #! Was 200 3 Dec 10:36
-    damping_coefficient = 0.707
+    settling_time = params["settling_time"]
+    damping_coefficient = params["damping_coefficient"]
     wn = 1/(settling_time*damping_coefficient)
 
     #! If the current settings do not work, then the Kw parameter should change (the Kw parameter should decrease
     #! since the oscillations increase)
 
-    SET_PARAMS.measurement_noise = 0.5
-    SET_PARAMS.process_noise = 0.5
+    SET_PARAMS.measurement_noise = params["measurement_noise"]
+    SET_PARAMS.process_noise = params["process_noise"]
 
     SET_PARAMS.P_k = np.eye(7)
     SET_PARAMS.R_k = np.eye(3)*(SET_PARAMS.process_noise**2 + SET_PARAMS.measurement_noise**2) #* np.eye(3)*1e-4
