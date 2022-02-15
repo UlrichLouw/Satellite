@@ -4,6 +4,7 @@ from Simulation.Parameters import SET_PARAMS
 from Fault_prediction.Feature_extraction import DMD
 from Fault_prediction.Supervised_Learning import DecisionForests
 from Fault_prediction.Supervised_Learning import Random_Forest
+from Fault_prediction.Unsupervised_Learning import Isolation_Forest
 import sys
 np.set_printoptions(threshold=500)
 
@@ -22,7 +23,7 @@ if __name__ == '__main__':
     multi_class = False
     lowPredictionAccuracy = False
     MovingAverage = False
-    includeAngularMomemntumSensors = False
+    includeAngularMomemntumSensors = True
 
     GenericPath = "Predictor-" + SET_PARAMS.SensorPredictor+ "/Isolator-" + SET_PARAMS.SensorIsolator + "/Recovery-" + SET_PARAMS.SensorRecoveror +"/"+SET_PARAMS.Mode+"/"+ SET_PARAMS.Model_or_Measured +"/" +"General CubeSat Model/"
     
@@ -38,5 +39,6 @@ if __name__ == '__main__':
     # SET_PARAMS.sensor_number = "ALL"
     # DMD.MatrixAB(path = SET_PARAMS.pathHyperParameters + 'PhysicsEnabledDMDMethod')
     # DecisionTree training
-    DecisionForests.DecisionTreeAllAnomalies(path = SET_PARAMS.pathHyperParameters + 'PhysicsEnabledDMDMethod', depth = 10, constellation = constellation, multi_class = multi_class, lowPredictionAccuracy = lowPredictionAccuracy, MovingAverage = MovingAverage, includeAngularMomemntumSensors = includeAngularMomemntumSensors)
-    # Random_Forest.Random_Forest(path = SET_PARAMS.pathHyperParameters + 'PhysicsEnabledDMDMethod', depth = 10, constellation = constellation, multi_class = False)
+    # Isolation_Forest.IsoForest(path = SET_PARAMS.pathHyperParameters + 'PhysicsEnabledDMDMethod', depth = 10, constellation = constellation, multi_class = multi_class, lowPredictionAccuracy = lowPredictionAccuracy, MovingAverage = MovingAverage, includeAngularMomemntumSensors = includeAngularMomemntumSensors)
+    # DecisionForests.DecisionTreeAllAnomalies(path = SET_PARAMS.pathHyperParameters + 'PhysicsEnabledDMDMethod', depth = 10, constellation = constellation, multi_class = multi_class, lowPredictionAccuracy = lowPredictionAccuracy, MovingAverage = MovingAverage, includeAngularMomemntumSensors = includeAngularMomemntumSensors)
+    Random_Forest.Random_Forest(path = SET_PARAMS.pathHyperParameters + 'PhysicsEnabledDMDMethod', depth = 10, constellation = constellation, multi_class = False, lowPredictionAccuracy = lowPredictionAccuracy, MovingAverage = MovingAverage, includeAngularMomemntumSensors = includeAngularMomemntumSensors)

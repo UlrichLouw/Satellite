@@ -1,25 +1,13 @@
-import matplotlib.pyplot as plt
 import numpy as np
-from scipy.stats import multivariate_normal
-import random as rn
-import eif as iso
-import seaborn as sb
-sb.set_style(style="whitegrid")
-sb.set_color_codes()
-import scipy.ndimage
-from scipy.interpolate import griddata
-import numpy.ma as ma
-from numpy.random import uniform, seed
-
-import sys
-
-sys.path.insert(0, './Simulation')
-sys.path.insert(0, './Fault_prediction')
-
+# import eif as iso
 import pandas as pd
-from Parameters import SET_PARAMS
-from Fault_utils import Dataset_order
-import os
+from Simulation.Parameters import SET_PARAMS
+from Fault_prediction.Fault_utils import Dataset_order
+import seaborn as sns
+from sklearn.ensemble import IsolationForest
+from sklearn.metrics import confusion_matrix
+import matplotlib.pyplot as plt
+import pickle
 
 def getDepth(x, root, d):
     n = root.n
@@ -42,28 +30,101 @@ def getVals(forest,x,sorted=True):
         r = np.sort(np.array(r))
     return r, theta
 
-if __name__ == "__main__":
-    confusion_matrices = []
-    All_orbits = []
-    X_buffer = []
-    Y_buffer = []
-    buffer = False
-    binary_set = True
-    use_previously_saved_models = False
-    categorical_num = True
-    
-    for index in range(SET_PARAMS.Number_of_multiple_orbits):
-        Y, Y_buffer, X, X_buffer, Orbit = Dataset_order(index, binary_set, buffer, categorical_num, use_previously_saved_models)
-        All_orbits.append(Orbit)
+def IsoForest(path, depth, multi_class = False, constellation = False, lowPredictionAccuracy = False, MovingAverage = True, includeAngularMomemntumSensors = False):
+    X_list = []
+    Y_list = []
 
-        F1 = iso.iForest(X, ntrees = 500, sample_size = 1000, ExtensionLevel=1)
+    pathFiles = SET_PARAMS.path
 
-        xxx = np.array([[0,0.]])
-        SL0 = F1.compute_paths_single_tree(xxx, 0)
+    buffer = True
+    SET_PARAMS.buffer_size = 2
 
-        S1 = F1.compute_paths(X_in=X)
+    if constellation:
+        for satNum in range(SET_PARAMS.Number_of_satellites):
+            print(satNum)
+            SET_PARAMS.path = pathFiles + str(satNum) + "/"
+            for index in range(SET_PARAMS.number_of_faults):
+                name = SET_PARAMS.Fault_names_values[index+1]
+                if multi_class:
+                    Y, _, X, _, _, ColumnNames, ClassNames = Dataset_order(name, binary_set = False, categorical_num = True, buffer = buffer, constellation = constellation, multi_class = True, MovingAverage = MovingAverage, includeAngularMomemntumSensors = includeAngularMomemntumSensors)
+                else:
+                    Y, _, X, _, _, ColumnNames, ClassNames = Dataset_order(name, binary_set = True, buffer = buffer, categorical_num = False, constellation = constellation, MovingAverage = MovingAverage, includeAngularMomemntumSensors = includeAngularMomemntumSensors)
+                X_list.append(X)    
+                Y_list.append(Y)
 
-        ss1=np.argsort(S1)
+    else:
+        for index in range(SET_PARAMS.number_of_faults):
+            name = SET_PARAMS.Fault_names_values[index+1]
+            if multi_class:
+                Y, _, X, _, _, ColumnNames, ClassNames = Dataset_order(name, binary_set = False, categorical_num = True, buffer = buffer, MovingAverage = MovingAverage, includeAngularMomemntumSensors = includeAngularMomemntumSensors)
+            else:
+                Y, _, X, _, _, ColumnNames, ClassNames = Dataset_order(name, binary_set = True, buffer = buffer, categorical_num = False, MovingAverage = MovingAverage, includeAngularMomemntumSensors = includeAngularMomemntumSensors)
+            X_list.append(X)    
+            Y_list.append(Y)
 
-        number_of_errors = np.sum(Y % 2 == 1)
-        print(np.sum(Y[ss1[:number_of_errors]])/number_of_errors, index)
+    X = np.concatenate(X_list)
+    Y = np.concatenate(Y_list)
+
+    random_state = np.random.RandomState(42)
+
+    model=IsolationForest(n_estimators=10,max_samples='auto',contamination=0.2,random_state=random_state, bootstrap = True)
+
+    print(X.shape)
+
+    model.fit(X)
+
+    print(model.get_params())
+
+    scores = model.decision_function(X)
+
+    anomaly_score = model.predict(X)
+
+    Y = Y *-2
+
+    Y = Y + 1
+
+    step = []
+
+    initVal = Y[0]
+
+    for val in Y:
+        if val != initVal:
+            step.append(-1)
+        else:
+            step.append(1)
+        initVal = val
+
+    step = np.array(step)
+
+    accuracy = 100*list(anomaly_score).count(-1)/(np.count_nonzero(Y==-1))
+    print("Accuracy of the model:", accuracy)
+
+    cm = confusion_matrix(anomaly_score, Y)
+
+    print(cm)
+
+    cm = confusion_matrix(anomaly_score, step)
+
+    print(cm)
+
+    print(list(anomaly_score).count(-1))
+
+    fromIndex = 250000
+
+    plt.figure()
+    plt.plot(range(len(Y[fromIndex:])), Y[fromIndex:], 'b', alpha = 0.3)
+    plt.plot(range(len(anomaly_score[fromIndex:])), anomaly_score[fromIndex:], 'r', alpha = 0.3)
+    plt.show()
+
+    pickle.dump(model, open('models/IsolationForest.sav', 'wb'))
+    # F1 = iso.iForest(X, ntrees = 500, sample_size = 1000, ExtensionLevel=1)
+
+    # xxx = np.array([[0,0.]])
+    # SL0 = F1.compute_paths_single_tree(xxx, 0)
+
+    # S1 = F1.compute_paths(X_in=X)
+
+    # ss1=np.argsort(S1)
+
+    # number_of_errors = np.sum(Y % 2 == 1)
+    # print(np.sum(Y[ss1[:number_of_errors]])/number_of_errors, index)

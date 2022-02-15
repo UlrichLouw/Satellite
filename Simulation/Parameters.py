@@ -364,7 +364,7 @@ class SET_PARAMS:
 
     # Earth sensor
     Earth_sensor_position = np.array(([0, 0, -Lz/2])) # x, y, en z
-    Earth_sensor_FOV = 180 # Field of view in degrees #! change this back to 180
+    Earth_sensor_FOV = 360 # Field of view in degrees #! change this back to 180
     Earth_sensor_angle = Earth_sensor_FOV/2 # The angle use to check whether the dot product angle is within the field of view
     Earth_noise = 7e-3                  #standard deviation away from where the actual earth is
 
@@ -391,7 +391,7 @@ class SET_PARAMS:
     
     SSC_Plane = [-1/2, 0, 0, Lx/2] # x, y, z, d
     # Angular Momentum sensor
-    Angular_sensor_noise = 2e-2
+    Angular_sensor_noise = 1e-3
     
     ###################
     # HARDWARE MODELS #

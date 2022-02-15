@@ -11,11 +11,13 @@ import matplotlib.pyplot as plt
 from sklearn.ensemble import RandomForestClassifier
 
 
-def Random_Forest(path, depth, constellation = False, multi_class = False):
+def Random_Forest(path, depth, constellation = False, multi_class = False, lowPredictionAccuracy = False, MovingAverage = False, includeAngularMomemntumSensors = False):
     X_list = []
     Y_list = []
 
     pathFiles = SET_PARAMS.path
+
+    buffer = False
 
     if constellation:
         for satNum in range(SET_PARAMS.Number_of_satellites):
@@ -24,9 +26,9 @@ def Random_Forest(path, depth, constellation = False, multi_class = False):
             for index in range(SET_PARAMS.number_of_faults):
                 name = SET_PARAMS.Fault_names_values[index+1]
                 if multi_class:
-                    Y, _, X, _, _, _, _ = Dataset_order(name, binary_set = False, categorical_num = True, buffer = False, constellation = constellation, multi_class = True)
+                    Y, _, X, _, _, ColumnNames, ClassNames = Dataset_order(name, binary_set = False, categorical_num = True, buffer = buffer, constellation = constellation, multi_class = True, MovingAverage = MovingAverage, includeAngularMomemntumSensors = includeAngularMomemntumSensors)
                 else:
-                    Y, _, X, _, _, _, _ = Dataset_order(name, binary_set = True, categorical_num = False, buffer = False, constellation = constellation, multi_class = False)
+                    Y, _, X, _, _, ColumnNames, ClassNames = Dataset_order(name, binary_set = True, buffer = buffer, categorical_num = False, constellation = constellation, MovingAverage = MovingAverage, includeAngularMomemntumSensors = includeAngularMomemntumSensors)
                 X_list.append(X)    
                 Y_list.append(Y)
 
@@ -34,9 +36,9 @@ def Random_Forest(path, depth, constellation = False, multi_class = False):
         for index in range(SET_PARAMS.number_of_faults):
             name = SET_PARAMS.Fault_names_values[index+1]
             if multi_class:
-                Y, _, X, _, _, _, _ = Dataset_order(name, binary_set = False, categorical_num = True, buffer = False)
+                Y, _, X, _, _, ColumnNames, ClassNames = Dataset_order(name, binary_set = False, categorical_num = True, buffer = buffer, MovingAverage = MovingAverage, includeAngularMomemntumSensors = includeAngularMomemntumSensors)
             else:
-                Y, _, X, _, _, _, _ = Dataset_order(name, binary_set = True, buffer = False, categorical_num = False)
+                Y, _, X, _, _, ColumnNames, ClassNames = Dataset_order(name, binary_set = True, buffer = buffer, categorical_num = False, MovingAverage = MovingAverage, includeAngularMomemntumSensors = includeAngularMomemntumSensors)
 
             X_list.append(X)    
             Y_list.append(Y)
@@ -44,9 +46,28 @@ def Random_Forest(path, depth, constellation = False, multi_class = False):
     X = np.concatenate(X_list)
     Y = np.concatenate(Y_list)
 
+    print(X.shape)
+
+    step = []
+
+    initVal = Y[0]
+
+    for val in Y:
+        if val != initVal:
+            step.append(1)
+        else:
+            step.append(0)
+        initVal = val
+
+    step = np.array(step)
+
+    step = step.reshape(step.shape[0],)
+
+    Y = Y.reshape(Y.shape[0],)
+
     X_train, X_test, y_train, y_test = train_test_split(X, Y)
 
-    model = RandomForestClassifier(n_estimators = 30)
+    model = RandomForestClassifier(n_estimators = 100)
 
     model.fit(X_train, y_train)
 

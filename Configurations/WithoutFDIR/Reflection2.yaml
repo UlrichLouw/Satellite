@@ -1,0 +1,43 @@
+Display: False
+Visualize: True
+save_as: ".csv"
+Kalman_filter_use: "EKF"
+sensor_number: "ALL"
+Number_of_orbits: 2
+fixed_orbit_failure: 0
+Number_of_multiple_orbits: 2
+skip: 20
+Number_of_satellites: 1
+k_nearest_satellites: 5
+FD_strategy: "Distributed"
+SensorFDIR: False
+Mode: "EARTH_SUN" # Nominal or EARTH_SUN
+stateBufferLength: 1 #! The reset value was 1 and worked quite well (100 was terrible)
+numFaultStart: 2
+NumberOfRandom: 1
+NumberOfFailuresReset: 20
+Model_or_Measured: "ORC"
+Low_Aerodynamic_Disturbance: False
+UsePredeterminedPositionalData: True #! change this to false if it doesn't work
+no_aero_disturbance: False
+no_wheel_disturbance: False
+kalmanSensors: ["Magnetometer", "Earth_Sensor", "Sun_Sensor", "Star_tracker"] #!, "Sun_Sensor"]"Magnetometer", "Earth_Sensor", 
+printBreak: False
+NumberOfIntegrationSteps: 10
+includeNone: False
+PredictionBuffer: False
+
+featureExtractionMethods: ["DMD"]
+predictionMethods: ["None"]
+isolationMethods: ["None"]
+recoveryMethods: ["None"]
+recoverMethodsWithoutPrediction: ["None"]
+
+settling_time: 150 #! Was 200 3 Dec 10:36
+damping_coefficient: 0.707
+
+#! If the current settings do not work, then the Kw parameter should change (the Kw parameter should decrease
+#! since the oscillations increase)
+
+measurement_noise: 0.5
+process_noise: 0.5

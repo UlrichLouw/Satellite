@@ -2,7 +2,6 @@ import numpy as np
 from Simulation.Parameters import SET_PARAMS
 import time
 from Simulation.Disturbances import Disturbances
-from numba import njit, jit
 from Simulation.utilities import crossProduct
 
 Ts = SET_PARAMS.Ts

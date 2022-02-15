@@ -3,8 +3,7 @@ import numpy as np
 from Simulation.Parameters import SET_PARAMS
 import collections
 
-X_buffer = []
-Y_buffer = []
+
 
 
 
@@ -19,10 +18,12 @@ def Binary_split(classified_data):
 
 def Dataset_order(index, binary_set, buffer, categorical_num, controlInputx = True, ControlInput = False, onlySensors = False, use_previously_saved_models = False, columns_compare = None, columns_compare_to = None, constellation = False, onlyCurrentSatellite = True, multi_class = False, MovingAverage = True, includeAngularMomemntumSensors = False):
     # If multi-class and constellation, then the output should be a list of which satellite has failed
-    
+    X_buffer = []
+    Y_buffer = []  
     ColumnNames = []
     ClassNames = []
     shapeSize = 1
+    onlySun = False
 
     if isinstance(index, int):
         if SET_PARAMS.load_as == ".xlsx":
@@ -147,31 +148,31 @@ def Dataset_order(index, binary_set, buffer, categorical_num, controlInputx = Tr
         X = Orbit[columns_compare].to_numpy()
         Y = Orbit[columns_compare_to].to_numpy()
     else:
-        if not includeAngularMomemntumSensors:
+        if onlySun:
+            Xdf = Orbit.loc[:,Orbit.columns.str.contains('Sun')]
+            X = Xdf.to_numpy() # Ignore the angular sensor
+            ColumnNames = Xdf.columns
+        elif not includeAngularMomemntumSensors:
             if onlySensors:
                 Xdf = Orbit.loc[:,Orbit.columns.str.contains('Sun') | Orbit.columns.str.contains('Magnetometer') |
-                                Orbit.columns.str.contains('Earth') | 
-                                Orbit.columns.str.contains('Star')]
+                                Orbit.columns.str.contains('Earth')]
                 X = Xdf.to_numpy() # Ignore the angular sensor
                 ColumnNames = Xdf.columns
             else:
                 Xdf = Orbit.loc[:,Orbit.columns.str.contains('Sun') | Orbit.columns.str.contains('Magnetometer') |
-                                Orbit.columns.str.contains('Earth') | 
-                                Orbit.columns.str.contains('Star') | 
+                                Orbit.columns.str.contains('Earth')| 
                                 Orbit.columns.str.contains('Moving Average') ]
                 X = Xdf.to_numpy() # Ignore the angular sensor
                 ColumnNames = Xdf.columns
         else:
             if onlySensors:
                 Xdf = Orbit.loc[:,Orbit.columns.str.contains('Sun') | Orbit.columns.str.contains('Magnetometer') |
-                                Orbit.columns.str.contains('Earth') | 
-                                Orbit.columns.str.contains('Star') | Orbit.columns.str.contains('Angular momentum of wheels')]
+                                Orbit.columns.str.contains('Earth') | Orbit.columns.str.contains('Angular momentum of wheels')]
                 X = Xdf.to_numpy() # Ignore the angular sensor
                 ColumnNames = Xdf.columns
             else:
                 Xdf = Orbit.loc[:,Orbit.columns.str.contains('Sun') | Orbit.columns.str.contains('Magnetometer') |
                                 Orbit.columns.str.contains('Earth') | 
-                                Orbit.columns.str.contains('Star') | 
                                 Orbit.columns.str.contains('Moving Average') | Orbit.columns.str.contains('Angular momentum of wheels') ]
                 X = Xdf.to_numpy() # Ignore the angular sensor
                 ColumnNames = Xdf.columns
@@ -209,7 +210,7 @@ def Dataset_order(index, binary_set, buffer, categorical_num, controlInputx = Tr
             #X_buffer_replaced.append(np.asarray(X_buffer).flatten())
 
         X = np.asarray(X_buffer)
-   
+
     if use_previously_saved_models == True:
         Y = np.asarray(buffer_y)
         Y = Y.reshape(X.shape[0], Y.shape[1])
@@ -220,5 +221,7 @@ def Dataset_order(index, binary_set, buffer, categorical_num, controlInputx = Tr
     else:
         Y = np.asarray(Y).reshape(X.shape[0],shapeSize)
         Y_buffer.append(Y)
+
+    Orbit = pd.concat([Xdf, Ydf])
 
     return Y, Y_buffer, X, X_buffer, Orbit, ColumnNames, ClassNames
