@@ -428,16 +428,16 @@ class Dynamics:
 
         MovingAverageDict = {}
 
-        # if SET_PARAMS.FeatureExtraction == "DMD":         
+        if SET_PARAMS.FeatureExtraction == "DMD":         
 
-        #     if self.t == SET_PARAMS.time:
-        #         # Initiating parameters for SensorPredictions
-        #         self.SensePredDMDALL = SensorPredictionsDMD(Sensors_X, "ALL")             
+            if self.t == SET_PARAMS.time:
+                # Initiating parameters for SensorPredictions
+                self.SensePredDMDALL = SensorPredictionsDMD(Sensors_X, "ALL")             
 
 
-        #     self.MovingAverage = self.SensePredDMDALL.MovingAverage(Sensors_X, Sensors_Y)
+            self.MovingAverage = self.SensePredDMDALL.MovingAverage(Sensors_X, Sensors_Y)
 
-        #     self.MovingAverage = self.MovingAverage.flatten()              
+            self.MovingAverage = self.MovingAverage.flatten()              
 
         return Sensors_X, Sensors_Y, MovingAverageDict
 
@@ -451,7 +451,7 @@ class Dynamics:
             predictedFailure = self.DecisionTreeDMDBinary.Predict(self.constellationData)
 
         elif SET_PARAMS.SensorPredictor == "DecisionTrees":
-            #! Sensors_X = np.array([np.concatenate([Sensors_X, self.MovingAverage])])
+            Sensors_X = np.array([np.concatenate([Sensors_X, self.MovingAverage])])
             Sensors_X = np.array([np.concatenate([Sensors_X, self.Orbit_Data["Angular momentum of wheels"]])])
             Sensors_X = Sensors_X.reshape(1, Sensors_X.shape[1])
             predictedFailure = self.DecisionTreeDMDBinary.Predict(Sensors_X)
@@ -615,29 +615,31 @@ class Dynamics:
         if SET_PARAMS.SensorRecoveror == "EKF-top3":
             Error = 0
 
-            for sensor in sensors_kalman:
-                v = self.sensor_vectors[sensor]
-                v_ORC_k = v["Estimated SBC"]
-                v_measured_k = v["SBC"]
-                e = np.square((v_ORC_k - v_measured_k)**2).mean()
+            for _ in range(len(sensors_kalman)-3):
+                Error = 0
+                for sensor in sensors_kalman:
+                    v = self.sensor_vectors[sensor]
+                    v_est_k = v["Estimated SBC"]
+                    v_measured_k = v["Noise SBC"]
+                    e = np.square((v_est_k - v_measured_k)**2).mean()
 
-                if e > Error:
-                    Error = e
-                    failedSensor = sensor
+                    if e > Error:
+                        Error = e
+                        failedSensor = sensor
 
-            sensors_kalman.pop(sensors_kalman.index(failedSensor))
+                sensors_kalman.pop(sensors_kalman.index(failedSensor))
             
             self.sensors_kalman = sensors_kalman
         
         elif SET_PARAMS.SensorRecoveror == "EKF-top2":
             
-            for _ in range(2):
+            for _ in range(len(sensors_kalman)-2):
                 Error = 0
                 for sensor in sensors_kalman:
                     v = self.sensor_vectors[sensor]
-                    v_ORC_k = v["Estimated SBC"]
-                    v_measured_k = v["SBC"]
-                    e = np.square((v_ORC_k - v_measured_k)**2).mean()
+                    v_est_k = v["Estimated SBC"]
+                    v_measured_k = v["Noise SBC"]
+                    e = np.square((v_est_k - v_measured_k)**2).mean()
 
                     if e > Error:
                         Error = e
