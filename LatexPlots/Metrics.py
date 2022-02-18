@@ -88,17 +88,18 @@ def MetricPlots(index, Number, Number_of_orbits = 30, ALL = True, first = False,
                                     SunInView.append(ind)
                                 else:
                                     Eclipse.append(ind)
+
                             currenctSunStatus = Datapgf.loc[ind, "Sun in view"]
 
                         for col in plotColumns:
-                            fig = plt.figure(figsize = (width*cm, height*cm))
+                            plt.figure(figsize = (width*cm, height*cm))
 
                             plt.plot(range(len(Datapgf[[col]])), Datapgf[[col]])
 
-                            if SET_PARAMS.Fault_names_values[index] == "None":
-                                plt.title(col + " of Perfectly Designed Satellite", fontsize = int(width*1.2))
-                            elif recovery == "None":
-                                plt.title(col + " of Without Recovery", fontsize = int(width*1.2))
+                            # if SET_PARAMS.Fault_names_values[index] == "None":
+                            #     plt.title(col + " of Perfectly Designed Satellite", fontsize = int(width*1.2))
+                            # elif recovery == "None":
+                            #     plt.title(col + " of Without Recovery", fontsize = int(width*1.2))
 
                             plt.grid(visible = True, which = 'both')
 
@@ -109,11 +110,13 @@ def MetricPlots(index, Number, Number_of_orbits = 30, ALL = True, first = False,
                             else:
                                 plt.ylabel("Accuracy", fontsize = int(width))
 
-                            for sun in SunInView:
-                                plt.axvline(x=sun, linestyle = '--', c = 'r', linewidth=0.4)
+                            #for sun in SunInView:
+                                # plt.axvline(x=sun, linestyle = '--', c = 'r', linewidth=0.4)
 
                             for eclipse in Eclipse:
-                                plt.axvline(x=eclipse, linestyle = '--', c = 'k', linewidth=0.4)
+                                to = SunInView[next(x[0] for x in enumerate(SunInView) if x[1] > eclipse)]
+                                plt.axvspan(eclipse, to , facecolor='grey', alpha=0.2)
+                                # plt.axvline(x=eclipse, linestyle = '--', c = 'k', linewidth=0.4)
 
                             plt.tight_layout()
 

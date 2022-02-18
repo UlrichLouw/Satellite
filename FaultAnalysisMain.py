@@ -22,8 +22,8 @@ if __name__ == '__main__':
     constellation = False
     multi_class = False
     lowPredictionAccuracy = False
-    MovingAverage = False
-    includeAngularMomemntumSensors = True
+    MovingAverage = True
+    includeAngularMomentumSensors = True
 
     GenericPath = "Predictor-" + SET_PARAMS.SensorPredictor+ "/Isolator-" + SET_PARAMS.SensorIsolator + "/Recovery-" + SET_PARAMS.SensorRecoveror +"/"+SET_PARAMS.Mode+"/"+ SET_PARAMS.Model_or_Measured +"/" +"General CubeSat Model/"
     
@@ -40,5 +40,5 @@ if __name__ == '__main__':
     # DMD.MatrixAB(path = SET_PARAMS.pathHyperParameters + 'PhysicsEnabledDMDMethod')
     # DecisionTree training
     # Isolation_Forest.IsoForest(path = SET_PARAMS.pathHyperParameters + 'PhysicsEnabledDMDMethod', depth = 10, constellation = constellation, multi_class = multi_class, lowPredictionAccuracy = lowPredictionAccuracy, MovingAverage = MovingAverage, includeAngularMomemntumSensors = includeAngularMomemntumSensors)
-    # DecisionForests.DecisionTreeAllAnomalies(path = SET_PARAMS.pathHyperParameters + 'PhysicsEnabledDMDMethod', depth = 10, constellation = constellation, multi_class = multi_class, lowPredictionAccuracy = lowPredictionAccuracy, MovingAverage = MovingAverage, includeAngularMomemntumSensors = includeAngularMomemntumSensors)
-    Random_Forest.Random_Forest(path = SET_PARAMS.pathHyperParameters + 'PhysicsEnabledDMDMethod', depth = 10, constellation = constellation, multi_class = False, lowPredictionAccuracy = lowPredictionAccuracy, MovingAverage = MovingAverage, includeAngularMomemntumSensors = includeAngularMomemntumSensors)
+    # DecisionForests.DecisionTreeAllAnomalies(path = SET_PARAMS.pathHyperParameters + 'PhysicsEnabledDMDMethod', depth = 10, constellation = constellation, multi_class = multi_class, lowPredictionAccuracy = lowPredictionAccuracy, MovingAverage = MovingAverage, includeAngularMomemntumSensors = includeAngularMomentumSensors)
+    Random_Forest.Random_Forest(path = SET_PARAMS.pathHyperParameters + 'PhysicsEnabledDMDMethod', depth = 10, constellation = constellation, multi_class = False, lowPredictionAccuracy = lowPredictionAccuracy, MovingAverage = MovingAverage, includeAngularMomemntumSensors = includeAngularMomentumSensors)

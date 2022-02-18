@@ -185,6 +185,7 @@ def Dataset_order(index, binary_set, buffer, categorical_num, controlInputx = Tr
             ClassNames = Ydf.columns
         Y = Ydf.to_numpy()
         
+    print(ColumnNames)
 
     if ControlInput:
         Y = Data.loc[:,Data.columns.str.contains('Control Torques')].to_numpy()

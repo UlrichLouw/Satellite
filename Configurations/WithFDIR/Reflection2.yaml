@@ -29,10 +29,10 @@ PredictionBuffer: False
 stepPredictor: False
 
 featureExtractionMethods: ["DMD"]
-predictionMethods: ["RandomForest"] #,"DecisionTrees","RandomForest", "PERFECT", "SBCvsORC"
-isolationMethods: ["OnlySun"]
-recoveryMethods: ["EKF-ignore"]
-recoverMethodsWithoutPrediction: ["None"]
+predictionMethods: ["None", "RandomForest"] #,"DecisionTrees","RandomForest", "PERFECT", "SBCvsORC"
+isolationMethods: ["None", "OnlySun"]
+recoveryMethods: ["EKF-top2"]
+recoverMethodsWithoutPrediction: ["None", "EKF-top2"]
 
 settling_time: 150 #! Was 200 3 Dec 10:36
 damping_coefficient: 0.707

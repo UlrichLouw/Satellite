@@ -93,11 +93,11 @@ def VectorPlots(index, Number, Number_of_orbits, ALL = True, first = False, widt
 
                             plt.plot(range(len(Datapgf)), Datapgf[[col+ "_z"]], alpha=0.7, linewidth=1)
 
-                            if SET_PARAMS.Fault_names_values[index] == "None":
-                                plt.title(col + " without Reflection", fontsize = int(width*1.2))
+                            # if SET_PARAMS.Fault_names_values[index] == "None":
+                            #     plt.title(col + " without Reflection", fontsize = int(width*1.2))
 
-                            else:
-                                plt.title(col + " with " + SET_PARAMS.Fault_names_values[index], fontsize = int(width*1.2))
+                            # else:
+                            #     plt.title(col + " with " + SET_PARAMS.Fault_names_values[index], fontsize = int(width*1.2))
 
                             plt.grid(visible = True, which = 'both')
 
@@ -108,12 +108,14 @@ def VectorPlots(index, Number, Number_of_orbits, ALL = True, first = False, widt
                             # else:
                             #     plt.ylabel("Accuracy", fontsize = int(width))
 
-                            for sun in SunInView:
-                                plt.axvline(x=sun, linestyle = '--', c = 'r', linewidth=0.4)
+                            # for sun in SunInView:
+                            #     plt.axvline(x=sun, linestyle = '--', c = 'r', linewidth=0.4)
 
 
                             for eclipse in Eclipse:
-                                plt.axvline(x=eclipse, linestyle = '--', c = 'k', linewidth=0.4)
+                                to = SunInView[next(x[0] for x in enumerate(SunInView) if x[1] > eclipse)]
+                                plt.axvspan(eclipse, to , facecolor='grey', alpha=0.2)
+                                # plt.axvline(x=eclipse, linestyle = '--', c = 'k', linewidth=0.4)
 
                             plt.tight_layout()
 
