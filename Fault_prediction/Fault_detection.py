@@ -232,6 +232,8 @@ class DecisionTreePredict():
     
     def Predict(self, X):
         y_predict = self.clf.predict(X)[0]
+        # y_prob = self.clf.predict_proba(X)
+        # print(y_prob)
         return y_predict
 
 class IsolationForest():

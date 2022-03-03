@@ -1,5 +1,5 @@
 Display: False
-Visualize: True
+Visualize: False
 save_as: ".csv"
 Kalman_filter_use: "EKF"
 sensor_number: "ALL"
@@ -26,12 +26,15 @@ printBreak: False
 NumberOfIntegrationSteps: 10
 includeNone: False
 PredictionBuffer: True
+RecoveryBuffer: "EKF-top2"
+prefectNoFailurePrediction: True
+treeDepth: [5, 10, 20, 100]
 
 featureExtractionMethods: ["DMD"]
-predictionMethods: ["None", "DecisionTrees","RandomForest", "PERFECT"] #,"DecisionTrees","RandomForest", "PERFECT", "SBCvsORC"
-isolationMethods: ["None", "OnlySun"]
-recoveryMethods: ["EKF-ignore", "EKF-reset", "EKF-combination"]
-recoverMethodsWithoutPrediction: ["None", "EKF-top2"]
+predictionMethods: ["PERFECT", 50.0, 60.0, 70.0, 80.0, 90.0, 92.5, 95.0, 97.5, 99.0, 99.5, 99.9] #,"DecisionTrees","RandomForest", "PERFECT", "SBCvsORC"
+isolationMethods: ["OnlySun"]
+recoveryMethods: ["EKF-combination", "EKF-reset"] #"EKF-ignore", 
+recoverMethodsWithoutPrediction: ["None"] #, "EKF-top2"]
 
 settling_time: 150 #! Was 200 3 Dec 10:36
 damping_coefficient: 0.707

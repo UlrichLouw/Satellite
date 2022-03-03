@@ -1,4 +1,5 @@
 from sklearn.decomposition import PCA
+import matplotlib.pyplot as plt
 
 pca = PCA(n_components=2)
 X_pca = pca.fit_transform(X)

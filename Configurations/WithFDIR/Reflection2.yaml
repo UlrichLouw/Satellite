@@ -3,7 +3,7 @@ Visualize: True
 save_as: ".csv"
 Kalman_filter_use: "EKF"
 sensor_number: "ALL"
-Number_of_orbits: 5
+Number_of_orbits: 2
 fixed_orbit_failure: 0
 Number_of_multiple_orbits: 2
 skip: 20
@@ -26,13 +26,15 @@ printBreak: False
 NumberOfIntegrationSteps: 10
 includeNone: False
 PredictionBuffer: False
+RecoveryBuffer: "EKF-top2"
 stepPredictor: False
+prefectNoFailurePrediction: True
 
 featureExtractionMethods: ["DMD"]
-predictionMethods: ["None", "RandomForest"] #,"DecisionTrees","RandomForest", "PERFECT", "SBCvsORC"
-isolationMethods: ["None", "OnlySun"]
-recoveryMethods: ["EKF-top2"]
-recoverMethodsWithoutPrediction: ["None", "EKF-top2"]
+predictionMethods: ["None", "DecisionTrees"] #,"DecisionTrees","RandomForest", "PERFECT", "SBCvsORC"
+isolationMethods: ["OnlySun"]
+recoveryMethods: ["EKF-ignore"]
+recoverMethodsWithoutPrediction: ["None"]
 
 settling_time: 150 #! Was 200 3 Dec 10:36
 damping_coefficient: 0.707

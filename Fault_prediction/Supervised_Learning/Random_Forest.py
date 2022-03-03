@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 from sklearn.ensemble import RandomForestClassifier
 
 
-def Random_Forest(path, depth, constellation = False, multi_class = False, lowPredictionAccuracy = False, MovingAverage = False, includeAngularMomemntumSensors = False):
+def Random_Forest(path, depth, constellation = False, multi_class = False, lowPredictionAccuracy = False, MovingAverage = False, includeAngularMomemntumSensors = False, includeModelled = False):
     X_list = []
     Y_list = []
 
@@ -26,9 +26,9 @@ def Random_Forest(path, depth, constellation = False, multi_class = False, lowPr
             for index in range(SET_PARAMS.number_of_faults):
                 name = SET_PARAMS.Fault_names_values[index+1]
                 if multi_class:
-                    Y, _, X, _, _, ColumnNames, ClassNames = Dataset_order(name, binary_set = False, categorical_num = True, buffer = buffer, constellation = constellation, multi_class = True, MovingAverage = MovingAverage, includeAngularMomemntumSensors = includeAngularMomemntumSensors)
+                    Y, _, X, _, _, ColumnNames, ClassNames = Dataset_order(name, binary_set = False, categorical_num = True, buffer = buffer, constellation = constellation, multi_class = True, MovingAverage = MovingAverage, includeAngularMomemntumSensors = includeAngularMomemntumSensors, includeModelled = includeModelled)
                 else:
-                    Y, _, X, _, _, ColumnNames, ClassNames = Dataset_order(name, binary_set = True, buffer = buffer, categorical_num = False, constellation = constellation, MovingAverage = MovingAverage, includeAngularMomemntumSensors = includeAngularMomemntumSensors)
+                    Y, _, X, _, _, ColumnNames, ClassNames = Dataset_order(name, binary_set = True, buffer = buffer, categorical_num = False, constellation = constellation, MovingAverage = MovingAverage, includeAngularMomemntumSensors = includeAngularMomemntumSensors, includeModelled = includeModelled)
                 X_list.append(X)    
                 Y_list.append(Y)
 
@@ -36,9 +36,9 @@ def Random_Forest(path, depth, constellation = False, multi_class = False, lowPr
         for index in range(SET_PARAMS.number_of_faults):
             name = SET_PARAMS.Fault_names_values[index+1]
             if multi_class:
-                Y, _, X, _, _, ColumnNames, ClassNames = Dataset_order(name, binary_set = False, categorical_num = True, buffer = buffer, MovingAverage = MovingAverage, includeAngularMomemntumSensors = includeAngularMomemntumSensors)
+                Y, _, X, _, _, ColumnNames, ClassNames = Dataset_order(name, binary_set = False, categorical_num = True, buffer = buffer, MovingAverage = MovingAverage, includeAngularMomemntumSensors = includeAngularMomemntumSensors, includeModelled = includeModelled)
             else:
-                Y, _, X, _, _, ColumnNames, ClassNames = Dataset_order(name, binary_set = True, buffer = buffer, categorical_num = False, MovingAverage = MovingAverage, includeAngularMomemntumSensors = includeAngularMomemntumSensors)
+                Y, _, X, _, _, ColumnNames, ClassNames = Dataset_order(name, binary_set = True, buffer = buffer, categorical_num = False, MovingAverage = MovingAverage, includeAngularMomemntumSensors = includeAngularMomemntumSensors, includeModelled = includeModelled)
 
             X_list.append(X)    
             Y_list.append(Y)
@@ -67,7 +67,7 @@ def Random_Forest(path, depth, constellation = False, multi_class = False, lowPr
 
     X_train, X_test, y_train, y_test = train_test_split(X, Y)
 
-    model = RandomForestClassifier(n_estimators = 100)
+    model = RandomForestClassifier(n_estimators = 100, max_depth = depth)
 
     model.fit(X_train, y_train)
 
@@ -83,6 +83,6 @@ def Random_Forest(path, depth, constellation = False, multi_class = False, lowPr
     path_to_folder.mkdir(exist_ok=True)
 
     if multi_class:
-        pickle.dump(model, open(path + '/RandomForestPhysicsEnabledDMDMultiClass.sav', 'wb'))
+        pickle.dump(model, open(path + '/RandomForestPhysicsEnabledDMDMultiClass' + str(SET_PARAMS.treeDepth) + '.sav', 'wb'))
     else:
-        pickle.dump(model, open(path + '/RandomForestPhysicsEnabledDMDBinaryClass.sav', 'wb'))
+        pickle.dump(model, open(path + '/RandomForestPhysicsEnabledDMDBinaryClass' + str(SET_PARAMS.treeDepth) + '.sav', 'wb'))

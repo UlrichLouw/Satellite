@@ -24,12 +24,7 @@ def GetData(path, index, n, all = False, first = False):
 
     return Datapgf
 
-def VectorPlots(index, Number, Number_of_orbits, ALL = True, first = False, width = 8.0, height = 6.0):
-    featureExtractionMethods = ["DMD"]
-    predictionMethods = ["None", "DecisionTrees", "RandomForest", "PERFECT", "Isolation_Forest"]
-    isolationMethods = ["None", "OnlySun"] #! "RandomForest", "PERFECT",  
-    recoveryMethods = ["None", "EKF-ignore"]
-    recoverMethodsWithoutPrediction = ["None", "EKF-top3"]
+def VectorPlots(bbox_to_anchor, loc, featureExtractionMethods, predictionMethods, isolationMethods, recoveryMethods, recoverMethodsWithoutPrediction,index, Number, Number_of_orbits, ALL = True, first = False, width = 8.0, height = 6.0):
     SET_PARAMS.Mode = "EARTH_SUN"
     SET_PARAMS.Model_or_Measured = "ORC"
     SET_PARAMS.Number_of_orbits = Number_of_orbits
@@ -124,3 +119,5 @@ def VectorPlots(index, Number, Number_of_orbits, ALL = True, first = False, widt
                             Path(path).mkdir(parents = True, exist_ok=True)
 
                             plt.savefig(Path(path + "/" + col + '.pgf'))
+
+                            plt.close()

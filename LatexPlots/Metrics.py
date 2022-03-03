@@ -24,16 +24,7 @@ def GetData(path, index, n, all = False, first = False):
 
     return Datapgf
 
-def MetricPlots(index, Number, Number_of_orbits = 30, ALL = True, first = False, width = 8.0, height = 6.0):
-    featureExtractionMethods = ["DMD"]
-    predictionMethods = ["None", "DecisionTrees", "RandomForest", "PERFECT", "Isolation_Forest"]
-    isolationMethods = ["None", "OnlySun"] #! "RandomForest", "PERFECT",  
-    recoveryMethods = ["None", "EKF-ignore"]
-    recoverMethodsWithoutPrediction = ["None", "EKF-top3"]
-    # predictionMethods = ["None"]
-    # isolationMethods = ["None"] #! "RandomForest", 
-    # recoveryMethods = ["None"]
-    # recoverMethodsWithoutPrediction = ["None"]
+def MetricPlots(RecoveryBuffer, predictionBuffer, perfectNoFailurePrediction, bbox_to_anchor, loc, featureExtractionMethods, predictionMethods, isolationMethods, recoveryMethods, recoverMethodsWithoutPrediction, index, Number, Number_of_orbits = 30, ALL = True, first = False, width = 8.0, height = 6.0):
     SET_PARAMS.Mode = "EARTH_SUN"
     SET_PARAMS.Model_or_Measured = "ORC"
     SET_PARAMS.Number_of_orbits = Number_of_orbits
@@ -65,13 +56,19 @@ def MetricPlots(index, Number, Number_of_orbits = 30, ALL = True, first = False,
                 for recovery in recoveryMethods:
                     if (recovery in recoverMethodsWithoutPrediction and prediction == "None" and isolation == "None") or (prediction != "None" and isolation != "None" and recovery not in recoverMethodsWithoutPrediction):
                         SET_PARAMS.FeatureExtraction = extraction
-                        SET_PARAMS.SensorPredictor = prediction
-                        SET_PARAMS.SensorIsolator = isolation
+                        SET_PARAMS.SensorPredictor = str(prediction)
+                        SET_PARAMS.SensorIsolator = str(isolation)
                         SET_PARAMS.SensorRecoveror = recovery
                         GenericPath = "Predictor-" + SET_PARAMS.SensorPredictor+ "/Isolator-" + SET_PARAMS.SensorIsolator + "/Recovery-" + SET_PARAMS.SensorRecoveror +"/"+SET_PARAMS.Mode+"/" + SET_PARAMS.Model_or_Measured +"/"+ "General CubeSat Model/"
                         
                         if SET_PARAMS.Low_Aerodynamic_Disturbance:
                             GenericPath = "Low_Disturbance/" + GenericPath
+
+                        if predictionBuffer:
+                            GenericPath = GenericPath + RecoveryBuffer + "/"
+
+                        if perfectNoFailurePrediction:
+                            GenericPath = GenericPath + "PerfectNoFailurePrediction/"
                         
                         path = "Data files/"+ GenericPath + SET_PARAMS.Fault_names_values[index] + ".csv"
                         path = Path(path)
@@ -122,6 +119,14 @@ def MetricPlots(index, Number, Number_of_orbits = 30, ALL = True, first = False,
 
                             path = path_of_execution + "/Predictor-" + SET_PARAMS.SensorPredictor+ "/Isolator-" + SET_PARAMS.SensorIsolator + "/Recovery-" + SET_PARAMS.SensorRecoveror +"/"+SET_PARAMS.Mode+"-" + SET_PARAMS.Model_or_Measured +"-General CubeSat Model/" + SET_PARAMS.Fault_names_values[index]
                             
+                            if predictionBuffer:
+                                path = path + RecoveryBuffer + "/"
+
+                            if perfectNoFailurePrediction:
+                                path = path + "PerfectNoFailurePrediction/"
+
                             Path(path).mkdir(parents = True, exist_ok=True)
 
                             plt.savefig(Path(path + "/" + col + '.pgf'))
+
+                            plt.close()

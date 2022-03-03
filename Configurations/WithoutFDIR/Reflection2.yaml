@@ -26,6 +26,7 @@ printBreak: False
 NumberOfIntegrationSteps: 10
 includeNone: False
 PredictionBuffer: False
+RecoveryBuffer: "EKF-top2"
 
 featureExtractionMethods: ["DMD"]
 predictionMethods: ["None"]

@@ -37,20 +37,34 @@ def loop(index, D, SET_PARAMS):
         satellite = view.initializeCube(SET_PARAMS.Dimensions)
         pv = view.ProjectionViewer(1920, 1080, satellite)
 
+
+    if SET_PARAMS.SensorPredictor == "DecisionTrees" or SET_PARAMS.SensorPredictor == "RandomForest":
+        predictor = SET_PARAMS.SensorPredictor + str(SET_PARAMS.treeDepth)
+    else:
+        predictor = SET_PARAMS.SensorPredictor 
+
     if SET_PARAMS.NumberOfRandom > 1:
-        GenericPath = "Predictor-" + str(SET_PARAMS.SensorPredictor)+ "/Isolator-" + str(SET_PARAMS.SensorIsolator) + "/Recovery-" + SET_PARAMS.SensorRecoveror +"/"+SET_PARAMS.Mode+"/" + SET_PARAMS.Model_or_Measured +"/" + \
+        GenericPath = "Predictor-" + str(predictor)+ "/Isolator-" + str(SET_PARAMS.SensorIsolator) + "/Recovery-" + SET_PARAMS.SensorRecoveror +"/"+SET_PARAMS.Mode+"/" + SET_PARAMS.Model_or_Measured +"/" + \
                     "SunSensorSize-Length:" + str(SET_PARAMS.Sun_sensor_length) + "-Width:" + str(SET_PARAMS.Sun_sensor_width) + "/" + str(SET_PARAMS.Fault_names_values[index]) 
         path = "Data files/"+ GenericPath
         path = path + "/" + "SolarPanel-Length: " + str(SET_PARAMS.SP_Length) + "SolarPanel-Width: " + str(SET_PARAMS.SP_width) + \
                     "Raan: " + str(SET_PARAMS.RAAN) + " inclinination: " +str(SET_PARAMS.inclination)
         
     else:
-        GenericPath = "Predictor-" + str(SET_PARAMS.SensorPredictor)+ "/Isolator-" + str(SET_PARAMS.SensorIsolator) + "/Recovery-" + SET_PARAMS.SensorRecoveror +"/"+SET_PARAMS.Mode+"/" + SET_PARAMS.Model_or_Measured +"/" + "General CubeSat Model/"
+        GenericPath = "Predictor-" + str(predictor)+ "/Isolator-" + str(SET_PARAMS.SensorIsolator) + "/Recovery-" + SET_PARAMS.SensorRecoveror +"/"+SET_PARAMS.Mode+"/" + SET_PARAMS.Model_or_Measured +"/" + "General CubeSat Model/"
         path = "Data files/"+ GenericPath
 
     if SET_PARAMS.Low_Aerodynamic_Disturbance:
         GenericPath = "Low_Disturbance/" + GenericPath
         path = "Data files/"+ GenericPath
+
+    if SET_PARAMS.PredictionBuffer:
+        GenericPath += SET_PARAMS.RecoveryBuffer + "/"
+        path = path + SET_PARAMS.RecoveryBuffer + "/"
+
+    if SET_PARAMS.prefectNoFailurePrediction:
+        GenericPath += "PerfectNoFailurePrediction/"
+        path = path + "PerfectNoFailurePrediction/"
 
     path_to_folder = Path(path)
     path_to_folder.mkdir(parents = True, exist_ok=True)
@@ -313,6 +327,9 @@ def main(args):
         SET_PARAMS.kalmanSensors = params["kalmanSensors"]
         SET_PARAMS.printBreak = params["printBreak"]
         SET_PARAMS.PredictionBuffer = params["PredictionBuffer"]
+        SET_PARAMS.RecoveryBuffer = params["RecoveryBuffer"] 
+        SET_PARAMS.prefectNoFailurePrediction = params["prefectNoFailurePrediction"]
+        treeDepth = params["treeDepth"]
 
         SET_PARAMS.NumberOfIntegrationSteps = params["NumberOfIntegrationSteps"]
 
@@ -376,14 +393,22 @@ def main(args):
                                     SET_PARAMS.SensorIsolator = "None"
                                     SET_PARAMS.SensorRecoveror = "None"
 
-                                
-                                #! 2nd change to only run on faults and not "NONE"
-                                for i in range(numFaultStart, SET_PARAMS.Number_of_multiple_orbits+1):
-                                    numProcess += 1
-                                    print("Beginning of", extraction, prediction, isolation, recovery, i)
-                                    t = multiprocessing.Process(target=constellationMultiProcessing, args=(i, SET_PARAMS))
-                                    threads.append(t)
-                                    t.start()
+                                if prediction == "DecisionTrees" or prediction == "RandomForest":
+                                    for depth in treeDepth:
+                                        SET_PARAMS.treeDepth = depth
+                                        for i in range(numFaultStart, SET_PARAMS.Number_of_multiple_orbits+1):
+                                            numProcess += 1
+                                            print("Beginning of", extraction, prediction, isolation, recovery, i)
+                                            t = multiprocessing.Process(target=constellationMultiProcessing, args=(i, SET_PARAMS))
+                                            threads.append(t)
+                                            t.start()
+                                else:
+                                    for i in range(numFaultStart, SET_PARAMS.Number_of_multiple_orbits+1):
+                                        numProcess += 1
+                                        print("Beginning of", extraction, prediction, isolation, recovery, i)
+                                        t = multiprocessing.Process(target=constellationMultiProcessing, args=(i, SET_PARAMS))
+                                        threads.append(t)
+                                        t.start()
             
             for process in threads:     
                 process.join()
@@ -482,16 +507,27 @@ def main(args):
                                                 SET_PARAMS.SensorIsolator = "None"
                                                 SET_PARAMS.SensorRecoveror = "None"
 
-                                            
-                                            #! 2nd change to only run on faults and not "NONE"
-                                            for i in range(numFaultStart, SET_PARAMS.Number_of_multiple_orbits+1):
-                                                numProcess += 1
-                                                D = Single_Satellite(i, s_list, t_list, J_t, fr)
+                                            if prediction == "DecisionTrees" or prediction == "RandomForest":
+                                                for depth in treeDepth:
+                                                    SET_PARAMS.treeDepth = depth
+                                                    for i in range(numFaultStart, SET_PARAMS.Number_of_multiple_orbits+1):
+                                                        numProcess += 1
+                                                        D = Single_Satellite(i, s_list, t_list, J_t, fr)
 
-                                                t = multiprocessing.Process(target=loop, args=(i, D, SET_PARAMS))
-                                                threads.append(t)
-                                                t.start()
-                                                print("Beginning of", extraction, prediction, isolation, recovery, i)
+                                                        t = multiprocessing.Process(target=loop, args=(i, D, SET_PARAMS))
+                                                        threads.append(t)
+                                                        t.start()
+                                                        print("Beginning of", extraction, prediction, isolation, recovery, i)
+                                            #! 2nd change to only run on faults and not "NONE"
+                                            else:
+                                                for i in range(numFaultStart, SET_PARAMS.Number_of_multiple_orbits+1):
+                                                    numProcess += 1
+                                                    D = Single_Satellite(i, s_list, t_list, J_t, fr)
+
+                                                    t = multiprocessing.Process(target=loop, args=(i, D, SET_PARAMS))
+                                                    threads.append(t)
+                                                    t.start()
+                                                    print("Beginning of", extraction, prediction, isolation, recovery, i)
                         if includeNone:
                             temp = SET_PARAMS.SensorFDIR
                             SET_PARAMS.SensorFDIR = False
@@ -537,16 +573,27 @@ def main(args):
                                         SET_PARAMS.SensorRecoveror = "None"
 
                                     
-                                    #! 2nd change to only run on faults and not "NONE"
-                                    for i in range(numFaultStart, SET_PARAMS.Number_of_multiple_orbits+1):
-                                        numProcess += 1
-                                        D = Single_Satellite(i, s_list, t_list, J_t, fr)
+                                    if prediction == "DecisionTrees" or prediction == "RandomForest":
+                                        for depth in treeDepth:
+                                            SET_PARAMS.treeDepth = depth
+                                            for i in range(numFaultStart, SET_PARAMS.Number_of_multiple_orbits+1):
+                                                numProcess += 1
+                                                D = Single_Satellite(i, s_list, t_list, J_t, fr)
 
-                                        t = multiprocessing.Process(target=loop, args=(i, D, SET_PARAMS))
-                                        threads.append(t)
-                                        t.start()
-                                        print("Beginning of", extraction, prediction, isolation, recovery, i)
-            
+                                                t = multiprocessing.Process(target=loop, args=(i, D, SET_PARAMS))
+                                                threads.append(t)
+                                                t.start()
+                                                print("Beginning of", extraction, prediction, isolation, recovery, i)
+                                    else:
+                                        for i in range(numFaultStart, SET_PARAMS.Number_of_multiple_orbits+1):
+                                            numProcess += 1
+                                            D = Single_Satellite(i, s_list, t_list, J_t, fr)
+
+                                            t = multiprocessing.Process(target=loop, args=(i, D, SET_PARAMS))
+                                            threads.append(t)
+                                            t.start()
+                                            print("Beginning of", extraction, prediction, isolation, recovery, i)
+                
             if includeNone:
                 temp = SET_PARAMS.SensorFDIR
                 SET_PARAMS.SensorFDIR = False

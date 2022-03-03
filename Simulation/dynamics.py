@@ -24,6 +24,9 @@ Fault_names_to_num = SET_PARAMS.Fault_names
 
 lengthOfSensorsXBuffer = 1
 
+np.random.seed(0)
+random.seed(0)
+
 # The DCM must be calculated depending on the current quaternions
 def Transformation_matrix(q):
     q1, q2, q3, q4 = q
@@ -391,15 +394,30 @@ class Dynamics:
         sensorFailed = "None"
         Sensors_X, Sensors_Y, MovingAverageDict = self.SensorFeatureExtraction()
 
+        modelledSun = self.A_ORC_to_SBC_est @ self.sensor_vectors["Sun_Sensor"]["True ORC"]
+
+        modelledMagnetometer = self.A_ORC_to_SBC @ self.sensor_vectors["Magnetometer"]["True ORC"]
+
+        modelledEarth = self.A_ORC_to_SBC @ self.sensor_vectors["Earth_Sensor"]["True ORC"]
+
+        Sensors_X = np.concatenate([self.Orbit_Data["Sun"], modelledSun,
+                                        self.Orbit_Data["Magnetometer"], modelledMagnetometer, 
+                                        self.Orbit_Data["Earth"], modelledEarth])
+
         if SET_PARAMS.SensorFDIR:
             self.DefineIfFault()
 
             self.predictedFailureValue = self.SensorPredicting(Sensors_X)
 
-            if self.predictedFailureValue > 0.85:
+            if self.predictedFailureValue > 0.8:
                 self.predictedFailure = True
+                if self.predictedFailureValue != 1:
+                    self.bufferRecoveryMethod = True
+                else:
+                    self.bufferRecoveryMethod = False
             else:
                 self.predictedFailure = False
+                self.bufferRecoveryMethod = False
 
             # If a failure is predicted the cause of the failure must be determined
             sensorFailed = self.SensorIsolation(MovingAverageDict, Sensors_X, self.predictedFailure)
@@ -414,15 +432,9 @@ class Dynamics:
         return reset
 
     def SensorFeatureExtraction(self):
-        modelledSun = self.A_ORC_to_SBC_est @ self.sensor_vectors["Sun_Sensor"]["True ORC"]
-
-        modelledMagnetometer = self.A_ORC_to_SBC @ self.sensor_vectors["Magnetometer"]["True ORC"]
-
-        modelledEarth = self.A_ORC_to_SBC @ self.sensor_vectors["Earth_Sensor"]["True ORC"]
-
-        Sensors_X = np.concatenate([self.Orbit_Data["Sun"], modelledSun,
-                                        self.Orbit_Data["Magnetometer"], modelledMagnetometer, 
-                                        self.Orbit_Data["Earth"], modelledEarth])
+        Sensors_X = np.concatenate([self.Orbit_Data["Sun"],
+                                        self.Orbit_Data["Magnetometer"], 
+                                        self.Orbit_Data["Earth"]])
         Sensors_Y = np.concatenate([self.Orbit_Data["Wheel Control Torques"], 
                                 self.Orbit_Data["Magnetic Control Torques"]])
 
@@ -446,13 +458,16 @@ class Dynamics:
     #################################################
     def SensorPredicting(self, Sensors_X):
         predictedFailure = False
+
+        if SET_PARAMS.prefectNoFailurePrediction and self.implementedFault == "None":
+            predictedFailure = False
         
-        if SET_PARAMS.SensorPredictor == "Constellation-DecisionTrees":
+        elif SET_PARAMS.SensorPredictor == "Constellation-DecisionTrees":
             predictedFailure = self.DecisionTreeDMDBinary.Predict(self.constellationData)
 
         elif SET_PARAMS.SensorPredictor == "DecisionTrees":
-            Sensors_X = np.array([np.concatenate([Sensors_X, self.MovingAverage])])
-            Sensors_X = np.array([np.concatenate([Sensors_X, self.Orbit_Data["Angular momentum of wheels"]])])
+            Sensors_X = np.array([np.concatenate([Sensors_X, self.Orbit_Data["Angular momentum of wheels"], self.MovingAverage])])
+            # Sensors_X = np.array([np.concatenate([Sensors_X, self.Orbit_Data["Angular momentum of wheels"]])])
             Sensors_X = Sensors_X.reshape(1, Sensors_X.shape[1])
             predictedFailure = self.DecisionTreeDMDBinary.Predict(Sensors_X)
             # self.SensorsXBuffer.append(self.Orbit_Data["Sun"])
@@ -461,7 +476,8 @@ class Dynamics:
             # predictedFailure = self.DecisionTreeDMDBinary.Predict(X)
 
         elif SET_PARAMS.SensorPredictor == "RandomForest":
-            Sensors_X = np.array([np.concatenate([Sensors_X, self.Orbit_Data["Angular momentum of wheels"]])])
+            Sensors_X = np.array([np.concatenate([Sensors_X, self.Orbit_Data["Angular momentum of wheels"], self.MovingAverage])])
+            # Sensors_X = np.array([np.concatenate([Sensors_X, self.Orbit_Data["Angular momentum of wheels"]])])
             Sensors_X = Sensors_X.reshape(1, Sensors_X.shape[1])
             predictedFailure = self.RandomForestDMDBinary.Predict(Sensors_X)
 
@@ -479,11 +495,11 @@ class Dynamics:
             predictedFailure = True if random.uniform(0,1) < 0.5 else False
 
         elif isinstance(SET_PARAMS.SensorPredictor, float):
+            randomValue = random.uniform(0,1)
             if self.implementedFault != "None":
-                randomValue = random.uniform(0,1)
                 predictedFailure = True if randomValue < SET_PARAMS.SensorPredictor/100 else False
             else:
-                predictedFailure = False
+                predictedFailure = False if randomValue < SET_PARAMS.SensorPredictor/100 else True
 
         elif SET_PARAMS.SensorPredictor == "Std":
             self.SensorsXBuffer.append(Sensors_X)
@@ -592,9 +608,6 @@ class Dynamics:
 
             elif SET_PARAMS.SensorIsolator == "OnlySun":
                 FailedSensor = "Sun"
-
-            elif isinstance(SET_PARAMS.SensorIsolator, int):
-                FailedSensor = "Sun"
     
         else:
             FailedSensor = "None"
@@ -610,9 +623,26 @@ class Dynamics:
         sensors_kalman = SET_PARAMS.kalmanSensors.copy()
         # The EKF method of recovery resets the kalman filter 
         # if the predictedFailed sensor changes
+        if self.bufferRecoveryMethod:
+            if SET_PARAMS.RecoveryBuffer == "EKF-top2":  
+                for _ in range(len(sensors_kalman)-2):
+                    Error = 0
+                    for sensor in sensors_kalman:
+                        v = self.sensor_vectors[sensor]
+                        v_est_k = v["Estimated SBC"]
+                        v_measured_k = v["Noise SBC"]
+                        e = np.square((v_est_k - v_measured_k)**2).mean()
+
+                        if e > Error:
+                            Error = e
+                            failedSensor = sensor
+
+                    sensors_kalman.pop(sensors_kalman.index(failedSensor))
+                
+                self.sensors_kalman = sensors_kalman
 
         # Always use the top3 sensors (the sensors with the smalles error between the previous estimated SBC and the measured SBC)
-        if SET_PARAMS.SensorRecoveror == "EKF-top3":
+        elif SET_PARAMS.SensorRecoveror == "EKF-top3":
             Error = 0
 
             for _ in range(len(sensors_kalman)-3):
@@ -675,7 +705,7 @@ class Dynamics:
                     sensors_kalman.pop(sensors_kalman.index(SET_PARAMS.availableSensors[failedSensor]))
                 
                 if SET_PARAMS.availableSensors[failedSensor] == "Sun_Sensor":
-                    self.R_k = np.eye(3)*1e-2 # Changed from 1e-3 which was good
+                    self.R_k = SET_PARAMS.R_k # Changed from 1e-3 which was good
 
             if failedSensor != self.prevFailedSensor:
                 reset = True
@@ -944,10 +974,10 @@ class Single_Satellite(Dynamics):
         self.MovingAverage = 0
         self.predictedFailureValue = 0
         self.sensors_kalman = SET_PARAMS.kalmanSensors #Sun_Sensor, Earth_Sensor, Magnetometer
-        self.DecisionTreeDMDBinary = FaultDetection.DecisionTreePredict(path = SET_PARAMS.pathHyperParameters + 'PhysicsEnabledDMDMethod/DecisionTreesPhysicsEnabledDMDBinaryClass.sav')
-        self.DecisionTreeDMDMulti = FaultDetection.DecisionTreePredict(path = SET_PARAMS.pathHyperParameters + 'PhysicsEnabledDMDMethod/DecisionTreesPhysicsEnabledDMDMultiClass.sav')
-        self.RandomForestDMDBinary = FaultDetection.DecisionTreePredict(path = SET_PARAMS.pathHyperParameters + 'PhysicsEnabledDMDMethod/RandomForestPhysicsEnabledDMDBinaryClass.sav')
-        self.RandomForestDMDMulti = FaultDetection.DecisionTreePredict(path = SET_PARAMS.pathHyperParameters + 'PhysicsEnabledDMDMethod/RandomForestPhysicsEnabledDMDMultiClass.sav')
+        self.DecisionTreeDMDBinary = FaultDetection.DecisionTreePredict(path = SET_PARAMS.pathHyperParameters + 'PhysicsEnabledDMDMethod/DecisionTreesPhysicsEnabledDMDBinaryClass' + str(SET_PARAMS.treeDepth) + '.sav')
+        self.DecisionTreeDMDMulti = None # FaultDetection.DecisionTreePredict(path = SET_PARAMS.pathHyperParameters + 'PhysicsEnabledDMDMethod/DecisionTreesPhysicsEnabledDMDMultiClass' + str(SET_PARAMS.treeDepth) + '.sav')
+        self.RandomForestDMDBinary = FaultDetection.DecisionTreePredict(path = SET_PARAMS.pathHyperParameters + 'PhysicsEnabledDMDMethod/RandomForestPhysicsEnabledDMDBinaryClass' + str(SET_PARAMS.treeDepth) + '.sav')
+        self.RandomForestDMDMulti = None # FaultDetection.DecisionTreePredict(path = SET_PARAMS.pathHyperParameters + 'PhysicsEnabledDMDMethod/RandomForestPhysicsEnabledDMDMultiClass' + str(SET_PARAMS.treeDepth) + '.sav')
         self.IsolationForest = FaultDetection.IsolationForest(path = 'models/IsolationForest.sav')
         # self.NN_Basic = load_model("models/ANN")
         self.stateBuffer = collections.deque(maxlen = SET_PARAMS.stateBufferLength)
@@ -1063,7 +1093,11 @@ class Single_Satellite(Dynamics):
             "Sun_Error_z",
             "Magnetometer_Error_x",
             "Magnetometer_Error_y",
-            "Magnetometer_Error_z"
+            "Magnetometer_Error_z",
+            "False Positives",
+            "True Positives",
+            "False Negatives",
+            "True Negatives"
             ]
         ####################################################
         #  THE ORBIT_DATA DICTIONARY IS USED TO STORE ALL  #
@@ -1203,6 +1237,11 @@ class Single_Satellite(Dynamics):
         self.Orbit_Data["Current fault numeric"] = temp
         self.Orbit_Data["Current fault binary"] = 0 if fault == "None" else 1
 
+        FP = 0 if self.predictedFailure == 1 and self.Orbit_Data["Current fault binary"] == 1 else 1
+        TP = 1 if self.predictedFailure == 1 and self.Orbit_Data["Current fault binary"] == 1 else 0
+        FN = 0 if self.predictedFailure == 0 and self.Orbit_Data["Current fault binary"] == 0 else 1
+        TN = 1 if self.predictedFailure == 0 and self.Orbit_Data["Current fault binary"] == 0 else 0
+
         if self.predictedFailure == self.Orbit_Data["Current fault binary"]:
             self.Orbit_Data["Prediction Accuracy"] = 1
         else:
@@ -1338,7 +1377,11 @@ class Single_Satellite(Dynamics):
             Sun_Error[2],
             Magnetometer_Error[0],
             Magnetometer_Error[1],
-            Magnetometer_Error[2]
+            Magnetometer_Error[2],
+            FP,
+            TP,
+            FN,
+            TN
             ]
 
 

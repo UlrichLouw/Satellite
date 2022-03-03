@@ -16,7 +16,7 @@ def Binary_split(classified_data):
 
     return classified_data
 
-def Dataset_order(index, binary_set, buffer, categorical_num, controlInputx = True, ControlInput = False, onlySensors = False, use_previously_saved_models = False, columns_compare = None, columns_compare_to = None, constellation = False, onlyCurrentSatellite = True, multi_class = False, MovingAverage = True, includeAngularMomemntumSensors = False):
+def Dataset_order(index, binary_set, buffer, categorical_num, controlInputx = True, ControlInput = False, onlySensors = False, use_previously_saved_models = False, columns_compare = None, columns_compare_to = None, constellation = False, onlyCurrentSatellite = True, multi_class = False, MovingAverage = True, includeAngularMomemntumSensors = False, includeModelled = False):
     # If multi-class and constellation, then the output should be a list of which satellite has failed
     X_buffer = []
     Y_buffer = []  
@@ -148,6 +148,8 @@ def Dataset_order(index, binary_set, buffer, categorical_num, controlInputx = Tr
         X = Orbit[columns_compare].to_numpy()
         Y = Orbit[columns_compare_to].to_numpy()
     else:
+        if not includeModelled:
+            Orbit = Orbit.loc[:, ~Orbit.columns.str.contains('modelled')]
         if onlySun:
             Xdf = Orbit.loc[:,Orbit.columns.str.contains('Sun')]
             X = Xdf.to_numpy() # Ignore the angular sensor

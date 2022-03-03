@@ -463,6 +463,8 @@ class SET_PARAMS:
 
     kalmanSensors = ["Magnetometer", "Earth_Sensor", "Sun_Sensor", "Star_tracker"]
 
+    treeDepth = 10
+
 
 Min_high_noise = 5.0
 Max_high_noise = 10.0

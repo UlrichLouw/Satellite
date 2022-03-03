@@ -128,3 +128,5 @@ def IsoForest(path, depth, multi_class = False, constellation = False, lowPredic
 
     # number_of_errors = np.sum(Y % 2 == 1)
     # print(np.sum(Y[ss1[:number_of_errors]])/number_of_errors, index)
+
+    

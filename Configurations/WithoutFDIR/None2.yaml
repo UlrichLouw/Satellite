@@ -25,7 +25,8 @@ kalmanSensors: ["Magnetometer", "Earth_Sensor", "Sun_Sensor"] #!, "Sun_Sensor"]"
 printBreak: False
 NumberOfIntegrationSteps: 10
 includeNone: False
-PredictionBuffer: True
+PredictionBuffer: False
+RecoveryBuffer: "EKF-top2"
 
 featureExtractionMethods: ["DMD"]
 predictionMethods: ["None"]
